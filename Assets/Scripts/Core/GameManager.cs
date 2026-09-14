@@ -87,7 +87,8 @@ namespace SmashGame
             Physics.defaultSolverIterations = 16;
             Physics.defaultSolverVelocityIterations = 8;
             Physics.sleepThreshold = 0.05f;
-            // 겹친 블록을 떼어내는 복원 속도를 낮춰, 밀린 블록이 이웃에서 튕겨 되돌아오는 현상을 줄인다
+            // 겹친 블록을 떼어내는 복원 속도. 높이면(기본 10) 벽 속으로 밀린 블록이 이웃에 의해 제자리로 되밀려 연사 누적이 사라진다.
+            // 2에서는 밀림이 누적되고, 접촉한 블록끼리는 밀기가 끝나면 정상적으로 떨어진다(측정 확인).
             Physics.defaultMaxDepenetrationVelocity = 2f;
         }
 

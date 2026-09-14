@@ -122,7 +122,7 @@ namespace SmashGame
             Vector3 dir = lastVelocity.sqrMagnitude > 0.01f ? lastVelocity.normalized : transform.forward;
             Vector3 point = c.GetContact(0).point;
             float impulse = BaseImpulse * stats.power * Mathf.Sqrt(stats.mass);
-            float radius = 0.6f * stats.size;
+            float radius = 0.4f * stats.size;   // 튐 반경: 크기 스탯 1에서는 직접 맞은 블록 위주, 이웃은 약하게 (이웃까지 같이 밀리면 한 덩어리처럼 보인다)
             int dmg = Mathf.Max(1, Mathf.CeilToInt(stats.power - 0.01f));
 
             // 되튕김 계산에 쓸 값은 블록이 부서지기(Hit) 전에 읽어 둔다
@@ -148,6 +148,7 @@ namespace SmashGame
                 if (b.IsReinforced && b != block) continue; // 강화 블록은 직접 맞혀야만 반응
                 float dist = Vector3.Distance(point, h.ClosestPoint(point));
                 float falloff = Mathf.Clamp01(1f - dist / radius);
+                falloff *= falloff;   // 거리에 따라 급하게 줄어들게 (이웃은 접촉을 통해서만 밀리는 게 자연스럽다)
                 if (b == block) { if (b.IsReinforced) continue; falloff = 1f; }
                 float mult = (perfect && b == block ? 1.5f : 1f) * (b == block ? combo : 1f);
                 Vector3 J = (dir + Vector3.up * 0.08f).normalized * impulse * falloff * mult;
