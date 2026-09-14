@@ -104,6 +104,7 @@ namespace SmashGame
             top.transform.localScale = square ? new Vector3(radius * 2f, 0.16f, radius * 1.4f) : new Vector3(radius * 2f, 0.08f, radius * 2f);
             top.GetComponent<Renderer>().material = Materials.Get(p.pedestal, true);
             FlattenCollider(top, false);
+            RoundedMesh.Apply(top, 0.03f);
             PedestalColliders.Add(top.GetComponent<Collider>());
 
             var col = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -120,6 +121,7 @@ namespace SmashGame
             foot.transform.position = new Vector3(center.x, -1.3f, center.z);
             foot.transform.localScale = new Vector3(1.1f, 0.2f, 1.1f);
             foot.GetComponent<Renderer>().material = Materials.Get(p.pedestal);
+            RoundedMesh.Apply(foot, 0.05f);
         }
 
         /// <summary>Unity의 Cylinder 프리미티브는 캡슐 콜라이더라 윗면이 둥글다. 메시 콜라이더로 바꿔 평평하게 만든다.</summary>
@@ -134,6 +136,8 @@ namespace SmashGame
 
         // ---------------- 블록 생성 ----------------
 
+        public const float BlockBevel = 0.035f; // 블록 모서리 라운딩 반지름(월드 단위)
+
         static Block MakeBlock(Transform root, PrimitiveType prim, BlockKind kind, Vector3 pos, Vector3 scale, Quaternion rot, Color color, float mass, List<Block> list)
         {
             var go = GameObject.CreatePrimitive(prim);
@@ -143,6 +147,7 @@ namespace SmashGame
             go.transform.rotation = rot;
             go.transform.localScale = scale;
             if (prim == PrimitiveType.Cylinder) FlattenCollider(go, true); // 캡슐 → 원기둥 (윗면이 평평해야 쌓인다)
+            RoundedMesh.Apply(go, BlockBevel); // 보이는 메시만 둥근 모서리로 (콜라이더는 각진 원본 유지)
             var b = go.AddComponent<Block>();
             b.fallY = PedestalTop - 1.0f;
             b.Setup(kind, color, mass, 1);

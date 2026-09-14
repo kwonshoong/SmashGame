@@ -105,18 +105,67 @@ namespace SmashGame
             mainCamera.fieldOfView = 60f;
             mainCamera.nearClipPlane = 0.1f;
             mainCamera.farClipPlane = 200f;
-            if (FindFirstObjectByType<Light>() == null)
+            SetupLighting();
+        }
+
+        /// <summary>
+        /// 캐주얼 3D 특유의 부드러운 조명: 따뜻한 주광 + 약한 그림자, 하늘색 앰비언트(Trilight), 반대편 차가운 보조광.
+        /// 씬에 이미 Directional Light가 있으면 그것을 주광으로 재사용한다.
+        /// </summary>
+        void SetupLighting()
+        {
+            Light sun = null;
+            foreach (var l in FindObjectsByType<Light>(FindObjectsSortMode.None))
+                if (l.type == LightType.Directional && l.name != "FillLight") { sun = l; break; }
+            if (sun == null)
             {
                 var lgo = new GameObject("Sun");
-                var l = lgo.AddComponent<Light>();
-                l.type = LightType.Directional;
-                l.intensity = 1.1f;
-                l.color = new Color(1f, 0.97f, 0.9f);
-                lgo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-                l.shadows = LightShadows.Soft;
+                sun = lgo.AddComponent<Light>();
+                sun.type = LightType.Directional;
             }
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.55f, 0.6f, 0.7f);
+            sun.intensity = 1.05f;
+            sun.color = new Color(1f, 0.96f, 0.88f);
+            sun.transform.rotation = Quaternion.Euler(48f, -28f, 0f);
+            sun.shadows = LightShadows.Soft;
+            sun.shadowStrength = 0.55f;   // 그림자를 연하게: 레퍼런스처럼 부드러운 인상
+            sun.shadowBias = 0.03f;
+            sun.shadowNormalBias = 0.5f;
+
+            if (GameObject.Find("FillLight") == null)
+            {
+                var fgo = new GameObject("FillLight");
+                var fill = fgo.AddComponent<Light>();
+                fill.type = LightType.Directional;
+                fill.intensity = 0.35f;
+                fill.color = new Color(0.75f, 0.85f, 1f);   // 하늘빛 보조광: 그림자 쪽 면이 죽지 않게
+                fill.shadows = LightShadows.None;
+                fgo.transform.rotation = Quaternion.Euler(25f, 150f, 0f);
+            }
+
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.62f, 0.72f, 0.9f);
+            RenderSettings.ambientEquatorColor = new Color(0.6f, 0.62f, 0.66f);
+            RenderSettings.ambientGroundColor = new Color(0.42f, 0.4f, 0.38f);
+            RenderSettings.ambientIntensity = 1f;
+
+            // 반사 환경: 카메라는 단색으로 지우지만, 광택 재질이 비출 하늘은 프로시저럴 스카이박스로 준다
+            var skyShader = Shader.Find("Skybox/Procedural");
+            if (skyShader != null)
+            {
+                var sky = new Material(skyShader);
+                sky.SetFloat("_Exposure", 1.15f);
+                sky.SetFloat("_AtmosphereThickness", 0.9f);
+                sky.SetColor("_SkyTint", new Color(0.55f, 0.72f, 1f));
+                sky.SetColor("_GroundColor", new Color(0.62f, 0.72f, 0.5f));
+                RenderSettings.skybox = sky;
+                RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Skybox;
+                RenderSettings.defaultReflectionResolution = 128;
+                RenderSettings.reflectionIntensity = 0.7f;
+                DynamicGI.UpdateEnvironment();
+            }
+            QualitySettings.shadowResolution = ShadowResolution.High;
+            QualitySettings.shadowDistance = 40f;
+            QualitySettings.antiAliasing = 4;
         }
 
         // ---------------- 상태 전환 ----------------

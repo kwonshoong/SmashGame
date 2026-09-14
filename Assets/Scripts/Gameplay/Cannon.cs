@@ -44,6 +44,7 @@ namespace SmashGame
             baseGo.transform.localPosition = new Vector3(0, -0.35f, 0);
             baseGo.transform.localScale = new Vector3(1.4f, 0.5f, 1.2f);
             baseGo.GetComponent<Renderer>().material = Materials.Get(new Color(0.55f, 0.2f, 0.6f));
+            RoundedMesh.Apply(baseGo, 0.07f);
 
             var wheelL = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             DestroyImmediate(wheelL.GetComponent<Collider>());
@@ -52,6 +53,7 @@ namespace SmashGame
             wheelL.transform.localRotation = Quaternion.Euler(0, 0, 90);
             wheelL.transform.localScale = new Vector3(0.7f, 0.12f, 0.7f);
             wheelL.GetComponent<Renderer>().material = Materials.Get(new Color(0.2f, 0.45f, 0.9f));
+            RoundedMesh.Apply(wheelL, 0.03f);
             var wheelR = Instantiate(wheelL, transform);
             wheelR.transform.localPosition = new Vector3(0.85f, -0.45f, 0);
 
@@ -68,6 +70,7 @@ namespace SmashGame
             tube.transform.localRotation = Quaternion.Euler(90, 0, 0);
             tube.transform.localScale = new Vector3(0.6f, 0.75f, 0.6f);
             tube.GetComponent<Renderer>().material = Materials.Get(new Color(0.8f, 0.15f, 0.2f), true);
+            RoundedMesh.Apply(tube, 0.06f);
 
             var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             DestroyImmediate(ring.GetComponent<Collider>());
@@ -76,6 +79,7 @@ namespace SmashGame
             ring.transform.localRotation = Quaternion.Euler(90, 0, 0);
             ring.transform.localScale = new Vector3(0.7f, 0.08f, 0.7f);
             ring.GetComponent<Renderer>().material = Materials.Get(new Color(1f, 0.8f, 0.2f), false, true);
+            RoundedMesh.Apply(ring, 0.025f);
 
             muzzle = new GameObject("Muzzle").transform;
             muzzle.SetParent(barrel, false);

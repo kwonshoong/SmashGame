@@ -201,8 +201,41 @@ namespace SmashGame
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smooth);
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smooth);
             if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metal);
+            if (kind == BlockKind.Ice) MakeIceLook(m, c);
+            else if (kind == BlockKind.Candy || kind == BlockKind.Crown)
+            {
+                // 사탕·왕관: 아주 약한 자체 발광으로 채도를 살린다 (블룸 없이도 "빛나는" 느낌)
+                if (m.HasProperty("_EmissionColor")) { m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", c * 0.08f); }
+            }
             blockCache[key] = m;
             return m;
+        }
+
+        /// <summary>얼음: 반투명 + 은은한 푸른 발광. Standard 셰이더의 Fade 모드를 코드로 설정한다.</summary>
+        static void MakeIceLook(Material m, Color tint)
+        {
+            var col = new Color(1f, 1f, 1f, 0.8f);
+            m.color = col;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", col);
+            if (m.HasProperty("_Mode"))
+            {
+                m.SetFloat("_Mode", 2f); // Fade
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 1);   // 겹친 얼음끼리 정렬 깨짐 방지: 깊이는 쓴다
+                m.DisableKeyword("_ALPHATEST_ON"); m.EnableKeyword("_ALPHABLEND_ON"); m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            }
+            else if (m.HasProperty("_Surface"))
+            {
+                m.SetFloat("_Surface", 1f); m.SetFloat("_Blend", 0f);
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 1);
+                m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            }
+            if (m.HasProperty("_EmissionColor")) { m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", new Color(0.35f, 0.6f, 0.9f) * 0.12f); }
         }
 
         public static Material Get(Color c, bool glossy = false, bool metallic = false)

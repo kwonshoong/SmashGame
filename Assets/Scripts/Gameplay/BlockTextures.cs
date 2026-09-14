@@ -9,7 +9,7 @@ namespace SmashGame
     /// </summary>
     public static class BlockTextures
     {
-        const int Size = 256;
+        const int Size = 512;
 
         struct Mask { public float[] val; public float[] mix; } // val: 밝기, mix: 틴트 적용 비율(0=흰색 유지, 1=틴트)
         static readonly Dictionary<BlockKind, Mask> masks = new();
@@ -21,13 +21,24 @@ namespace SmashGame
             long key = ((long)kind << 32) | ((long)Mathf.RoundToInt(tint.r * 255) << 16) | ((long)Mathf.RoundToInt(tint.g * 255) << 8) | (long)Mathf.RoundToInt(tint.b * 255);
             if (cache.TryGetValue(key, out var t) && t != null) return t;
             var m = GetMask(kind);
+            bool wrap = WrapsAround(kind);
             t = new Texture2D(Size, Size, TextureFormat.RGBA32, true);
             var px = new Color[Size * Size];
-            for (int i = 0; i < px.Length; i++)
+            for (int y = 0; y < Size; y++)
             {
-                float v = m.val[i];
-                Color c = Color.Lerp(Color.white, tint, m.mix[i]);
-                px[i] = new Color(Mathf.Clamp01(c.r * v), Mathf.Clamp01(c.g * v), Mathf.Clamp01(c.b * v), 1f);
+                float vv = y / (float)(Size - 1);
+                for (int x = 0; x < Size; x++)
+                {
+                    int i = y * Size + x;
+                    float uu = x / (float)(Size - 1);
+                    // 구운 AO: 면 가장자리·모서리를 살짝 어둡게, 중앙은 살짝 밝게 (둥근 메시와 합쳐져 부드러운 입체감)
+                    float edge = wrap ? Mathf.Min(vv, 1f - vv) : EdgeDist(uu, vv);
+                    float ao = 1f - 0.10f * (1f - Mathf.SmoothStep(0f, 0.22f, edge));
+                    float center = 1f + 0.04f * Mathf.SmoothStep(0.15f, 0.45f, edge);
+                    float v = m.val[i] * ao * center;
+                    Color c = Color.Lerp(Color.white, tint, m.mix[i]);
+                    px[i] = new Color(Mathf.Clamp01(c.r * v), Mathf.Clamp01(c.g * v), Mathf.Clamp01(c.b * v), 1f);
+                }
             }
             t.SetPixels(px); t.Apply();
             t.name = "Tex_" + kind;
@@ -37,6 +48,10 @@ namespace SmashGame
             cache[key] = t;
             return t;
         }
+
+        /// <summary>원통형 블록(옆면 텍스처가 u 방향으로 이어짐)</summary>
+        static bool WrapsAround(BlockKind kind)
+            => kind == BlockKind.Cylinder || kind == BlockKind.Candy || kind == BlockKind.Log || kind == BlockKind.Stone;
 
         static Mask GetMask(BlockKind kind)
         {
@@ -62,12 +77,12 @@ namespace SmashGame
         /// <summary>소재별 표면 질감 (smoothness, metallic)</summary>
         public static (float smooth, float metal) Surface(BlockKind kind) => kind switch
         {
-            BlockKind.Ice => (0.92f, 0.05f),
-            BlockKind.Candy => (0.85f, 0f),
-            BlockKind.Cylinder => (0.7f, 0f),
-            BlockKind.Cube => (0.6f, 0f),
-            BlockKind.Crown => (0.75f, 0.5f),
-            BlockKind.Stone => (0.35f, 0f),
+            BlockKind.Ice => (0.95f, 0.1f),
+            BlockKind.Candy => (0.9f, 0f),
+            BlockKind.Cylinder => (0.78f, 0f),
+            BlockKind.Cube => (0.72f, 0f),
+            BlockKind.Crown => (0.8f, 0.55f),
+            BlockKind.Stone => (0.28f, 0f),
             BlockKind.Crate => (0.2f, 0f),
             BlockKind.Log => (0.15f, 0f),
             BlockKind.Plank => (0.3f, 0f),
@@ -92,11 +107,12 @@ namespace SmashGame
                 {
                     float u = x / (float)(Size - 1), v = y / (float)(Size - 1);
                     float edge = EdgeDist(u, v);
-                    float bevel = Mathf.SmoothStep(0.55f, 1f, Mathf.Clamp01(edge / 0.09f));
-                    float inner = edge > 0.16f ? 1.06f : 1f;
-                    float shine = 1f + 0.08f * (v - 0.5f);
-                    float line = (edge > 0.15f && edge < 0.165f) ? 0.85f : 1f;
-                    m.val[y * Size + x] = 0.95f * bevel * inner * shine * line;
+                    // 메시 자체가 둥글어졌으므로 텍스처의 베벨은 얇고 은은하게, 안쪽 패널은 살짝 밝게
+                    float bevel = Mathf.SmoothStep(0.86f, 1f, Mathf.Clamp01(edge / 0.05f));
+                    float inner = 1f + 0.05f * Mathf.SmoothStep(0.14f, 0.18f, edge);
+                    float shine = 1f + 0.06f * (v - 0.5f);
+                    float line = 1f - 0.10f * Mathf.Exp(-Mathf.Pow((edge - 0.145f) / 0.006f, 2f));
+                    m.val[y * Size + x] = 0.97f * bevel * inner * shine * line;
                 }
         }
 
@@ -163,8 +179,9 @@ namespace SmashGame
                     float n = Noise(u, v, 3f, 9);
                     float crack = Mathf.Abs(n - 0.5f) < 0.006f ? 0.7f : 1f;
                     float rim = Mathf.SmoothStep(0.6f, 1f, Mathf.Clamp01(EdgeDist(u, v) / 0.06f));
-                    m.val[i] = (0.9f + 0.12f * frost) * crack * (0.85f + 0.15f * rim);
-                    m.mix[i] = 0.9f - 0.45f * frost;   // 서리 낀 부분은 더 하얗게
+                    float sparkle = Noise(u, v, 60f, 17) > 0.86f ? 1.08f : 1f;   // 반짝이는 결정 점
+                    m.val[i] = (0.86f + 0.14f * frost) * crack * (0.9f + 0.1f * rim) * sparkle;
+                    m.mix[i] = 0.5f - 0.3f * frost;    // 틴트는 절반만: 얼음은 흰빛이 도는 연한 색이어야 조명 음영이 보인다
                 }
         }
 
