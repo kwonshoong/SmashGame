@@ -11,8 +11,8 @@ namespace SmashGame
         // ---------- 물리 감각 ----------
         public const float GravityScale = 2.6f;   // 낙하 속도감 (1 = 실제 중력). 2~3 사이에서 튜닝
         public const float BallSpeed = 30f;       // 발사 속도. 낮을수록 포물선이 커짐
-        public const float BlockFriction = 0.3f;  // 블록 운동 마찰. 낮을수록 밀리면 잘 미끄러져 떨어짐
-        public const float BlockStaticFriction = 0.7f; // 블록 정지 마찰. 높을수록 쌓인 상태에서 저절로 밀리지 않음
+        public const float BlockFriction = 0.22f; // 블록 운동 마찰. 낮을수록 밀리면 잘 미끄러져 떨어짐
+        public const float BlockStaticFriction = 0.35f; // 블록 정지 마찰. 0.7이면 살짝 들썩인 블록이 다시 닿는 순간 죽은 듯 멈춘다(플레이 로그로 확인) — 구조물 안정은 SettleAndSleep이 맡는다
         public const float BallImpulse = 13f;     // 기본 충격량 (파괴력 100% 기준). 공 자체의 물리 충돌은 거의 0이라 이 값이 밀림의 전부
 
         // ---------- 공 스탯 ----------
@@ -81,8 +81,8 @@ namespace SmashGame
             if (level <= 5) n += 6;
             return n;
         }
-        /// <summary>레벨이 오를수록 블록이 조금씩 무거워진다 (Lv1 1.0 → Lv50 1.5 → Lv61+ 1.6 상한). 그 이상은 강화·접착 블록이 난이도를 맡는다.</summary>
-        public static float BlockMassScale(int level) => Mathf.Min(1.6f, 1f + Mathf.Max(0, level - 1) * 0.01f);
+        /// <summary>레벨이 오를수록 블록이 조금씩 무거워진다 (Lv1 1.0 → Lv51+ 1.4 상한). 무거운 블록이 위에 얹히면 마찰로 아래 블록이 굳으므로 상한을 낮게 둔다.</summary>
+        public static float BlockMassScale(int level) => Mathf.Min(1.4f, 1f + Mathf.Max(0, level - 1) * 0.008f);
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>
         public static bool HasObstacle(int level) => IsHardLevel(level) || (level >= 4 && level % 5 == 2);
 

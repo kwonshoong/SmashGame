@@ -286,7 +286,11 @@ namespace SmashGame
             // 강화 블록 — 레벨 61부터, 돌·상자·판자에만, 20% 이하
             if (level >= Balance.ReinforcedFromLevel)
             {
-                var cand = info.blocks.FindAll(b => b.kind == BlockKind.Stone || b.kind == BlockKind.Crate || b.kind == BlockKind.Plank || b.kind == BlockKind.Cube);
+                // 강화 블록은 바닥 줄(받침대에 직접 닿는 블록)에만 둔다. 위에 얹히면 무게+마찰로 아래 블록을 눌러
+                // 구조물 전체가 붙은 듯 굳어 버린다(플레이 로그로 확인). 바닥에 있으면 자기 자리만 지키는 "닻" 역할.
+                var cand = info.blocks.FindAll(b =>
+                    (b.kind == BlockKind.Stone || b.kind == BlockKind.Crate || b.kind == BlockKind.Cube)
+                    && b.GetComponent<Renderer>().bounds.min.y < PedestalTop + 0.12f);
                 int max = Mathf.FloorToInt(info.blocks.Count * Balance.ReinforcedRatioCap);
                 int n = Mathf.Min(max, 1 + (level - Balance.ReinforcedFromLevel) / 20);
                 for (int i = 0; i < n && cand.Count > 0; i++)

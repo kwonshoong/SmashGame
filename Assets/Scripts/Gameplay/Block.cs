@@ -18,7 +18,7 @@ namespace SmashGame
         public LevelController controller;
         public float fallY = 1.0f;
 
-        public const float ReinforcedMassMult = 6f;
+        public const float ReinforcedMassMult = 2f;   // 6이면 강화 블록(최대 79kg)이 닿아 있는 일반 블록을 마찰로 눌러 구조물 전체가 붙은 듯 굳는다(플레이 로그로 확인)
         public bool IsReinforced => hp > 1;
         float baseMass = 1f;
 
@@ -172,8 +172,8 @@ namespace SmashGame
         {
             if (pushSteps <= 0 || rb == null || removed) return;
             Vector3 j = pushJ / pushSteps;
-            rb.AddForce(j * 0.75f, ForceMode.Impulse);                 // 대부분은 질량중심으로: 뒤로 미는 힘
-            rb.AddForceAtPosition(j * 0.25f, pushPoint, ForceMode.Impulse); // 일부만 접점에: 약간의 회전감
+            rb.AddForce(j * 0.9f, ForceMode.Impulse);                  // 대부분은 질량중심으로: 뒤로 미는 힘
+            rb.AddForceAtPosition(j * 0.1f, pushPoint, ForceMode.Impulse); // 접점 비율이 크면 긴 블록이 미끄러지는 대신 들썩이며 에너지를 잃는다
             pushJ -= j;
             pushSteps--;
         }
