@@ -72,23 +72,6 @@ namespace SmashGame
             // 하늘 그림판·질감 바닥·나무/바위 장식 (전부 콜라이더 없음)
             BackgroundArt.Build(root, theme);
 
-            // 멀리 보이는 "성" 실루엣 (장식)
-            var castle = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            castle.name = "CastleDeco";
-            Object.DestroyImmediate(castle.GetComponent<Collider>());
-            castle.transform.SetParent(root);
-            castle.transform.position = new Vector3(0f, 1.4f, 36f);
-            castle.transform.localScale = new Vector3(10f, 6f, 3f);
-            castle.GetComponent<Renderer>().material = Materials.Get(theme == Theme.Desert ? new Color(0.85f, 0.7f, 0.45f) : new Color(0.75f, 0.7f, 0.9f));
-            for (int i = -1; i <= 1; i += 2)
-            {
-                var tower = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                Object.DestroyImmediate(tower.GetComponent<Collider>());
-                tower.transform.SetParent(root);
-                tower.transform.position = new Vector3(i * 5f, 3.5f, 36f);
-                tower.transform.localScale = new Vector3(2f, 5f, 2f);
-                tower.GetComponent<Renderer>().material = Materials.Get(new Color(0.55f, 0.35f, 0.8f));
-            }
         }
 
         static GameObject Deco(PrimitiveType prim, Transform root, string name, Vector3 pos, Vector3 scale, Material mat, float bevel)

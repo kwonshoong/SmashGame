@@ -39,8 +39,8 @@ namespace SmashGame
 
         // 카메라 포커스: 패널(대장간·훈련장)이 열리면 카메라를 올려 3D 뷰가 화면 위쪽에 보이게 한다
         Vector3 camTargetPos; Quaternion camTargetRot; bool camLerp;
-        public static readonly Vector3 CamDefaultPos = new Vector3(0f, 2.9f, -9.5f);
-        public static readonly Quaternion CamDefaultRot = Quaternion.Euler(-3f, 0f, 0f);
+        public static readonly Vector3 CamDefaultPos = new Vector3(0f, 4.1f, -9.3f);   // 위에서 살짝 내려다보는 시점: 대포는 화면 아래에 반쯤만 보인다
+        public static readonly Quaternion CamDefaultRot = Quaternion.Euler(7f, 0f, 0f);
         public static readonly Vector3 CamPanelPos = new Vector3(0f, 4.0f, -13f);   // 뒤로 빠져 대포·받침대·구조물이 한 화면에
         public static readonly Quaternion CamPanelRot = Quaternion.Euler(8f, 0f, 0f);
 
