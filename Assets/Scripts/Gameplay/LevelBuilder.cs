@@ -246,6 +246,9 @@ namespace SmashGame
                 else PendulumHammer.Create(root, new Vector3(0f, PedestalTop + 7.5f, -1.2f), 5.2f);
             }
 
+            // 구조물을 정지 상태로 잠재운다 (물리 솔버의 미세 떨림으로 저절로 무너지는 것 방지)
+            foreach (var b in info.blocks) b.SettleAndSleep();
+
             // 시작 공
             int baseBalls = info.hard ? 15 : 22 + (level * 5) % 11; // 22~32
             info.startBalls = baseBalls;
@@ -453,8 +456,9 @@ namespace SmashGame
                         float x = (i - 1.5f) * s;
                         float y = PedestalTop + s * 0.5f + j * s;
                         Color col = (i + j) % 2 == 0 ? p.a : p.b;
-                        var b = MakeBlock(structRoot, PrimitiveType.Cube, BlockKind.Cube, new Vector3(x, y, 0), Vector3.one * (s - 0.01f), Quaternion.identity, col, 1f, blocks);
+                        MakeBlock(structRoot, PrimitiveType.Cube, BlockKind.Cube, new Vector3(x, y, 0), Vector3.one * (s - 0.01f), Quaternion.identity, col, 1f, blocks);
                     }
+                foreach (var b in blocks) b.SettleAndSleep();
                 rebuildAt = -1f;
             }
 

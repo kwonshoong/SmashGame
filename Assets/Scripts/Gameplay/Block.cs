@@ -43,7 +43,7 @@ namespace SmashGame
             rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
             rb.linearDamping = 0.05f;
             rb.angularDamping = 0.2f;
-            rb.sleepThreshold = 0.02f;
+            rb.sleepThreshold = 0.05f;
             var col = GetComponent<Collider>();
             if (col != null) col.material = Materials.BlockPhysics;
             // 강화 블록: 고정(kinematic)하면 받침이 사라져도 공중에 떠 있으므로, 대신 무겁게 만들고 공의 충격만 무시한다.
@@ -128,6 +128,15 @@ namespace SmashGame
             }
         }
 
+        /// <summary>구조물 생성 직후 호출: 정지 상태로 잠재워 공에 맞기 전까지 미동도 하지 않게 한다</summary>
+        public void SettleAndSleep()
+        {
+            if (rb == null || rb.isKinematic) return;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.Sleep();
+        }
+
         public bool WasHit => everHit;
         public Color BaseColor => baseColor;
 
@@ -156,7 +165,7 @@ namespace SmashGame
                     blockPhysics = new PhysicsMaterial("Block")
                     {
                         dynamicFriction = Balance.BlockFriction,
-                        staticFriction = Balance.BlockFriction + 0.05f,
+                        staticFriction = Balance.BlockStaticFriction,   // 정지 마찰은 높게: 가만히 있을 땐 미끄러지지 않음
                         bounciness = 0.05f,
                         frictionCombine = PhysicsMaterialCombine.Minimum,
                         bounceCombine = PhysicsMaterialCombine.Minimum,

@@ -76,6 +76,10 @@ namespace SmashGame
             // 씬 스케일이 작아(블록 0.5유닛) 실제 중력(9.81)은 둥둥 떠 보인다. 캐주얼 물리 게임 관례대로 중력을 키우고 물리 스텝을 촘촘하게.
             Physics.gravity = new Vector3(0f, -9.81f * Balance.GravityScale, 0f);
             Time.fixedDeltaTime = 1f / 90f;
+            // 쌓인 구조물이 저절로 비틀리며 무너지지 않도록: 솔버 반복 횟수를 올리고, 정지한 블록은 빨리 잠들게
+            Physics.defaultSolverIterations = 16;
+            Physics.defaultSolverVelocityIterations = 8;
+            Physics.sleepThreshold = 0.05f;
         }
 
         void Start()
