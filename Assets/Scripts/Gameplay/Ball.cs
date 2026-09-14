@@ -98,9 +98,10 @@ namespace SmashGame
                 if (b == null) continue;
                 var brb = b.GetComponent<Rigidbody>();
                 if (brb == null || brb.isKinematic) continue;
+                if (b.IsReinforced && b != block) continue; // 강화 블록은 직접 맞혀야만 반응
                 float dist = Vector3.Distance(point, h.ClosestPoint(point));
                 float falloff = Mathf.Clamp01(1f - dist / radius);
-                if (b == block) falloff = 1f;
+                if (b == block) { if (b.IsReinforced) continue; falloff = 1f; }
                 float mult = perfect && b == block ? 1.5f : 1f;
                 brb.AddForceAtPosition((dir + Vector3.up * 0.08f).normalized * impulse * falloff * mult, point, ForceMode.Impulse);
             }

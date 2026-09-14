@@ -17,6 +17,10 @@ namespace SmashGame
         public LevelController controller;
         public float fallY = 1.0f;
 
+        public const float ReinforcedMassMult = 6f;
+        public bool IsReinforced => hp > 1;
+        float baseMass = 1f;
+
         Rigidbody rb;
         Renderer rend;
         Color baseColor;
@@ -42,7 +46,10 @@ namespace SmashGame
             rb.sleepThreshold = 0.02f;
             var col = GetComponent<Collider>();
             if (col != null) col.material = Materials.BlockPhysics;
-            if (hp > 1) { rb.isKinematic = true; ApplyCrackTint(); }
+            // 강화 블록: 고정(kinematic)하면 받침이 사라져도 공중에 떠 있으므로, 대신 무겁게 만들고 공의 충격만 무시한다.
+            baseMass = mass;
+            rb.isKinematic = false;
+            if (hp > 1) { rb.mass = mass * ReinforcedMassMult; ApplyCrackTint(); }
         }
 
         public void MakeCrown()
@@ -76,8 +83,9 @@ namespace SmashGame
             {
                 hp = Mathf.Max(1, hp - dmg);
                 ApplyCrackTint();
-                if (hp <= 1) { rb.isKinematic = false; rb.WakeUp(); }
-                else return; // 아직 고정
+                rb.WakeUp();
+                if (hp <= 1) rb.mass = baseMass;   // 강화 해제: 이제 밀린다
+                else return;                        // 아직 강화 상태(충격 무시)
             }
 
             bool shatter = kind == BlockKind.Ice || (kind == BlockKind.Candy && impactPower >= 1.2f);
@@ -104,6 +112,20 @@ namespace SmashGame
             if (removed) return;
             removed = true;
             if (controller != null) controller.OnBlockRemoved(this);
+            WakeNeighbors();
+        }
+
+        /// <summary>잠들어 있던 이웃 블록을 깨워 받침이 사라진 뒤 공중에 남지 않게 한다</summary>
+        void WakeNeighbors()
+        {
+            var hits = Physics.OverlapSphere(transform.position, 1.2f);
+            foreach (var h in hits)
+            {
+                var b = h.GetComponentInParent<Block>();
+                if (b == null || b == this) continue;
+                var r = b.GetComponent<Rigidbody>();
+                if (r != null && !r.isKinematic) r.WakeUp();
+            }
         }
 
         public bool WasHit => everHit;
