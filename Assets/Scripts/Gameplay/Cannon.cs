@@ -155,16 +155,38 @@ namespace SmashGame
             if (controller != null && !controller.CanFire) return;
             if (cooldown > 0f) return;
 
-            Vector3 target;
-            var ray = cam.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out var hit, 100f)) target = hit.point;
-            else
+            Fire(AimPoint(cam.ScreenPointToRay(Input.mousePosition)));
+        }
+
+        /// <summary>구조물 앞면 근처(z ≤ AimPlaneZ + 여유)로 간주할 깊이. 그 뒤는 블록 틈으로 보이는 땅·배경이므로 무시한다.</summary>
+        public const float AimPlaneZ = 0f;
+        const float AimDepthTolerance = 1.2f;
+
+        /// <summary>
+        /// 탭 위치 → 조준점. 블록·받침대처럼 구조물 근처의 것을 맞히면 그 점을, 그렇지 않으면(블록 틈 사이로 보이는 뒤쪽 땅, 하늘 등)
+        /// 구조물 정면 평면(z = AimPlaneZ)과 시선의 교점을 쓴다. 그래서 틈을 겨냥해도 대포가 땅으로 처박히지 않고 그 높이로 날아간다.
+        /// </summary>
+        public static Vector3 AimPoint(Ray ray)
+        {
+            // 시선과 구조물 정면 평면의 교점
+            Vector3 plane;
+            if (Mathf.Abs(ray.direction.z) > 0.001f)
             {
-                // 아무것도 안 맞으면 구조물 평면(z=0)과의 교점
-                float t = (0f - ray.origin.z) / Mathf.Max(0.001f, ray.direction.z);
-                target = ray.origin + ray.direction * Mathf.Max(1f, t);
+                float t = (AimPlaneZ - ray.origin.z) / ray.direction.z;
+                plane = ray.origin + ray.direction * Mathf.Max(1f, t);
             }
-            Fire(target);
+            else plane = ray.origin + ray.direction * 10f;
+
+            var hits = Physics.RaycastAll(ray, 100f);
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            foreach (var h in hits)
+            {
+                if (h.collider.isTrigger) continue;
+                if (h.collider.GetComponentInParent<Ball>() != null) continue;      // 날아가는 공은 무시
+                if (h.point.z > AimPlaneZ + AimDepthTolerance) break;                // 구조물 뒤(틈 사이로 보이는 땅·배경)
+                return h.point;                                                       // 블록·받침대·장애물·앞쪽 땅
+            }
+            return plane;
         }
 
         public void Fire(Vector3 target)
