@@ -13,7 +13,7 @@ namespace SmashGame
         public const float BallSpeed = 30f;       // 발사 속도. 낮을수록 포물선이 커짐
         public const float BlockFriction = 0.3f;  // 블록 운동 마찰. 낮을수록 밀리면 잘 미끄러져 떨어짐
         public const float BlockStaticFriction = 0.7f; // 블록 정지 마찰. 높을수록 쌓인 상태에서 저절로 밀리지 않음
-        public const float BallImpulse = 7.5f;    // 기본 충격량 (파괴력 100% 기준)
+        public const float BallImpulse = 13f;     // 기본 충격량 (파괴력 100% 기준). 공 자체의 물리 충돌은 거의 0이라 이 값이 밀림의 전부
 
         // ---------- 공 스탯 ----------
         public const int StatMaxLevel = 50;
