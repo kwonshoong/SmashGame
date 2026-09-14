@@ -34,6 +34,8 @@ namespace SmashGame
             public int clearCoin, refundCoin, perfectCoin, trackCoin, total;
             public int remainingBalls, perfects;
             public bool trackCompleted;
+            public bool bonus;
+            public int destroyed, totalBlocks;
         }
         public ResultInfo LastResult;
 
@@ -308,6 +310,23 @@ namespace SmashGame
                 Data.coins += Balance.ForgeGiftCoins;
             }
 
+            LastResult = r;
+            Data.Save();
+            UI.ShowResult(r);
+            OnDataChanged?.Invoke();
+        }
+
+        /// <summary>보너스 스테이지 종료(시간 종료 또는 전부 파괴). 실패 없음, 부순 만큼 코인.</summary>
+        public void OnBonusEnded(int destroyed, int total)
+        {
+            State = GameState.Result;
+            int lvl = Data.currentLevel;
+            var r = new ResultInfo { won = true, bonus = true, level = lvl, destroyed = destroyed, totalBlocks = total };
+            r.clearCoin = destroyed * Balance.BonusCoinPerBlock;
+            r.trackCoin = destroyed >= total ? Balance.BonusAllClearCoin : 0;
+            r.total = r.clearCoin + r.trackCoin;
+            Data.coins += r.total;
+            Data.currentLevel++;
             LastResult = r;
             Data.Save();
             UI.ShowResult(r);

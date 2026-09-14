@@ -14,6 +14,7 @@ namespace SmashGame
         public float pedestalTop;
         public List<Block> blocks = new();
         public string structureName;
+        public bool bonus;   // 보너스 스테이지(자동차 부수기): 제한 시간·공 무제한·실패 없음
     }
 
     /// <summary>
@@ -228,6 +229,16 @@ namespace SmashGame
             var rng = new System.Random(level * 7919 + 13);
             var p = GetPalette(info.theme);
             BuildEnvironment(root, cam, info.theme);
+
+            if (Balance.IsBonusLevel(level))
+            {
+                info.bonus = true;
+                BuildCarStage(root, rng, p, info);
+                foreach (var b in info.blocks) b.SettleAndSleep();
+                info.startBalls = 9999;
+                info.structureName = "보너스: 자동차 부수기";
+                return info;
+            }
 
             int type = info.hard ? (level / 10) % 6 : (level * 3 + rng.Next(0, 2)) % 6;
             switch (type)
@@ -480,6 +491,62 @@ namespace SmashGame
                 MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y, 0), new Vector3(3.2f, 0.2f, 0.8f), Quaternion.identity, p.d, MassFor(BlockKind.Plank), info.blocks);
                 for (int i = -1; i <= 1; i++)
                     MakeUnit(root, BlockKind.Cylinder, new Vector3(i * 0.8f, y + 0.1f, 0), i == 0, i == 0 ? p.a : p.b, info.blocks, u);
+            }
+        }
+
+        // ---------------- 보너스 스테이지: 자동차 ----------------
+
+        /// <summary>
+        /// 스트리트 파이터 보너스 스테이지식 "차 부수기". 블록으로 조립한 자동차 한 대가 넓은 받침대 위에 놓인다.
+        /// 바퀴(원통) 위에 바닥 판, 그 위 차체(큐브), 유리창(얼음: 맞으면 깨짐), 지붕(판자), 범퍼·전조등.
+        /// </summary>
+        static void BuildCarStage(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 2.3f, p, true);
+            float y0 = PedestalTop;
+            var body = new Color(0.9f, 0.15f, 0.2f);      // 차체 빨강
+            var bodyDark = new Color(0.65f, 0.1f, 0.15f);
+            var tire = new Color(0.16f, 0.16f, 0.18f);
+            var glass = new Color(0.6f, 0.9f, 1f);
+            var chrome = new Color(0.8f, 0.82f, 0.85f);
+            var lamp = new Color(1f, 0.9f, 0.35f);
+            var seat = new Color(0.35f, 0.25f, 0.2f);
+            var L = info.blocks;
+
+            // 바퀴 4개: 옆으로 눕힌 짧은 원통 (흰 테두리 띠가 타이어 옆면처럼 보인다)
+            foreach (float x in new[] { -1.05f, 1.05f })
+                foreach (float z in new[] { -0.55f, 0.55f })
+                    MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Cylinder, new Vector3(x, y0 + 0.3f, z), new Vector3(0.6f, 0.15f, 0.6f), Quaternion.Euler(90, 0, 0), tire, 1.2f, L);
+
+            // 바닥 판(섀시)
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y0 + 0.7f, 0), new Vector3(3.6f, 0.2f, 1.5f), Quaternion.identity, bodyDark, 1.5f, L);
+
+            // 차체: 6 × 3 큐브 한 층
+            for (int i = 0; i < 6; i++)
+                for (int k = -1; k <= 1; k++)
+                {
+                    float x = (i - 2.5f) * Unit;
+                    MakeUnit(root, BlockKind.Cube, new Vector3(x, y0 + 0.8f, k * Unit), false, (i + k) % 2 == 0 ? body : bodyDark, L);
+                }
+
+            // 캐빈: 4 × 3, 바깥 고리는 유리창(얼음), 안쪽 2칸은 좌석
+            for (int i = 0; i < 4; i++)
+                for (int k = -1; k <= 1; k++)
+                {
+                    float x = (i - 1.5f) * Unit;
+                    bool inner = k == 0 && (i == 1 || i == 2);
+                    MakeUnit(root, inner ? BlockKind.Cube : BlockKind.Ice, new Vector3(x, y0 + 1.3f, k * Unit), false, inner ? seat : glass, L);
+                }
+
+            // 지붕
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y0 + 1.9f, 0), new Vector3(2.2f, 0.2f, 1.6f), Quaternion.identity, body, 1.2f, L);
+
+            // 범퍼(앞뒤) + 전조등/후미등
+            foreach (float sx in new[] { -1f, 1f })
+            {
+                MakeBlock(root, PrimitiveType.Cube, BlockKind.Cube, new Vector3(sx * 1.65f, y0 + 0.95f, 0), new Vector3(0.28f, 0.28f, 1.5f), Quaternion.identity, chrome, 0.8f, L);
+                foreach (float z in new[] { -0.5f, 0.5f })
+                    MakeBlock(root, PrimitiveType.Cube, BlockKind.Cube, new Vector3(sx * 1.65f, y0 + 1.22f, z), Vector3.one * 0.26f, Quaternion.identity, sx > 0 ? lamp : new Color(1f, 0.3f, 0.2f), 0.3f, L);
             }
         }
 

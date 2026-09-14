@@ -19,7 +19,7 @@ namespace SmashGame
         Button playBtn;
 
         // HUD
-        Text hudBalls, hudBlocks, hudPerfect;
+        Text hudBalls, hudBlocks, hudPerfect, hudBallsTitle;
 
         // 결과
         Text resultTitle, resultBody;
@@ -133,7 +133,7 @@ namespace SmashGame
             hud.GetComponent<Image>().raycastTarget = false;
 
             var ballBox = UIKit.Box(hud, "BallBox", UIKit.Red, new Vector2(0, 1), new Vector2(30, -40), new Vector2(230, 170));
-            UIKit.Label(ballBox, "남은 공", 28, Color.white, new Vector2(0.5f, 1), new Vector2(0, -8), new Vector2(220, 40));
+            hudBallsTitle = UIKit.Label(ballBox, "남은 공", 28, Color.white, new Vector2(0.5f, 1), new Vector2(0, -8), new Vector2(220, 40));
             hudBalls = UIKit.Label(ballBox, "30", 76, Color.white, new Vector2(0.5f, 0), new Vector2(0, 6), new Vector2(220, 110), TextAnchor.MiddleCenter, true);
 
             hudBlocks = UIKit.Label(hud, "", 30, Color.white, new Vector2(0.5f, 1), new Vector2(0, -50), new Vector2(560, 60));
@@ -162,8 +162,18 @@ namespace SmashGame
         void RefreshHUD()
         {
             if (gm.Level == null) return;
-            hudBalls.text = gm.Level.BallsLeft.ToString();
-            hudBlocks.text = $"레벨 {gm.Level.Level}  ·  {gm.Level.Info.structureName}  ·  블록 {gm.Level.BlocksLeft}";
+            if (gm.Level.IsBonus)
+            {
+                hudBallsTitle.text = "남은 시간";
+                hudBalls.text = Mathf.CeilToInt(gm.Level.BonusTimeLeft).ToString();
+                hudBlocks.text = $"보너스!  자동차 부수기  ·  {gm.Level.BlocksDestroyed}/{gm.Level.BlocksLeft + gm.Level.BlocksDestroyed}";
+            }
+            else
+            {
+                hudBallsTitle.text = "남은 공";
+                hudBalls.text = gm.Level.BallsLeft.ToString();
+                hudBlocks.text = $"레벨 {gm.Level.Level}  ·  {gm.Level.Info.structureName}  ·  블록 {gm.Level.BlocksLeft}";
+            }
         }
 
         void OnPerfect(Vector3 worldPoint)
@@ -204,7 +214,20 @@ namespace SmashGame
             HideAll();
             result.gameObject.SetActive(true);
             resultMain.onClick.RemoveAllListeners();
-            if (r.won)
+            if (r.bonus)
+            {
+                var d = gm.Data;
+                resultTitle.text = r.destroyed >= r.totalBlocks ? "완전 파괴!" : "보너스 종료!";
+                string body = $"보너스 스테이지 (레벨 {r.level})\n\n";
+                body += $"부순 블록 {r.destroyed}/{r.totalBlocks}     +{r.clearCoin}\n";
+                if (r.trackCoin > 0) body += $"완전 파괴 보너스        +{r.trackCoin}\n";
+                body += $"\n합계  +{r.total} 코인      (보유 {d.coins:N0})";
+                resultBody.text = body;
+                UIKit.SetButtonLabel(resultMain, $"계속하기 (레벨 {d.currentLevel})");
+                resultMain.GetComponent<Image>().color = UIKit.Green;
+                resultMain.onClick.AddListener(() => gm.StartLevel());
+            }
+            else if (r.won)
             {
                 resultTitle.text = "잘했어요!";
                 var d = gm.Data;

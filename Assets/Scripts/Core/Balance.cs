@@ -47,6 +47,13 @@ namespace SmashGame
         public const int ReinforcedFromLevel = 61;
         public const int StickyFromLevel = 91;
 
+        // ---------- 보너스 스테이지 (자동차 부수기) ----------
+        public const int   BonusEveryLevels = 10;          // 5, 15, 25, … (하드 레벨 사이 중간)
+        public const float BonusSeconds = 20f;             // 제한 시간, 공 무제한
+        public const int   BonusCoinPerBlock = 3;          // 떨어뜨린/부순 블록 1개당 코인
+        public const int   BonusAllClearCoin = 80;         // 전부 부수면 추가
+        public static bool IsBonusLevel(int level) => level >= 5 && level % BonusEveryLevels == 5;
+
         // ---------- 난이도 ----------
         public const float ReinforcedRatioCap = 0.20f;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
