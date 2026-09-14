@@ -158,6 +158,8 @@ namespace SmashGame
         // ---------------- 블록 생성 ----------------
 
         public const float BlockBevel = 0.035f; // 블록 모서리 라운딩 반지름(월드 단위)
+        /// <summary>현재 빌드 중인 레벨의 블록 질량 배율 (Build가 설정, 로비·격파 도전은 1)</summary>
+        static float massScale = 1f;
 
         static Block MakeBlock(Transform root, PrimitiveType prim, BlockKind kind, Vector3 pos, Vector3 scale, Quaternion rot, Color color, float mass, List<Block> list, bool tall = false)
         {
@@ -172,7 +174,7 @@ namespace SmashGame
             var b = go.AddComponent<Block>();
             b.tall = tall;
             b.fallY = PedestalTop - 1.0f;
-            b.Setup(kind, color, mass, 1);
+            b.Setup(kind, color, mass * massScale, 1);
             list.Add(b);
             return b;
         }
@@ -232,6 +234,7 @@ namespace SmashGame
             var rng = new System.Random(level * 7919 + 13);
             var p = GetPalette(info.theme);
             BuildEnvironment(root, cam, info.theme);
+            massScale = Balance.BlockMassScale(level);
 
             if (Balance.IsBonusLevel(level))
             {
@@ -244,7 +247,9 @@ namespace SmashGame
                 return info;
             }
 
-            int type = info.hard ? (level / 10) % 6 : (level * 3 + rng.Next(0, 2)) % 6;
+            int T = Balance.StructureTypes;
+            int type = info.hard ? (level / 10 + 6) % T : (level * 5 + rng.Next(0, 3)) % T;
+            if (level <= 3) type = new[] { 1, 0, 2 }[level - 1];   // 튜토리얼 구간은 쉬운 구조물
             switch (type)
             {
                 case 0: BuildCylinderCluster(root, rng, p, info); break;
@@ -252,7 +257,13 @@ namespace SmashGame
                 case 2: BuildFrameShelf(root, rng, p, info); break;
                 case 3: BuildLogTower(root, rng, p, info); break;
                 case 4: BuildIceWall(root, rng, p, info); break;
-                default: BuildMultiPedestal(root, rng, p, info); break;
+                case 5: BuildMultiPedestal(root, rng, p, info); break;
+                case 6: BuildPyramid(root, rng, p, info); break;
+                case 7: BuildFortress(root, rng, p, info); break;
+                case 8: BuildGate(root, rng, p, info); break;
+                case 9: BuildTwinTowers(root, rng, p, info); break;
+                case 10: BuildStaircase(root, rng, p, info); break;
+                default: BuildRing(root, rng, p, info); break;
             }
 
             // 왕관 블록 (퍼펙트 히트 타겟) — 레벨 12부터, 아래쪽 절반에서 1~2개
@@ -314,7 +325,7 @@ namespace SmashGame
             }
 
             // 장애물 — 구조물 앞면보다 앞에 두어 공만 막고 블록은 건드리지 않게 (통나무처럼 z로 긴 구조물 대응)
-            if (info.hard || level % 7 == 3)
+            if (Balance.HasObstacle(level))
             {
                 Physics.SyncTransforms(); // 같은 프레임에 만든 콜라이더의 bounds를 정확히 읽기 위해
                 float minZ = 0f;
@@ -327,9 +338,12 @@ namespace SmashGame
             foreach (var b in info.blocks) b.SettleAndSleep();
 
             // 시작 공
-            int baseBalls = info.hard ? 15 : 22 + (level * 5) % 11; // 22~32
-            info.startBalls = baseBalls;
-            info.structureName = type switch { 0 => "원통 다발", 1 => "큐브 격자", 2 => "판자 선반", 3 => "통나무 탑", 4 => "얼음 벽", _ => "삼중 받침대" };
+            info.startBalls = Balance.StartBalls(level, info.hard);
+            info.structureName = type switch
+            {
+                0 => "원통 다발", 1 => "큐브 격자", 2 => "판자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",
+                6 => "피라미드", 7 => "요새", 8 => "성문", 9 => "쌍둥이 탑", 10 => "계단", _ => "돌기둥 원진"
+            };
             return info;
         }
 
@@ -498,6 +512,144 @@ namespace SmashGame
             }
         }
 
+        // ---------------- 추가 구조물 6종 (난이도 상향: 넓은 바닥·두 겹·무거운 소재·가려진 안쪽) ----------------
+
+        /// <summary>피라미드: 9열, 가운데가 높고 양끝이 낮은 두 겹. 아래층은 돌·상자, 위층은 큐브.</summary>
+        static void BuildPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 2.5f, p, true);
+            int cols = 9; float u = Unit;
+            for (int i = 0; i < cols; i++)
+            {
+                int rows = 6 - Mathf.Abs(i - 4);           // 2,3,4,5,6,5,4,3,2
+                float x = (i - (cols - 1) * 0.5f) * u;
+                for (int d = 0; d < 2; d++)
+                {
+                    float z = (d - 0.5f) * u;
+                    int ii = i;
+                    FillColumn(root, rng, new Vector3(x, PedestalTop, z), rows, 0.4f, (j, tall) =>
+                    {
+                        if (j == 0) return (BlockKind.Stone, new Color(0.9f, 0.88f, 0.82f));
+                        if (j == 1 && rng.Next(2) == 0) return (BlockKind.Crate, new Color(0.65f, 0.42f, 0.2f));
+                        return (BlockKind.Cube, (ii + j) % 2 == 0 ? p.a : p.b);
+                    }, info.blocks, u);
+                }
+            }
+        }
+
+        /// <summary>요새: 앞쪽 낮고 무거운 성벽이 뒤쪽 높은 본성(큐브·얼음)을 가린다. 성벽을 먼저 치우거나 위로 넘겨 맞혀야 한다.</summary>
+        static void BuildFortress(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 2.4f, p, true);
+            float u = Unit;
+            // 앞 성벽: 8열 × 3칸, 돌·상자
+            for (int i = 0; i < 8; i++)
+            {
+                float x = (i - 3.5f) * u;
+                int ii = i;
+                FillColumn(root, rng, new Vector3(x, PedestalTop, -0.75f), 3, 0.5f, (j, tall) =>
+                    ii % 3 == 1 ? (BlockKind.Crate, new Color(0.65f, 0.42f, 0.2f)) : (BlockKind.Stone, new Color(0.9f, 0.88f, 0.82f)), info.blocks, u);
+            }
+            // 본성: 4열 × 6칸 두 겹, 큐브 + 얼음
+            for (int i = 0; i < 4; i++)
+                for (int d = 0; d < 2; d++)
+                {
+                    float x = (i - 1.5f) * u, z = 0.25f + d * u;
+                    int ii = i;
+                    FillColumn(root, rng, new Vector3(x, PedestalTop, z), 6, 0.4f, (j, tall) =>
+                        (j >= 4 && (ii + j) % 2 == 0) ? (BlockKind.Ice, new Color(0.6f, 0.9f, 1f)) : (BlockKind.Cube, (ii + j) % 2 == 0 ? p.a : p.b), info.blocks, u);
+                }
+            // 본성 꼭대기 사탕
+            MakeUnit(root, BlockKind.Candy, new Vector3(0f, PedestalTop + 6 * u, 0.5f), true, p.c, info.blocks, u);
+        }
+
+        /// <summary>성문: 두꺼운 돌기둥 두 개 + 상인방 판자, 그 위 성가퀴. 기둥 사이에는 작은 탑.</summary>
+        static void BuildGate(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 2.2f, p);
+            float u = Unit;
+            var stoneCol = new Color(0.92f, 0.9f, 0.84f);
+            foreach (float x in new[] { -1.25f, 1.25f })
+                for (int d = 0; d < 2; d++)
+                    FillColumn(root, rng, new Vector3(x, PedestalTop, (d - 0.5f) * u), 5, 0.8f, (j, tall) => (BlockKind.Stone, stoneCol), info.blocks, u);
+            float top = PedestalTop + 5 * u;
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, top + 0.1f, 0), new Vector3(3.4f, 0.2f, 1.1f), Quaternion.identity, p.d, MassFor(BlockKind.Plank) * 1.5f, info.blocks);
+            // 성가퀴: 상인방 위 큐브 5개(한 칸 간격) + 가운데 사탕
+            for (int i = -2; i <= 2; i++)
+                MakeUnit(root, i == 0 ? BlockKind.Candy : BlockKind.Cube, new Vector3(i * 0.7f, top + 0.2f, 0), i == 0, i == 0 ? p.c : p.b, info.blocks, u);
+            // 문 안쪽 작은 탑 (기둥에 가려짐)
+            for (int d = 0; d < 2; d++)
+                FillColumn(root, rng, new Vector3(0, PedestalTop, (d - 0.5f) * u), 3, 0.5f, (j, tall) => (BlockKind.Crate, new Color(0.65f, 0.42f, 0.2f)), info.blocks, u);
+        }
+
+        /// <summary>쌍둥이 탑: 두 겹 탑 두 개를 다리 판자로 잇고, 다리 위에 원통. 한쪽만 무너뜨리면 다리가 기운다.</summary>
+        static void BuildTwinTowers(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 2.4f, p, true);
+            float u = Unit;
+            foreach (float cx in new[] { -1.25f, 1.25f })
+                for (int i = 0; i < 2; i++)
+                    for (int d = 0; d < 2; d++)
+                    {
+                        int ii = i, dd = d;
+                        FillColumn(root, rng, new Vector3(cx + (i - 0.5f) * u, PedestalTop, (d - 0.5f) * u), 7, 0.5f, (j, tall) =>
+                            j < 2 ? (BlockKind.Stone, new Color(0.9f, 0.88f, 0.82f)) : (BlockKind.Cube, (ii + j + dd) % 2 == 0 ? p.a : p.b), info.blocks, u);
+                    }
+            float top = PedestalTop + 7 * u;
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, top + 0.1f, 0), new Vector3(3.6f, 0.2f, 1.0f), Quaternion.identity, p.d, MassFor(BlockKind.Plank) * 1.5f, info.blocks);
+            for (int i = -1; i <= 1; i++)
+                MakeUnit(root, i == 0 ? BlockKind.Candy : BlockKind.Cylinder, new Vector3(i * 0.8f, top + 0.2f, 0), i != 0, i == 0 ? p.c : p.a, info.blocks, u);
+        }
+
+        /// <summary>계단: 8열, 왼쪽부터 1~8칸으로 높아지는 두 겹. 낮은 쪽은 무거운 돌, 높은 쪽은 큐브·얼음.</summary>
+        static void BuildStaircase(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 2.4f, p, true);
+            float u = Unit;
+            bool flip = rng.Next(2) == 0;
+            for (int i = 0; i < 8; i++)
+            {
+                int col = flip ? 7 - i : i;
+                float x = (col - 3.5f) * u;
+                int rows = i + 1;
+                for (int d = 0; d < 2; d++)
+                {
+                    int ii = i;
+                    FillColumn(root, rng, new Vector3(x, PedestalTop, (d - 0.5f) * u), rows, 0.45f, (j, tall) =>
+                    {
+                        if (ii < 3) return (BlockKind.Stone, new Color(0.9f, 0.88f, 0.82f));
+                        if (j >= 5 && (ii + j) % 2 == 0) return (BlockKind.Ice, new Color(0.6f, 0.9f, 1f));
+                        return (BlockKind.Cube, (ii + j) % 2 == 0 ? p.a : p.b);
+                    }, info.blocks, u);
+                }
+            }
+        }
+
+        /// <summary>돌기둥 원진: 긴 돌기둥 8개가 원을 그리고, 그 위 원형 판자, 가운데 사탕 탑. 뒤쪽 기둥은 앞 기둥에 가려진다.</summary>
+        static void BuildRing(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 2.0f, p);
+            float u = Unit;
+            var stoneCol = new Color(0.92f, 0.9f, 0.84f);
+            int n = 8; float r = 1.15f;
+            for (int k = 0; k < n; k++)
+            {
+                float a = (k + 0.5f) / n * Mathf.PI * 2f;
+                var pos = new Vector3(Mathf.Cos(a) * r, PedestalTop, Mathf.Sin(a) * r);
+                FillColumn(root, rng, pos, 4, 0.7f, (j, tall) => (BlockKind.Stone, stoneCol), info.blocks, u);
+            }
+            // 가운데 사탕 탑 3칸
+            FillColumn(root, rng, new Vector3(0, PedestalTop, 0), 3, 0.5f, (j, tall) => (BlockKind.Candy, p.c), info.blocks, u);
+            // 지붕 원판 + 그 위 큐브
+            float top = PedestalTop + 4 * u;
+            var roof = MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Plank, new Vector3(0, top + 0.1f, 0), new Vector3(3.0f, 0.1f, 3.0f), Quaternion.identity, p.d, MassFor(BlockKind.Plank) * 2f, info.blocks);
+            for (int k = 0; k < 4; k++)
+            {
+                float a = k / 4f * Mathf.PI * 2f + 0.4f;
+                MakeUnit(root, BlockKind.Cube, new Vector3(Mathf.Cos(a) * 0.8f, top + 0.2f, Mathf.Sin(a) * 0.8f), false, k % 2 == 0 ? p.a : p.b, info.blocks, u);
+            }
+        }
+
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------
 
         /// <summary>
@@ -511,6 +663,7 @@ namespace SmashGame
             var rng = new System.Random(stage * 4241 + 99);
             var p = GetPalette(theme);
             BuildEnvironment(root, cam, theme);
+            massScale = 1f;
 
             int cols = Balance.TowerCols(stage), rows = Balance.TowerRows(stage), depth = Balance.TowerDepth(stage);
             float u = Unit;
@@ -622,6 +775,7 @@ namespace SmashGame
         {
             var theme = (Theme)Mathf.Clamp(data.trainingChapter, 0, 2);
             BuildEnvironment(root, cam, theme);
+            massScale = 1f;
             var go = new GameObject("TestRange");
             go.transform.SetParent(root);
             var tr = go.AddComponent<TestRange>();

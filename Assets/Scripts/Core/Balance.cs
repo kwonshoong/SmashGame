@@ -72,6 +72,19 @@ namespace SmashGame
         // ---------- 난이도 ----------
         public const float ReinforcedRatioCap = 0.20f;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
+        public const int StructureTypes = 12;
+        /// <summary>시작 공 개수. 초반 5레벨은 넉넉히, 이후 12~18개, 하드는 9개.</summary>
+        public static int StartBalls(int level, bool hard)
+        {
+            if (hard) return 9;
+            int n = 12 + (level * 5) % 7;
+            if (level <= 5) n += 6;
+            return n;
+        }
+        /// <summary>레벨이 오를수록 블록이 조금씩 무거워진다 (Lv1 1.0 → Lv50 1.6 → Lv100 2.2 상한)</summary>
+        public static float BlockMassScale(int level) => Mathf.Min(2.2f, 1f + Mathf.Max(0, level - 1) * 0.012f);
+        /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>
+        public static bool HasObstacle(int level) => IsHardLevel(level) || (level >= 4 && level % 5 == 2);
 
         /// <summary>챕터 권장 4스탯 합계 (기획서 6.4)</summary>
         public static int RecommendedStatSum(int level)
