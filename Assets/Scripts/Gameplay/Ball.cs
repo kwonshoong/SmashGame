@@ -160,6 +160,7 @@ namespace SmashGame
             // 공의 되튕김: 맞은 면의 법선·양쪽 질량·반발계수로 1차원 충돌식을 풀어 실제와 비슷하게.
             // 가벼운 블록(사탕)이면 밀고 나가고, 무거운 블록(돌·격파 탑)이면 되튕기고, 원통 옆면을 비스듬히 치면 법선 방향으로 꺾여 나간다.
             rb.linearVelocity = ReboundVelocity(lastVelocity, blockVel, normal, ReboundMassBase * stats.mass, blockMass);
+            PlayLog.Hit(block, point, dir, impulse, combo, lastVelocity, rb.linearVelocity);
         }
     }
 }

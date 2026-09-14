@@ -197,6 +197,7 @@ namespace SmashGame
             Vector3 dir = BallisticDirection(barrel.position, target, Ball.Speed);
             barrel.rotation = Quaternion.LookRotation(dir, Vector3.up);
             var ball = Ball.Spawn(muzzle.position, dir, stats, controller);
+            PlayLog.Shot(muzzle.position, target, stats);
             if (controller != null)
             {
                 ball.onHit = controller.OnBallHit;

@@ -42,3 +42,6 @@ crashlytics-build.properties
 
 # Cowork 세션 출력물
 /Claude outputs/
+
+# 플레이 물리 로그(분석용)
+/PlayLogs/

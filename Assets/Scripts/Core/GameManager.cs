@@ -94,6 +94,7 @@ namespace SmashGame
 
         void Start()
         {
+            PlayLog.Ensure();   // 에디터 전용 플레이 물리 로그 (PlayLogs/)
             EnsureCamera();
             levelRoot = new GameObject("LevelRoot").transform;
             levelRoot.SetParent(transform);
