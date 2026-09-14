@@ -125,7 +125,7 @@ namespace SmashGame
                 sun = lgo.AddComponent<Light>();
                 sun.type = LightType.Directional;
             }
-            sun.intensity = 1.05f;
+            sun.intensity = 0.95f;
             sun.color = new Color(1f, 0.96f, 0.88f);
             sun.transform.rotation = Quaternion.Euler(48f, -28f, 0f);
             sun.shadows = LightShadows.Soft;
@@ -155,7 +155,7 @@ namespace SmashGame
             RenderSettings.skybox = null;
             RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
             RenderSettings.customReflectionTexture = BuildStudioCubemap();
-            RenderSettings.reflectionIntensity = 0.55f;
+            RenderSettings.reflectionIntensity = 0.3f;
             QualitySettings.shadowResolution = UnityEngine.ShadowResolution.High;
             QualitySettings.shadowDistance = 40f;
             QualitySettings.antiAliasing = 4;
@@ -184,7 +184,7 @@ namespace SmashGame
                         d.Normalize();
                         // 주광 방향 근처에 밝은 하이라이트 점을 넣어 광택 재질에 "창문 반사" 같은 점광이 생기게
                         Vector3 sunDir = Quaternion.Euler(48f, -28f, 0f) * Vector3.back;
-                        float sun = Mathf.Pow(Mathf.Clamp01(Vector3.Dot(d, sunDir)), 24f) * 0.6f;
+                        float sun = Mathf.Pow(Mathf.Clamp01(Vector3.Dot(d, sunDir)), 16f) * 0.25f;
                         Color c = d.y >= 0 ? Color.Lerp(horizon, top, Mathf.Pow(d.y, 0.6f)) : Color.Lerp(horizon, ground, Mathf.Pow(-d.y, 0.7f));
                         px[y * n + x] = c + new Color(sun, sun, sun * 0.9f);
                     }
@@ -217,8 +217,8 @@ namespace SmashGame
             profile.name = "SmashPostFX";
 
             var bloom = profile.Add<Bloom>(true);
-            bloom.threshold.value = 0.95f;
-            bloom.intensity.value = 0.45f;
+            bloom.threshold.value = 1.05f;
+            bloom.intensity.value = 0.2f;
             bloom.scatter.value = 0.65f;
             bloom.tint.value = new Color(1f, 0.97f, 0.9f);
 

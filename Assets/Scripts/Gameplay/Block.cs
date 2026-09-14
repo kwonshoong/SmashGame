@@ -251,9 +251,9 @@ namespace SmashGame
             m = new Material(GetShader());
             m.color = c;
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
-            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", glossy ? 0.85f : 0.35f);
-            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", glossy ? 0.85f : 0.35f);
-            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic ? 0.6f : 0f);
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", glossy ? 0.6f : 0.3f);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", glossy ? 0.6f : 0.3f);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic ? 0.45f : 0f);
             cache[key] = m;
             return m;
         }

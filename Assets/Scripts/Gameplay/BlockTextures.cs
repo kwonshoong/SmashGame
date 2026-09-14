@@ -77,12 +77,12 @@ namespace SmashGame
         /// <summary>소재별 표면 질감 (smoothness, metallic)</summary>
         public static (float smooth, float metal) Surface(BlockKind kind) => kind switch
         {
-            BlockKind.Ice => (0.95f, 0.1f),
-            BlockKind.Candy => (0.9f, 0f),
-            BlockKind.Cylinder => (0.78f, 0f),
-            BlockKind.Cube => (0.72f, 0f),
-            BlockKind.Crown => (0.8f, 0.55f),
-            BlockKind.Stone => (0.28f, 0f),
+            BlockKind.Ice => (0.8f, 0.05f),
+            BlockKind.Candy => (0.62f, 0f),
+            BlockKind.Cylinder => (0.55f, 0f),
+            BlockKind.Cube => (0.5f, 0f),
+            BlockKind.Crown => (0.6f, 0.4f),
+            BlockKind.Stone => (0.25f, 0f),
             BlockKind.Crate => (0.2f, 0f),
             BlockKind.Log => (0.15f, 0f),
             BlockKind.Plank => (0.3f, 0f),
