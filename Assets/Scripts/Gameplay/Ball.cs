@@ -17,6 +17,8 @@ namespace SmashGame
         bool consumed;
         float spawnTime;
 
+        static readonly System.Collections.Generic.List<Ball> alive = new();
+
         public const float Lifetime = 2f; // 발사 후 공이 사라지기까지의 시간(충돌 여부와 무관)
         public static float Speed => Balance.BallSpeed;
         static float BaseImpulse => Balance.BallImpulse;
@@ -38,6 +40,15 @@ namespace SmashGame
             rb.linearVelocity = dir.normalized * Speed;
 
             var b = go.AddComponent<Ball>();
+            // 공끼리는 충돌하지 않는다 (연사 시 앞 공에 튕겨 조준이 틀어지는 것 방지)
+            var col = go.GetComponent<Collider>();
+            for (int i = alive.Count - 1; i >= 0; i--)
+            {
+                if (alive[i] == null) { alive.RemoveAt(i); continue; }
+                var other = alive[i].GetComponent<Collider>();
+                if (other != null) Physics.IgnoreCollision(col, other, true);
+            }
+            alive.Add(b);
             b.stats = stats;
             b.controller = controller;
             b.rb = rb;
@@ -64,6 +75,8 @@ namespace SmashGame
         {
             if (transform.position.y < -3f) Destroy(gameObject);
         }
+
+        void OnDestroy() { alive.Remove(this); }
 
         void OnCollisionEnter(Collision c)
         {
