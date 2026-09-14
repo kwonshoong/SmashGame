@@ -81,8 +81,8 @@ namespace SmashGame
             if (level <= 5) n += 6;
             return n;
         }
-        /// <summary>레벨이 오를수록 블록이 조금씩 무거워진다 (Lv1 1.0 → Lv50 1.6 → Lv100 2.2 상한)</summary>
-        public static float BlockMassScale(int level) => Mathf.Min(2.2f, 1f + Mathf.Max(0, level - 1) * 0.012f);
+        /// <summary>레벨이 오를수록 블록이 조금씩 무거워진다 (Lv1 1.0 → Lv50 1.5 → Lv61+ 1.6 상한). 그 이상은 강화·접착 블록이 난이도를 맡는다.</summary>
+        public static float BlockMassScale(int level) => Mathf.Min(1.6f, 1f + Mathf.Max(0, level - 1) * 0.01f);
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>
         public static bool HasObstacle(int level) => IsHardLevel(level) || (level >= 4 && level % 5 == 2);
 

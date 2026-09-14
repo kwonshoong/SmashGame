@@ -217,7 +217,7 @@ namespace SmashGame
 
         static float MassFor(BlockKind k) => k switch
         {
-            BlockKind.Stone => 3.0f,
+            BlockKind.Stone => 2.2f,   // 긴 돌기둥 = 4.4, 레벨 배율 최대 1.6 → 7.0 (파괴력 200%대에서 넘어가는 선)
             BlockKind.Log => 1.6f,
             BlockKind.Crate => 1.2f,
             BlockKind.Plank => 1.0f,
