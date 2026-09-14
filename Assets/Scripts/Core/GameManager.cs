@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace SmashGame
 {
@@ -148,24 +150,92 @@ namespace SmashGame
             RenderSettings.ambientGroundColor = new Color(0.42f, 0.4f, 0.38f);
             RenderSettings.ambientIntensity = 1f;
 
-            // 반사 환경: 카메라는 단색으로 지우지만, 광택 재질이 비출 하늘은 프로시저럴 스카이박스로 준다
-            var skyShader = Shader.Find("Skybox/Procedural");
-            if (skyShader != null)
-            {
-                var sky = new Material(skyShader);
-                sky.SetFloat("_Exposure", 1.15f);
-                sky.SetFloat("_AtmosphereThickness", 0.9f);
-                sky.SetColor("_SkyTint", new Color(0.55f, 0.72f, 1f));
-                sky.SetColor("_GroundColor", new Color(0.62f, 0.72f, 0.5f));
-                RenderSettings.skybox = sky;
-                RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Skybox;
-                RenderSettings.defaultReflectionResolution = 128;
-                RenderSettings.reflectionIntensity = 0.7f;
-                DynamicGI.UpdateEnvironment();
-            }
-            QualitySettings.shadowResolution = ShadowResolution.High;
+            // 반사 환경: 코드로 만든 부드러운 "스튜디오" 큐브맵(위 밝음·수평선 중간·바닥 어두움).
+            // 프로시저럴 스카이박스를 반사로 쓰면 URP에서 광택 재질이 하늘색으로 물들어 버려서 중성 톤 큐브맵을 직접 만든다.
+            RenderSettings.skybox = null;
+            RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
+            RenderSettings.customReflectionTexture = BuildStudioCubemap();
+            RenderSettings.reflectionIntensity = 0.55f;
+            QualitySettings.shadowResolution = UnityEngine.ShadowResolution.High;
             QualitySettings.shadowDistance = 40f;
             QualitySettings.antiAliasing = 4;
+            SetupPostProcessing();
+        }
+
+        /// <summary>광택 재질에 비칠 중성 톤 환경 큐브맵. 위쪽은 따뜻한 흰색, 수평선은 연회색, 아래는 어두운 회색.</summary>
+        static Cubemap BuildStudioCubemap()
+        {
+            const int n = 32;
+            var cm = new Cubemap(n, TextureFormat.RGBA32, false);
+            Color top = new Color(1f, 0.98f, 0.95f), horizon = new Color(0.72f, 0.74f, 0.78f), ground = new Color(0.32f, 0.31f, 0.3f);
+            var px = new Color[n * n];
+            for (int face = 0; face < 6; face++)
+            {
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        float u = (x + 0.5f) / n * 2f - 1f, v = (y + 0.5f) / n * 2f - 1f;
+                        Vector3 d = face switch
+                        {
+                            0 => new Vector3(1f, -v, -u), 1 => new Vector3(-1f, -v, u),
+                            2 => new Vector3(u, 1f, v), 3 => new Vector3(u, -1f, -v),
+                            4 => new Vector3(u, -v, 1f), _ => new Vector3(-u, -v, -1f),
+                        };
+                        d.Normalize();
+                        // 주광 방향 근처에 밝은 하이라이트 점을 넣어 광택 재질에 "창문 반사" 같은 점광이 생기게
+                        Vector3 sunDir = Quaternion.Euler(48f, -28f, 0f) * Vector3.back;
+                        float sun = Mathf.Pow(Mathf.Clamp01(Vector3.Dot(d, sunDir)), 24f) * 0.6f;
+                        Color c = d.y >= 0 ? Color.Lerp(horizon, top, Mathf.Pow(d.y, 0.6f)) : Color.Lerp(horizon, ground, Mathf.Pow(-d.y, 0.7f));
+                        px[y * n + x] = c + new Color(sun, sun, sun * 0.9f);
+                    }
+                cm.SetPixels(px, (CubemapFace)face);
+            }
+            cm.Apply();
+            return cm;
+        }
+
+        /// <summary>
+        /// URP 포스트프로세싱(코드로 생성): 블룸으로 광택·발광을 살리고, 컬러 그레이딩으로 채도·대비를 살짝 올리고,
+        /// 약한 비네트로 시선을 가운데로 모은다. 레퍼런스의 "선명하고 쨍한" 룩의 핵심.
+        /// </summary>
+        void SetupPostProcessing()
+        {
+            if (GraphicsSettings.currentRenderPipeline == null) return; // 빌트인 파이프라인이면 건너뜀
+            var camData = mainCamera.GetUniversalAdditionalCameraData();
+            camData.renderPostProcessing = true;
+            camData.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+            camData.antialiasingQuality = AntialiasingQuality.Medium;
+            camData.renderShadows = true;
+
+            if (GameObject.Find("PostFX") != null) return;
+            var go = new GameObject("PostFX");
+            go.transform.SetParent(transform);
+            var vol = go.AddComponent<Volume>();
+            vol.isGlobal = true;
+            vol.priority = 1f;
+            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            profile.name = "SmashPostFX";
+
+            var bloom = profile.Add<Bloom>(true);
+            bloom.threshold.value = 0.95f;
+            bloom.intensity.value = 0.45f;
+            bloom.scatter.value = 0.65f;
+            bloom.tint.value = new Color(1f, 0.97f, 0.9f);
+
+            var color = profile.Add<ColorAdjustments>(true);
+            color.postExposure.value = 0.1f;
+            color.contrast.value = 8f;
+            color.saturation.value = 12f;
+
+            var tone = profile.Add<Tonemapping>(true);
+            tone.mode.value = TonemappingMode.Neutral;
+
+            var vig = profile.Add<Vignette>(true);
+            vig.intensity.value = 0.16f;
+            vig.smoothness.value = 0.55f;
+            vig.color.value = new Color(0.1f, 0.12f, 0.2f);
+
+            vol.sharedProfile = profile;
         }
 
         // ---------------- 상태 전환 ----------------

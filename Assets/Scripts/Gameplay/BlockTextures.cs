@@ -33,8 +33,8 @@ namespace SmashGame
                     float uu = x / (float)(Size - 1);
                     // 구운 AO: 면 가장자리·모서리를 살짝 어둡게, 중앙은 살짝 밝게 (둥근 메시와 합쳐져 부드러운 입체감)
                     float edge = wrap ? Mathf.Min(vv, 1f - vv) : EdgeDist(uu, vv);
-                    float ao = 1f - 0.10f * (1f - Mathf.SmoothStep(0f, 0.22f, edge));
-                    float center = 1f + 0.04f * Mathf.SmoothStep(0.15f, 0.45f, edge);
+                    float ao = 1f - 0.10f * (1f - SStep(0f, 0.22f, edge));
+                    float center = 1f + 0.04f * SStep(0.15f, 0.45f, edge);
                     float v = m.val[i] * ao * center;
                     Color c = Color.Lerp(Color.white, tint, m.mix[i]);
                     px[i] = new Color(Mathf.Clamp01(c.r * v), Mathf.Clamp01(c.g * v), Mathf.Clamp01(c.b * v), 1f);
@@ -97,6 +97,9 @@ namespace SmashGame
         static float Fbm(float x, float y, float scale, int seed)
             => 0.55f * Noise(x, y, scale, seed) + 0.3f * Noise(x, y, scale * 2f, seed + 1) + 0.15f * Noise(x, y, scale * 4f, seed + 2);
 
+        /// <summary>GLSL식 smoothstep(edge0, edge1, x). Mathf.SmoothStep은 "a~b 사이를 t로 보간"이라 의미가 다르다.</summary>
+        static float SStep(float a, float b, float x) { float t = Mathf.Clamp01((x - a) / (b - a)); return t * t * (3f - 2f * t); }
+
         static float EdgeDist(float u, float v) => Mathf.Min(Mathf.Min(u, 1 - u), Mathf.Min(v, 1 - v));
 
         /// <summary>플라스틱 큐브: 가장자리 베벨 + 안쪽 밝은 면</summary>
@@ -109,7 +112,7 @@ namespace SmashGame
                     float edge = EdgeDist(u, v);
                     // 메시 자체가 둥글어졌으므로 텍스처의 베벨은 얇고 은은하게, 안쪽 패널은 살짝 밝게
                     float bevel = Mathf.SmoothStep(0.86f, 1f, Mathf.Clamp01(edge / 0.05f));
-                    float inner = 1f + 0.05f * Mathf.SmoothStep(0.14f, 0.18f, edge);
+                    float inner = 1f + 0.05f * SStep(0.14f, 0.18f, edge);
                     float shine = 1f + 0.06f * (v - 0.5f);
                     float line = 1f - 0.10f * Mathf.Exp(-Mathf.Pow((edge - 0.145f) / 0.006f, 2f));
                     m.val[y * Size + x] = 0.97f * bevel * inner * shine * line;
@@ -161,7 +164,7 @@ namespace SmashGame
                     float u = x / (float)Size, v = y / (float)Size;
                     int i = y * Size + x;
                     float s = Mathf.Repeat(u * 3f + v * 1.0f, 1f);          // 둘레에 굵은 줄 3개 (멀리서도 보이게)
-                    float white = 1f - Mathf.SmoothStep(0.44f, 0.48f, s);   // 1 = 흰 줄
+                    float white = 1f - SStep(0.44f, 0.48f, s);   // 1 = 흰 줄
                     m.mix[i] = 1f - white;
                     m.val[i] = 0.96f + 0.08f * Mathf.Exp(-Mathf.Pow((u - 0.3f) / 0.12f, 2f));
                 }

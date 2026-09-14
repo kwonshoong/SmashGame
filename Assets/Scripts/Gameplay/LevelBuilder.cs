@@ -69,12 +69,8 @@ namespace SmashGame
             cam.transform.position = GameManager.CamDefaultPos;
             cam.transform.rotation = GameManager.CamDefaultRot;
 
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            ground.name = "Ground";
-            ground.transform.SetParent(root);
-            ground.transform.position = new Vector3(0, -1.5f, 5f);
-            ground.transform.localScale = new Vector3(8f, 1f, 8f);
-            ground.GetComponent<Renderer>().material = Materials.Get(p.ground);
+            // 하늘 그림판·질감 바닥·나무/바위 장식 (전부 콜라이더 없음)
+            BackgroundArt.Build(root, theme);
 
             // 멀리 보이는 "성" 실루엣 (장식)
             var castle = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -95,8 +91,25 @@ namespace SmashGame
             }
         }
 
+        static GameObject Deco(PrimitiveType prim, Transform root, string name, Vector3 pos, Vector3 scale, Material mat, float bevel)
+        {
+            var go = GameObject.CreatePrimitive(prim);
+            go.name = name;
+            Object.DestroyImmediate(go.GetComponent<Collider>());
+            go.transform.SetParent(root);
+            go.transform.position = pos;
+            go.transform.localScale = scale;
+            go.GetComponent<Renderer>().material = mat;
+            if (bevel > 0f) RoundedMesh.Apply(go, bevel);
+            return go;
+        }
+
         static void Pedestal(Transform root, Vector3 center, float radius, Palette p, bool square = false)
         {
+            var gold = Materials.Get(new Color(1f, 0.78f, 0.25f), true, true);
+            var purpleDark = Materials.Get(p.pedestal * 0.75f, true);
+
+            // 상판(콜라이더 있음) — 위치·두께는 물리와 맞물려 있으므로 유지
             var top = GameObject.CreatePrimitive(square ? PrimitiveType.Cube : PrimitiveType.Cylinder);
             top.name = "PedestalTop";
             top.transform.SetParent(root);
@@ -107,21 +120,42 @@ namespace SmashGame
             RoundedMesh.Apply(top, 0.03f);
             PedestalColliders.Add(top.GetComponent<Collider>());
 
+            // 상판 아래 금색 테두리 + 진한 보라 밑판(두께감)
+            float ringY = PedestalTop - 0.16f - 0.03f;
+            if (square)
+            {
+                Deco(PrimitiveType.Cube, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.06f, radius * 1.4f + 0.06f), gold, 0.02f);
+                Deco(PrimitiveType.Cube, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.12f, radius * 1.4f - 0.1f), purpleDark, 0.03f);
+            }
+            else
+            {
+                Deco(PrimitiveType.Cylinder, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.03f, radius * 2f + 0.06f), gold, 0.02f);
+                Deco(PrimitiveType.Cylinder, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.06f, radius * 2f - 0.1f), purpleDark, 0.03f);
+            }
+
+            // 기둥(콜라이더 있음): 보라색 본체 + 위아래 금색 링
+            float colTop = PedestalTop - 0.16f, colBottom = -1.5f;
             var col = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             col.name = "PedestalColumn";
             col.transform.SetParent(root);
-            col.transform.position = new Vector3(center.x, (PedestalTop - 0.16f - 1.5f) * 0.5f, center.z);
-            col.transform.localScale = new Vector3(0.35f, (PedestalTop - 0.16f + 1.5f) * 0.5f, 0.35f);
-            col.GetComponent<Renderer>().material = Materials.Get(new Color(1f, 0.75f, 0.2f), false, true);
+            col.transform.position = new Vector3(center.x, (colTop + colBottom) * 0.5f, center.z);
+            col.transform.localScale = new Vector3(0.42f, (colTop - colBottom) * 0.5f, 0.42f);
+            col.GetComponent<Renderer>().material = Materials.Get(p.pedestal, true);
+            RoundedMesh.Apply(col, 0.04f);
             PedestalColliders.Add(col.GetComponent<Collider>());
+            Deco(PrimitiveType.Cylinder, root, "ColumnCap", new Vector3(center.x, colTop - 0.22f, center.z), new Vector3(0.56f, 0.06f, 0.56f), gold, 0.02f);
+            Deco(PrimitiveType.Cylinder, root, "ColumnBase", new Vector3(center.x, -1.05f, center.z), new Vector3(0.56f, 0.06f, 0.56f), gold, 0.02f);
+            // 기둥 세로 홈 느낌의 얇은 금색 줄 4개
+            for (int k = 0; k < 4; k++)
+            {
+                float a = k * 90f * Mathf.Deg2Rad;
+                Deco(PrimitiveType.Cube, root, "ColumnStripe", new Vector3(center.x + Mathf.Cos(a) * 0.2f, (colTop + colBottom) * 0.5f - 0.1f, center.z + Mathf.Sin(a) * 0.2f),
+                    new Vector3(0.05f, (colTop - colBottom) - 0.7f, 0.05f), gold, 0.01f);
+            }
 
-            var foot = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            foot.name = "PedestalFoot";
-            foot.transform.SetParent(root);
-            foot.transform.position = new Vector3(center.x, -1.3f, center.z);
-            foot.transform.localScale = new Vector3(1.1f, 0.2f, 1.1f);
-            foot.GetComponent<Renderer>().material = Materials.Get(p.pedestal);
-            RoundedMesh.Apply(foot, 0.05f);
+            // 받침 발: 넓은 둥근 판 두 장
+            Deco(PrimitiveType.Cylinder, root, "PedestalFoot", new Vector3(center.x, -1.3f, center.z), new Vector3(1.2f, 0.12f, 1.2f), Materials.Get(p.pedestal, true), 0.06f);
+            Deco(PrimitiveType.Cylinder, root, "PedestalFoot2", new Vector3(center.x, -1.45f, center.z), new Vector3(1.6f, 0.08f, 1.6f), purpleDark, 0.05f);
         }
 
         /// <summary>Unity의 Cylinder 프리미티브는 캡슐 콜라이더라 윗면이 둥글다. 메시 콜라이더로 바꿔 평평하게 만든다.</summary>

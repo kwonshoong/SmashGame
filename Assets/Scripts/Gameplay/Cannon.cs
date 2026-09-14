@@ -34,52 +34,91 @@ namespace SmashGame
             return c;
         }
 
+        // ---------- 비주얼 (코드 조립: 나무 수레 + 바퀴살 바퀴 + 테이퍼 포신 + 금속 띠) ----------
+
+        static readonly Color WoodDark = new Color(0.45f, 0.28f, 0.16f);
+        static readonly Color WoodLight = new Color(0.62f, 0.42f, 0.24f);
+        static readonly Color IronRed = new Color(0.78f, 0.14f, 0.18f);
+        static readonly Color Brass = new Color(1f, 0.78f, 0.25f);
+        static readonly Color WheelBlue = new Color(0.2f, 0.42f, 0.88f);
+
+        GameObject Part(PrimitiveType prim, Transform parent, string name, Vector3 pos, Vector3 scale, Quaternion rot, Material mat, float bevel)
+        {
+            var go = GameObject.CreatePrimitive(prim);
+            go.name = name;
+            DestroyImmediate(go.GetComponent<Collider>());
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = pos;
+            go.transform.localRotation = rot;
+            go.transform.localScale = scale;
+            go.GetComponent<Renderer>().material = mat;
+            if (bevel > 0f) RoundedMesh.Apply(go, bevel);
+            return go;
+        }
+
         void BuildVisual()
         {
-            // 받침(수레)
-            var baseGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            baseGo.name = "Base";
-            DestroyImmediate(baseGo.GetComponent<Collider>());
-            baseGo.transform.SetParent(transform, false);
-            baseGo.transform.localPosition = new Vector3(0, -0.35f, 0);
-            baseGo.transform.localScale = new Vector3(1.4f, 0.5f, 1.2f);
-            baseGo.GetComponent<Renderer>().material = Materials.Get(new Color(0.55f, 0.2f, 0.6f));
-            RoundedMesh.Apply(baseGo, 0.07f);
+            var plank = Materials.GetBlock(BlockKind.Plank, WoodLight);
+            var plankDark = Materials.GetBlock(BlockKind.Plank, WoodDark);
+            var iron = Materials.Get(IronRed, true);
+            var brass = Materials.Get(Brass, true, true);
+            var blue = Materials.Get(WheelBlue, true);
+            var darkMetal = Materials.Get(new Color(0.25f, 0.25f, 0.3f), false, true);
 
-            var wheelL = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            DestroyImmediate(wheelL.GetComponent<Collider>());
-            wheelL.transform.SetParent(transform, false);
-            wheelL.transform.localPosition = new Vector3(-0.85f, -0.45f, 0);
-            wheelL.transform.localRotation = Quaternion.Euler(0, 0, 90);
-            wheelL.transform.localScale = new Vector3(0.7f, 0.12f, 0.7f);
-            wheelL.GetComponent<Renderer>().material = Materials.Get(new Color(0.2f, 0.45f, 0.9f));
-            RoundedMesh.Apply(wheelL, 0.03f);
-            var wheelR = Instantiate(wheelL, transform);
-            wheelR.transform.localPosition = new Vector3(0.85f, -0.45f, 0);
+            // 수레: 바닥 판 + 양옆 볼(cheek) 판 + 가로 보강대
+            var carriage = new GameObject("Carriage").transform;
+            carriage.SetParent(transform, false);
+            Part(PrimitiveType.Cube, carriage, "Bed", new Vector3(0, -0.5f, -0.05f), new Vector3(1.0f, 0.14f, 1.5f), Quaternion.identity, plank, 0.03f);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                // 뒤가 높고 앞이 낮은 볼: 두 조각(뒤 두꺼운 블록 + 앞 낮은 블록)으로 경사 표현
+                Part(PrimitiveType.Cube, carriage, "Cheek", new Vector3(side * 0.42f, -0.2f, -0.35f), new Vector3(0.14f, 0.6f, 0.8f), Quaternion.identity, plankDark, 0.03f);
+                Part(PrimitiveType.Cube, carriage, "CheekFront", new Vector3(side * 0.42f, -0.36f, 0.35f), new Vector3(0.14f, 0.28f, 0.7f), Quaternion.identity, plankDark, 0.03f);
+                // 금속 보강 띠
+                Part(PrimitiveType.Cube, carriage, "Band", new Vector3(side * 0.42f, -0.2f, -0.35f), new Vector3(0.16f, 0.06f, 0.82f), Quaternion.identity, darkMetal, 0.01f);
+            }
+            Part(PrimitiveType.Cube, carriage, "CrossBar", new Vector3(0, -0.28f, -0.7f), new Vector3(1.0f, 0.12f, 0.12f), Quaternion.identity, plankDark, 0.02f);
+            // 차축
+            Part(PrimitiveType.Cylinder, carriage, "Axle", new Vector3(0, -0.45f, 0.05f), new Vector3(0.1f, 0.95f, 0.1f), Quaternion.Euler(0, 0, 90), darkMetal, 0.02f);
 
-            // 포신(회전 축)
+            // 바퀴: 림 + 허브 + 바퀴살 6개
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var wheel = new GameObject("Wheel").transform;
+                wheel.SetParent(transform, false);
+                wheel.localPosition = new Vector3(side * 0.92f, -0.45f, 0.05f);
+                wheel.localRotation = Quaternion.Euler(0, 0, 90);
+                Part(PrimitiveType.Cylinder, wheel, "Rim", Vector3.zero, new Vector3(0.78f, 0.07f, 0.78f), Quaternion.identity, blue, 0.03f);
+                Part(PrimitiveType.Cylinder, wheel, "RimInner", Vector3.zero, new Vector3(0.66f, 0.075f, 0.66f), Quaternion.identity, Materials.Get(WoodLight), 0.02f);
+                Part(PrimitiveType.Cylinder, wheel, "Hub", Vector3.zero, new Vector3(0.22f, 0.09f, 0.22f), Quaternion.identity, brass, 0.02f);
+                for (int k = 0; k < 6; k++)
+                {
+                    float a = k * 60f;
+                    var q = Quaternion.Euler(0, a, 0);
+                    Part(PrimitiveType.Cube, wheel, "Spoke", q * new Vector3(0.17f, 0, 0), new Vector3(0.34f, 0.05f, 0.06f), q, Materials.Get(WoodDark), 0.01f);
+                }
+            }
+
+            // 포신(회전 축) — 위치·길이는 조준/발사 계산과 맞물려 있으므로 유지
             barrel = new GameObject("Barrel").transform;
             barrel.SetParent(transform, false);
             barrel.localPosition = new Vector3(0, 0.1f, 0);
 
-            var tube = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            tube.name = "Tube";
-            DestroyImmediate(tube.GetComponent<Collider>());
-            tube.transform.SetParent(barrel, false);
-            tube.transform.localPosition = new Vector3(0, 0, 0.7f);
-            tube.transform.localRotation = Quaternion.Euler(90, 0, 0);
-            tube.transform.localScale = new Vector3(0.6f, 0.75f, 0.6f);
-            tube.GetComponent<Renderer>().material = Materials.Get(new Color(0.8f, 0.15f, 0.2f), true);
-            RoundedMesh.Apply(tube, 0.06f);
-
-            var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            DestroyImmediate(ring.GetComponent<Collider>());
-            ring.transform.SetParent(barrel, false);
-            ring.transform.localPosition = new Vector3(0, 0, 1.3f);
-            ring.transform.localRotation = Quaternion.Euler(90, 0, 0);
-            ring.transform.localScale = new Vector3(0.7f, 0.08f, 0.7f);
-            ring.GetComponent<Renderer>().material = Materials.Get(new Color(1f, 0.8f, 0.2f), false, true);
-            RoundedMesh.Apply(ring, 0.025f);
+            // 본체: 뒤(약실)가 굵고 앞이 가는 테이퍼 느낌 — 세 구간으로
+            Part(PrimitiveType.Cylinder, barrel, "Breech", new Vector3(0, 0, 0.15f), new Vector3(0.66f, 0.35f, 0.66f), Quaternion.Euler(90, 0, 0), iron, 0.08f);
+            Part(PrimitiveType.Cylinder, barrel, "Tube", new Vector3(0, 0, 0.75f), new Vector3(0.58f, 0.45f, 0.58f), Quaternion.Euler(90, 0, 0), iron, 0.05f);
+            Part(PrimitiveType.Cylinder, barrel, "Neck", new Vector3(0, 0, 1.3f), new Vector3(0.52f, 0.2f, 0.52f), Quaternion.Euler(90, 0, 0), iron, 0.04f);
+            // 포구 링(나팔) + 띠 2개 + 뒤쪽 둥근 꼬리
+            Part(PrimitiveType.Cylinder, barrel, "MuzzleRing", new Vector3(0, 0, 1.47f), new Vector3(0.68f, 0.07f, 0.68f), Quaternion.Euler(90, 0, 0), brass, 0.025f);
+            Part(PrimitiveType.Cylinder, barrel, "Band1", new Vector3(0, 0, 0.5f), new Vector3(0.64f, 0.045f, 0.64f), Quaternion.Euler(90, 0, 0), brass, 0.015f);
+            Part(PrimitiveType.Cylinder, barrel, "Band2", new Vector3(0, 0, 1.05f), new Vector3(0.6f, 0.045f, 0.6f), Quaternion.Euler(90, 0, 0), brass, 0.015f);
+            Part(PrimitiveType.Sphere, barrel, "Cascabel", new Vector3(0, 0, -0.28f), Vector3.one * 0.3f, Quaternion.identity, brass, 0f);
+            Part(PrimitiveType.Sphere, barrel, "BreechCap", new Vector3(0, 0, -0.05f), Vector3.one * 0.62f, Quaternion.identity, iron, 0f);
+            // 포이(회전축 핀) 좌우
+            for (int side = -1; side <= 1; side += 2)
+                Part(PrimitiveType.Cylinder, barrel, "Trunnion", new Vector3(side * 0.38f, 0, 0.15f), new Vector3(0.16f, 0.1f, 0.16f), Quaternion.Euler(0, 0, 90), darkMetal, 0.02f);
+            // 포구 안쪽(검은 구멍)
+            Part(PrimitiveType.Cylinder, barrel, "Bore", new Vector3(0, 0, 1.5f), new Vector3(0.4f, 0.02f, 0.4f), Quaternion.Euler(90, 0, 0), Materials.Get(new Color(0.08f, 0.06f, 0.08f)), 0f);
 
             muzzle = new GameObject("Muzzle").transform;
             muzzle.SetParent(barrel, false);

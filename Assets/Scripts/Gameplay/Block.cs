@@ -178,7 +178,9 @@ namespace SmashGame
         static Shader GetShader()
         {
             if (shader != null) return shader;
-            shader = Shader.Find("Standard");
+            // URP가 켜져 있으면 URP Lit, 아니면 빌트인 Standard
+            if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null) shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Standard");
             if (shader == null) shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null) shader = Shader.Find("Legacy Shaders/Diffuse");
             return shader;
@@ -228,11 +230,14 @@ namespace SmashGame
             }
             else if (m.HasProperty("_Surface"))
             {
-                m.SetFloat("_Surface", 1f); m.SetFloat("_Blend", 0f);
+                m.SetFloat("_Surface", 1f); m.SetFloat("_Blend", 0f); m.SetFloat("_AlphaClip", 0f);
                 m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
                 m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                if (m.HasProperty("_SrcBlendAlpha")) { m.SetInt("_SrcBlendAlpha", 1); m.SetInt("_DstBlendAlpha", 10); }
                 m.SetInt("_ZWrite", 1);
+                m.SetOverrideTag("RenderType", "Transparent");
                 m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                m.DisableKeyword("_ALPHATEST_ON");
                 m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
             }
             if (m.HasProperty("_EmissionColor")) { m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", new Color(0.35f, 0.6f, 0.9f) * 0.12f); }

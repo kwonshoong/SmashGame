@@ -39,3 +39,6 @@ crashlytics-build.properties
 /_to_delete/
 /Assets/Screenshots/
 /Assets/Screenshots.meta
+
+# Cowork 세션 출력물
+/Claude outputs/
