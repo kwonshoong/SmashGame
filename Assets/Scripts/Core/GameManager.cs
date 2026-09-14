@@ -35,6 +35,7 @@ namespace SmashGame
             public int remainingBalls, perfects;
             public bool trackCompleted;
             public bool bonus;
+            public bool tower; public int towerStage; public bool towerCleared;
             public int destroyed, totalBlocks;
         }
         public ResultInfo LastResult;
@@ -270,6 +271,45 @@ namespace SmashGame
         }
 
         public void RetryLevel() => StartLevel();
+
+        // ---------------- 격파 도전 ----------------
+
+        public bool IsTowerUnlocked => Data.currentLevel > Balance.TowerUnlockLevel;
+
+        public void StartTowerRush()
+        {
+            State = GameState.Playing;
+            ClearLevel();
+            var go = new GameObject("LevelController");
+            go.transform.SetParent(levelRoot);
+            Level = go.AddComponent<LevelController>();
+            Level.InitTower(this, Data.towerStage);
+            camLerp = false;
+            mainCamera.transform.SetPositionAndRotation(CamDefaultPos, CamDefaultRot);
+            UI.ShowHUD();
+            OnDataChanged?.Invoke();
+        }
+
+        /// <summary>격파 도전 종료. 전부 무너뜨렸으면 단계 상승. 부순 블록만큼 코인은 항상 지급.</summary>
+        public void OnTowerEnded(int stage, int destroyed, int total)
+        {
+            State = GameState.Result;
+            bool cleared = destroyed >= total;
+            var r = new ResultInfo { won = cleared, tower = true, towerStage = stage, towerCleared = cleared, level = Data.currentLevel, destroyed = destroyed, totalBlocks = total };
+            r.clearCoin = destroyed * Balance.TowerCoinPerBlock(stage);
+            r.trackCoin = cleared ? Balance.TowerClearCoin(stage) : 0;
+            r.total = r.clearCoin + r.trackCoin;
+            Data.coins += r.total;
+            if (cleared)
+            {
+                Data.towerBest = Mathf.Max(Data.towerBest, stage);
+                Data.towerStage = stage + 1;
+            }
+            LastResult = r;
+            Data.Save();
+            UI.ShowResult(r);
+            OnDataChanged?.Invoke();
+        }
 
         void ClearLevel()
         {

@@ -15,7 +15,8 @@ namespace SmashGame
         RectTransform lobby, hud, result, forge, training;
 
         // 로비
-        Text lobbyCoins, lobbyLevelInfo, lobbyTrainingBadge, lobbyForgeBadge, lobbyStreak;
+        Text lobbyCoins, lobbyLevelInfo, lobbyTrainingBadge, lobbyForgeBadge, lobbyStreak, lobbyTowerBadge;
+        Button towerBtn;
         Button playBtn;
 
         // HUD
@@ -83,13 +84,15 @@ namespace SmashGame
 
             playBtn = UIKit.Button(lobby, "레벨 1", UIKit.Green, new Vector2(0.5f, 0), new Vector2(0, 300), new Vector2(560, 150), () => gm.StartLevel(), 54);
 
-            // 하단 탭: 대장간 · 훈련장 · 초기화
+            // 하단 탭: 대장간 · 격파 도전 · 훈련장  (초기화는 상단 바로)
             var bottom = UIKit.Panel(lobby, "BottomBar", UIKit.Bar, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 0), new Vector2(0, 200));
             var forgeBtn = UIKit.Button(bottom, "대장간", UIKit.Purple, new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(320, 150), OpenForge, 40);
             lobbyForgeBadge = UIKit.Label(forgeBtn.transform, "", 26, UIKit.Gold, new Vector2(1, 1), new Vector2(-6, -6), new Vector2(200, 40), TextAnchor.UpperRight, true);
+            towerBtn = UIKit.Button(bottom, "격파 도전", UIKit.Orange, new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(340, 150), OpenTower, 40);
+            lobbyTowerBadge = UIKit.Label(towerBtn.transform, "", 26, UIKit.Gold, new Vector2(1, 1), new Vector2(-6, -6), new Vector2(240, 40), TextAnchor.UpperRight, true);
             var trainBtn = UIKit.Button(bottom, "훈련장", UIKit.Blue, new Vector2(1, 0.5f), new Vector2(-30, 0), new Vector2(320, 150), OpenTraining, 40);
             lobbyTrainingBadge = UIKit.Label(trainBtn.transform, "", 26, UIKit.Gold, new Vector2(1, 1), new Vector2(-6, -6), new Vector2(240, 40), TextAnchor.UpperRight, true);
-            UIKit.Button(bottom, "초기화", new Color(0.4f, 0.4f, 0.4f), new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(200, 90), () => gm.ResetSave(), 28);
+            UIKit.Button(top, "초기화", new Color(0.4f, 0.4f, 0.4f), new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(150, 64), () => gm.ResetSave(), 24);
         }
 
         public void ShowLobby()
@@ -116,6 +119,9 @@ namespace SmashGame
             // 대장간 배지: 해금 전 / 권장치 미달
             if (!gm.IsForgeUnlocked) lobbyForgeBadge.text = $"Lv{Balance.ForgeUnlockLevel + 1} 해금";
             else lobbyForgeBadge.text = d.StatSum < Balance.RecommendedStatSum(d.currentLevel) ? "강화 권장!" : "";
+
+            if (!gm.IsTowerUnlocked) lobbyTowerBadge.text = $"Lv{Balance.TowerUnlockLevel + 1} 해금";
+            else lobbyTowerBadge.text = $"{d.towerStage}단계";
 
             if (!TrainingGround.IsUnlocked(d)) lobbyTrainingBadge.text = $"Lv{Balance.TrainingUnlockLevel + 1} 해금";
             else
@@ -162,11 +168,14 @@ namespace SmashGame
         void RefreshHUD()
         {
             if (gm.Level == null) return;
-            if (gm.Level.IsBonus)
+            if (gm.Level.IsTimed)
             {
                 hudBallsTitle.text = "남은 시간";
                 hudBalls.text = Mathf.CeilToInt(gm.Level.BonusTimeLeft).ToString();
-                hudBlocks.text = $"보너스!  자동차 부수기  ·  {gm.Level.BlocksDestroyed}/{gm.Level.BlocksLeft + gm.Level.BlocksDestroyed}";
+                int total = gm.Level.BlocksLeft + gm.Level.BlocksDestroyed;
+                hudBlocks.text = gm.Level.IsTower
+                    ? $"격파 도전 {gm.Level.Info.towerStage}단계  ·  {gm.Level.BlocksDestroyed}/{total}"
+                    : $"보너스!  자동차 부수기  ·  {gm.Level.BlocksDestroyed}/{total}";
             }
             else
             {
@@ -214,7 +223,22 @@ namespace SmashGame
             HideAll();
             result.gameObject.SetActive(true);
             resultMain.onClick.RemoveAllListeners();
-            if (r.bonus)
+            if (r.tower)
+            {
+                var d = gm.Data;
+                resultTitle.text = r.towerCleared ? $"{r.towerStage}단계 격파!" : "격파 실패";
+                string body = $"격파 도전 {r.towerStage}단계\n\n";
+                body += $"부순 블록 {r.destroyed}/{r.totalBlocks}     +{r.clearCoin}\n";
+                if (r.towerCleared) body += $"단계 돌파 보너스        +{r.trackCoin}\n";
+                body += $"\n합계  +{r.total} 코인      (보유 {d.coins:N0})\n";
+                if (r.towerCleared) body += $"\n다음 단계: 블록 질량 ×{Balance.TowerMassMult(d.towerStage):0.0}  ·  권장 파괴력 {Balance.TowerRecommendedPower(d.towerStage)}%";
+                else body += $"\n이 단계 블록 질량 ×{Balance.TowerMassMult(r.towerStage):0.0}  ·  권장 파괴력 {Balance.TowerRecommendedPower(r.towerStage)}%\n대장간에서 파괴력·무게를 올리면 블록이 더 잘 밀립니다.";
+                resultBody.text = body;
+                UIKit.SetButtonLabel(resultMain, r.towerCleared ? $"{d.towerStage}단계 도전" : "다시 도전");
+                resultMain.GetComponent<Image>().color = r.towerCleared ? UIKit.Green : UIKit.Orange;
+                resultMain.onClick.AddListener(() => gm.StartTowerRush());
+            }
+            else if (r.bonus)
             {
                 var d = gm.Data;
                 resultTitle.text = r.destroyed >= r.totalBlocks ? "완전 파괴!" : "보너스 종료!";
@@ -255,6 +279,16 @@ namespace SmashGame
                 resultMain.GetComponent<Image>().color = UIKit.Orange;
                 resultMain.onClick.AddListener(() => gm.RetryLevel());
             }
+        }
+
+        // ======================= 격파 도전 =======================
+
+        void OpenTower()
+        {
+            if (!gm.IsTowerUnlocked) { Toast($"격파 도전은 레벨 {Balance.TowerUnlockLevel} 클리어 후 열립니다"); return; }
+            int st = gm.Data.towerStage;
+            Toast($"격파 도전 {st}단계  ·  {Balance.TowerSeconds:0}초 무제한 발사  ·  권장 파괴력 {Balance.TowerRecommendedPower(st)}%");
+            gm.StartTowerRush();
         }
 
         // ======================= 대장간 =======================

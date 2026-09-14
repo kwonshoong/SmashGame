@@ -15,6 +15,9 @@ namespace SmashGame
         public List<Block> blocks = new();
         public string structureName;
         public bool bonus;   // 보너스 스테이지(자동차 부수기): 제한 시간·공 무제한·실패 없음
+        public bool tower;   // 격파 도전: 제한 시간·공 무제한, 전부 무너뜨리면 단계 상승
+        public int towerStage;
+        public float timeLimit;
     }
 
     /// <summary>
@@ -236,6 +239,7 @@ namespace SmashGame
                 BuildCarStage(root, rng, p, info);
                 foreach (var b in info.blocks) b.SettleAndSleep();
                 info.startBalls = 9999;
+                info.timeLimit = Balance.BonusSeconds;
                 info.structureName = "보너스: 자동차 부수기";
                 return info;
             }
@@ -492,6 +496,68 @@ namespace SmashGame
                 for (int i = -1; i <= 1; i++)
                     MakeUnit(root, BlockKind.Cylinder, new Vector3(i * 0.8f, y + 0.1f, 0), i == 0, i == 0 ? p.a : p.b, info.blocks, u);
             }
+        }
+
+        // ---------------- 격파 도전: 초중량 거대 탑 ----------------
+
+        /// <summary>
+        /// 격파 도전 스테이지. 단계가 오를수록 탑이 넓고 높고 두꺼워지며(최대 10×11×2), 블록 질량이 기하급수로 커지고
+        /// 4단계부터 강화 블록이 섞인다. 20초 무제한 발사. 파괴력 스탯이 낮으면 블록이 밀리지도 않는다.
+        /// </summary>
+        public static LevelInfo BuildTower(int stage, Transform root, SaveData data, Camera cam)
+        {
+            var theme = (Theme)((stage - 1) % 3);
+            var info = new LevelInfo { level = data.currentLevel, theme = theme, tower = true, towerStage = stage, timeLimit = Balance.TowerSeconds, pedestalTop = PedestalTop };
+            var rng = new System.Random(stage * 4241 + 99);
+            var p = GetPalette(theme);
+            BuildEnvironment(root, cam, theme);
+
+            int cols = Balance.TowerCols(stage), rows = Balance.TowerRows(stage), depth = Balance.TowerDepth(stage);
+            float u = Unit;
+            Pedestal(root, Vector3.zero, cols * u * 0.5f + 0.45f, p, true);
+
+            // 무거워 보이는 팔레트: 강철 회색 큐브 · 나무 상자 · 돌기둥, 단계마다 톤이 조금씩 어두워진다
+            float tone = Mathf.Clamp01(1f - (stage - 1) * 0.04f);
+            Color steelA = new Color(0.55f, 0.58f, 0.64f) * tone, steelB = new Color(0.42f, 0.45f, 0.52f) * tone;
+            Color crate = new Color(0.62f, 0.42f, 0.22f) * tone;
+            Color stone = new Color(0.8f, 0.78f, 0.72f) * tone;
+
+            for (int i = 0; i < cols; i++)
+                for (int d = 0; d < depth; d++)
+                {
+                    float x = (i - (cols - 1) * 0.5f) * u;
+                    float z = (d - (depth - 1) * 0.5f) * u;
+                    int ii = i, dd = d;
+                    FillColumn(root, rng, new Vector3(x, PedestalTop, z), rows, 0.45f, (j, tall) =>
+                    {
+                        int r = rng.Next(10);
+                        BlockKind kind = r < 5 ? BlockKind.Cube : (r < 8 ? BlockKind.Crate : BlockKind.Stone);
+                        Color col = kind == BlockKind.Cube ? ((ii + j + dd) % 2 == 0 ? steelA : steelB) : kind == BlockKind.Crate ? crate : stone;
+                        return (kind, col);
+                    }, info.blocks, u);
+                }
+
+            // 초중량 + 강화
+            float massMult = Balance.TowerMassMult(stage);
+            int hp = Balance.TowerHp(stage);
+            int reinforced = hp > 1 ? Mathf.RoundToInt(info.blocks.Count * Balance.TowerReinforcedRatio) : 0;
+            var pool = new List<Block>(info.blocks);
+            foreach (var b in info.blocks)
+            {
+                var rb = b.GetComponent<Rigidbody>();
+                b.Setup(b.kind, b.BaseColor, rb.mass * massMult, 1);
+            }
+            for (int k = 0; k < reinforced && pool.Count > 0; k++)
+            {
+                var b = pool[rng.Next(pool.Count)];
+                pool.Remove(b);
+                b.Setup(b.kind, b.BaseColor, b.GetComponent<Rigidbody>().mass, hp);
+            }
+
+            foreach (var b in info.blocks) b.SettleAndSleep();
+            info.startBalls = 9999;
+            info.structureName = $"격파 도전 {stage}단계";
+            return info;
         }
 
         // ---------------- 보너스 스테이지: 자동차 ----------------

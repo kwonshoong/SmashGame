@@ -52,7 +52,22 @@ namespace SmashGame
         public const float BonusSeconds = 20f;             // 제한 시간, 공 무제한
         public const int   BonusCoinPerBlock = 3;          // 떨어뜨린/부순 블록 1개당 코인
         public const int   BonusAllClearCoin = 80;         // 전부 부수면 추가
-        public static bool IsBonusLevel(int level) => level >= 5 && level % BonusEveryLevels == 5;
+        public const bool  CarBonusEnabled = false;        // 자동차 보너스는 레벨 흐름에서 잠시 뺀다 (격파 도전으로 대체)
+        public static bool IsBonusLevel(int level) => CarBonusEnabled && level >= 5 && level % BonusEveryLevels == 5;
+
+        // ---------- 격파 도전 (별도 모드: 20초 무제한 발사로 거대·초중량 탑 무너뜨리기) ----------
+        public const int   TowerUnlockLevel = 20;          // 레벨 20 클리어 후 해금
+        public const float TowerSeconds = 20f;
+        public static int  TowerCols(int stage)  => Mathf.Min(8 + (stage - 1) / 2, 10);     // 1단계 8칸 → 5단계 10칸
+        public static int  TowerRows(int stage)  => Mathf.Min(8 + (stage - 1) / 2, 11);     // 1단계 8칸 → 7단계 11칸 (카메라 프레임 상한)
+        public static int  TowerDepth(int stage) => 2;                                       // 항상 두 겹 (블록 100개 안팎)
+        public static float TowerMassMult(int stage) => 2f * Mathf.Pow(1.45f, stage - 1);   // 1단계 ×2, 5단계 ×8.8, 8단계 ×27
+        public static int  TowerHp(int stage) => stage >= 8 ? 3 : (stage >= 4 ? 2 : 1);      // 4단계부터 강화 블록
+        public const float TowerReinforcedRatio = 0.25f;
+        public static int  TowerCoinPerBlock(int stage) => 2 + stage;
+        public static int  TowerClearCoin(int stage) => 200 * stage;
+        /// <summary>안내용 권장 파괴력(%). 블록 질량이 커질수록 필요한 파괴력이 비례해서 오른다.</summary>
+        public static int  TowerRecommendedPower(int stage) => Mathf.RoundToInt(Mathf.Clamp(TowerMassMult(stage) * 55f, 100f, 300f) / 10f) * 10;
 
         // ---------- 난이도 ----------
         public const float ReinforcedRatioCap = 0.20f;

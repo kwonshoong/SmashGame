@@ -26,6 +26,10 @@ namespace SmashGame
         public int clearedToday = 0;
         public string clearedDay = "";
 
+        // 격파 도전
+        public int towerStage = 1;            // 현재 도전 단계
+        public int towerBest = 0;             // 돌파한 최고 단계
+
         public bool forgeGiftGiven = false;
         public bool adFree = false;
 
