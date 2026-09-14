@@ -19,8 +19,12 @@ namespace SmashGame
 
         static readonly System.Collections.Generic.List<Ball> alive = new();
 
-        public const float BallPhysicsMass = 0.05f;
-        public const float Lifetime = 2f; // 발사 후 공이 사라지기까지의 시간(충돌 여부와 무관)
+        public const float BallPhysicsMass = 0.05f;   // PhysX 상의 질량(블록에 주는 힘은 스탯 임펄스로 따로 계산하므로 작게)
+        public const float ReboundMassBase = 0.35f;    // 되튕김 계산용 "실제" 공 질량 (× 무게 스탯). 블록 질량과 비교되어 튕길지 밀고 나갈지 결정
+        public const float Restitution = 0.35f;        // 반발계수 (0 = 완전 비탄성, 1 = 완전 탄성)
+        public const float TangentKeep = 0.75f;        // 접선 속도 보존 비율 (마찰로 일부 손실)
+        public const float Lifetime = 2f;
+        static PhysicsMaterial ballPhysics; // 발사 후 공이 사라지기까지의 시간(충돌 여부와 무관)
         public static float Speed => Balance.BallSpeed;
         static float BaseImpulse => Balance.BallImpulse;
 
@@ -37,6 +41,10 @@ namespace SmashGame
             // 공의 물리 질량은 아주 작게: 블록에 주는 충격은 전부 아래 OnCollisionEnter에서 스탯 기반으로 직접 넣는다.
             // (질량이 크면 PhysX 자체 충돌 임펄스가 스탯과 무관하게 블록을 밀어 버리고, 공이 블록을 뚫고 지나가며 뒷블록까지 밀었다)
             rb.mass = BallPhysicsMass;
+            if (ballPhysics == null)
+                ballPhysics = new PhysicsMaterial("Ball") { bounciness = Restitution, dynamicFriction = 0.4f, staticFriction = 0.4f,
+                    bounceCombine = PhysicsMaterialCombine.Maximum, frictionCombine = PhysicsMaterialCombine.Average };
+            go.GetComponent<Collider>().material = ballPhysics; // 첫 타격 이후의 충돌(받침대·바닥·다른 블록)은 PhysX가 같은 반발계수로 처리
             rb.useGravity = true; // 중력 적용. 조준은 Cannon에서 포물선 보정
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
@@ -68,6 +76,21 @@ namespace SmashGame
             4 => new Color(0.75f, 0.45f, 0.95f),
             _ => new Color(1f, 0.85f, 0.2f),
         };
+
+        /// <summary>
+        /// 공(질량 mB, 속도 v)이 블록(질량 mK, 속도 u)의 면(법선 n, 공 쪽 방향)에 부딪힌 뒤의 공 속도.
+        /// 법선 성분은 반발계수 e의 충돌식, 접선 성분은 마찰로 일부만 남긴다. 블록 쪽 반작용은 스탯 임펄스가 대신한다.
+        /// </summary>
+        public static Vector3 ReboundVelocity(Vector3 v, Vector3 u, Vector3 n, float mB, float mK)
+        {
+            Vector3 vrel = v - u;
+            float vn = Vector3.Dot(vrel, n);            // 접근 중이면 음수
+            if (vn > 0f) return v;                        // 이미 멀어지는 중
+            Vector3 vt = vrel - vn * n;
+            float jn = -(1f + Restitution) * vn / (1f / mB + 1f / mK);   // 법선 임펄스 크기
+            float vnAfter = vn + jn / mB;                 // 양수면 되튕김, 음수면 밀고 나감
+            return u + vt * TangentKeep + n * vnAfter;
+        }
 
         void FixedUpdate()
         {
@@ -102,6 +125,13 @@ namespace SmashGame
             float radius = 0.6f * stats.size;
             int dmg = Mathf.Max(1, Mathf.CeilToInt(stats.power - 0.01f));
 
+            // 되튕김 계산에 쓸 값은 블록이 부서지기(Hit) 전에 읽어 둔다
+            var directRb = block.GetComponent<Rigidbody>();
+            float blockMass = directRb == null || directRb.isKinematic ? 1e6f : directRb.mass;
+            Vector3 blockVel = directRb != null ? directRb.linearVelocity : Vector3.zero;
+            Vector3 normal = c.GetContact(0).normal;
+            if (Vector3.Dot(normal, lastVelocity) > 0f) normal = -normal;   // 항상 공 쪽을 향하게
+
             // 직접 맞은 블록 (짧은 간격으로 같은 블록을 다시 맞히면 콤보로 더 세게 민다)
             bool perfect = block.crown;
             float combo = block.RegisterHitCombo();
@@ -126,10 +156,9 @@ namespace SmashGame
 
             onHit?.Invoke(perfect, point);
             // 공은 사라지지 않고 튕겨 나와 떨어진다. 가벼운 공이라 이후 충돌은 블록을 거의 밀지 않는다.
-            // 날아온 방향의 반대로 살짝 튕겨 나오며 위로 떠오른다 (접촉 법선은 상황에 따라 방향이 뒤집혀 신뢰하지 않는다)
-            Vector3 bounce = -dir * 4f;
-            bounce.y = Mathf.Abs(bounce.y) + 2f;
-            rb.linearVelocity = bounce;
+            // 공의 되튕김: 맞은 면의 법선·양쪽 질량·반발계수로 1차원 충돌식을 풀어 실제와 비슷하게.
+            // 가벼운 블록(사탕)이면 밀고 나가고, 무거운 블록(돌·격파 탑)이면 되튕기고, 원통 옆면을 비스듬히 치면 법선 방향으로 꺾여 나간다.
+            rb.linearVelocity = ReboundVelocity(lastVelocity, blockVel, normal, ReboundMassBase * stats.mass, blockMass);
         }
     }
 }
