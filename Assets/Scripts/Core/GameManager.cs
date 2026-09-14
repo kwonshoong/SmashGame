@@ -51,7 +51,15 @@ namespace SmashGame
 
         void Update()
         {
-            if (!camLerp || mainCamera == null) return;
+            if (mainCamera == null) return;
+            // 플레이 중에는 어떤 경로로 들어왔든 항상 기본 시점으로 고정 (패널 시점이 남는 문제 방지)
+            if (State == GameState.Playing)
+            {
+                camLerp = false;
+                mainCamera.transform.SetPositionAndRotation(CamDefaultPos, CamDefaultRot);
+                return;
+            }
+            if (!camLerp) return;
             var t = mainCamera.transform;
             t.position = Vector3.Lerp(t.position, camTargetPos, Time.unscaledDeltaTime * 7f);
             t.rotation = Quaternion.Slerp(t.rotation, camTargetRot, Time.unscaledDeltaTime * 7f);
@@ -129,6 +137,7 @@ namespace SmashGame
             Level = go.AddComponent<LevelController>();
             Level.Init(this, Data.currentLevel);
             camLerp = false;
+            mainCamera.transform.SetPositionAndRotation(CamDefaultPos, CamDefaultRot);
             UI.ShowHUD();
             OnDataChanged?.Invoke();
         }
