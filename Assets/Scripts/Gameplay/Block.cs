@@ -1,0 +1,218 @@
+using UnityEngine;
+
+namespace SmashGame
+{
+    public enum BlockKind { Cube, Cylinder, Candy, Ice, Crate, Log, Plank, Stone, Crown }
+
+    /// <summary>
+    /// 받침대 위의 블록 하나. 받침대 아래로 떨어지면 "제거"로 카운트된다.
+    /// 강화 블록(hp>1)은 hp가 1이 될 때까지 고정(kinematic)되어 있다가 풀린다.
+    /// </summary>
+    public class Block : MonoBehaviour
+    {
+        public BlockKind kind;
+        public int hp = 1;
+        public bool crown;
+        public bool sticky;
+        public LevelController controller;
+        public float fallY = 1.0f;
+
+        Rigidbody rb;
+        Renderer rend;
+        Color baseColor;
+        bool removed;
+        bool everHit;
+
+        public bool Removed => removed;
+
+        public void Setup(BlockKind k, Color color, float mass, int hitPoints)
+        {
+            kind = k;
+            hp = hitPoints;
+            rend = GetComponent<Renderer>();
+            baseColor = color;
+            rend.material = Materials.GetBlock(k, color);
+            rb = GetComponent<Rigidbody>();
+            if (rb == null) rb = gameObject.AddComponent<Rigidbody>();
+            rb.mass = mass;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+            rb.linearDamping = 0.05f;
+            rb.angularDamping = 0.2f;
+            rb.sleepThreshold = 0.02f;
+            var col = GetComponent<Collider>();
+            if (col != null) col.material = Materials.BlockPhysics;
+            if (hp > 1) { rb.isKinematic = true; ApplyCrackTint(); }
+        }
+
+        public void MakeCrown()
+        {
+            crown = true;
+            kind = BlockKind.Crown;
+            baseColor = new Color(1f, 0.82f, 0.15f);
+            rend.material = Materials.GetBlock(BlockKind.Crown, baseColor);
+            // 왕관 마커: 위에 작은 금색 구
+            var marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            DestroyImmediate(marker.GetComponent<Collider>());
+            marker.transform.SetParent(transform, false);
+            marker.transform.localPosition = new Vector3(0, 0.5f, -0.51f);
+            marker.transform.localScale = Vector3.one * 0.35f;
+            marker.GetComponent<Renderer>().material = Materials.Get(new Color(1f, 0.95f, 0.5f), false, true);
+        }
+
+        void ApplyCrackTint()
+        {
+            // hp 3: 진한 톤, hp 2: 금 간 톤(밝게), hp 1: 원래 색
+            float t = hp >= 3 ? 0.55f : (hp == 2 ? 0.75f : 1f);
+            rend.material = Materials.GetBlock(kind, baseColor * t);
+        }
+
+        /// <summary>공에 맞았을 때. dmg는 공 파괴력에서 계산된 정수.</summary>
+        public void Hit(int dmg, Vector3 dir, float impactPower)
+        {
+            if (removed) return;
+            everHit = true;
+            if (hp > 1)
+            {
+                hp = Mathf.Max(1, hp - dmg);
+                ApplyCrackTint();
+                if (hp <= 1) { rb.isKinematic = false; rb.WakeUp(); }
+                else return; // 아직 고정
+            }
+
+            bool shatter = kind == BlockKind.Ice || (kind == BlockKind.Candy && impactPower >= 1.2f);
+            if (shatter)
+            {
+                Debris.Spawn(transform.position, baseColor, 8, transform.localScale.magnitude * 0.25f);
+                MarkRemoved();
+                Destroy(gameObject);
+            }
+        }
+
+        void Update()
+        {
+            if (!removed && transform.position.y < fallY)
+            {
+                MarkRemoved();
+                Debris.Spawn(transform.position, baseColor, 4, transform.localScale.magnitude * 0.2f);
+                Destroy(gameObject, 1.5f);
+            }
+        }
+
+        void MarkRemoved()
+        {
+            if (removed) return;
+            removed = true;
+            if (controller != null) controller.OnBlockRemoved(this);
+        }
+
+        public bool WasHit => everHit;
+        public Color BaseColor => baseColor;
+
+        /// <summary>색만 바꿔 다시 입힌다 (접착 블록 표시 등)</summary>
+        public void Retint(Color c)
+        {
+            baseColor = c;
+            rend.material = Materials.GetBlock(kind, c);
+        }
+    }
+
+    /// <summary>색상별 머티리얼 캐시. Standard(빌트인) 우선, 없으면 URP Lit.</summary>
+    public static class Materials
+    {
+        static readonly System.Collections.Generic.Dictionary<int, Material> cache = new();
+        static Shader shader;
+        static PhysicsMaterial blockPhysics;
+
+        /// <summary>블록 공통 물리 재질: 마찰을 낮춰 밀리면 미끄러져 떨어지게</summary>
+        public static PhysicsMaterial BlockPhysics
+        {
+            get
+            {
+                if (blockPhysics == null)
+                {
+                    blockPhysics = new PhysicsMaterial("Block")
+                    {
+                        dynamicFriction = Balance.BlockFriction,
+                        staticFriction = Balance.BlockFriction + 0.05f,
+                        bounciness = 0.05f,
+                        frictionCombine = PhysicsMaterialCombine.Minimum,
+                        bounceCombine = PhysicsMaterialCombine.Minimum,
+                    };
+                }
+                return blockPhysics;
+            }
+        }
+
+        static Shader GetShader()
+        {
+            if (shader != null) return shader;
+            shader = Shader.Find("Standard");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Legacy Shaders/Diffuse");
+            return shader;
+        }
+
+        static readonly System.Collections.Generic.Dictionary<long, Material> blockCache = new();
+
+        /// <summary>소재 텍스처 + 색이 입혀진 블록 머티리얼</summary>
+        public static Material GetBlock(BlockKind kind, Color c)
+        {
+            long key = ((long)kind << 32) | ((long)Mathf.RoundToInt(c.r * 255) << 16) | ((long)Mathf.RoundToInt(c.g * 255) << 8) | (long)Mathf.RoundToInt(c.b * 255);
+            if (blockCache.TryGetValue(key, out var m) && m != null) return m;
+            m = new Material(GetShader());
+            var tex = BlockTextures.Get(kind, c);
+            m.mainTexture = tex;
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
+            m.color = Color.white;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+            var (smooth, metal) = BlockTextures.Surface(kind);
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smooth);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smooth);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metal);
+            blockCache[key] = m;
+            return m;
+        }
+
+        public static Material Get(Color c, bool glossy = false, bool metallic = false)
+        {
+            int key = (Mathf.RoundToInt(c.r * 255) << 16) | (Mathf.RoundToInt(c.g * 255) << 8) | Mathf.RoundToInt(c.b * 255)
+                      | (glossy ? 1 << 24 : 0) | (metallic ? 1 << 25 : 0);
+            if (cache.TryGetValue(key, out var m) && m != null) return m;
+            m = new Material(GetShader());
+            m.color = c;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", glossy ? 0.85f : 0.35f);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", glossy ? 0.85f : 0.35f);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic ? 0.6f : 0f);
+            cache[key] = m;
+            return m;
+        }
+    }
+
+    /// <summary>파편 연출. 작은 큐브를 흩뿌리고 1.5초 뒤 제거.</summary>
+    public static class Debris
+    {
+        public static void Spawn(Vector3 pos, Color color, int count, float size)
+        {
+            size = Mathf.Clamp(size, 0.08f, 0.3f);
+            for (int i = 0; i < count; i++)
+            {
+                var d = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                d.name = "Debris";
+                d.transform.position = pos + Random.insideUnitSphere * 0.3f;
+                d.transform.localScale = Vector3.one * size * Random.Range(0.6f, 1.2f);
+                d.transform.rotation = Random.rotation;
+                d.GetComponent<Renderer>().material = Materials.Get(color);
+                d.layer = LayerMask.NameToLayer("Ignore Raycast");
+                var rb = d.AddComponent<Rigidbody>();
+                rb.mass = 0.05f;
+                rb.linearVelocity = Random.insideUnitSphere * 5f + Vector3.up * 3f;
+                rb.angularVelocity = Random.insideUnitSphere * 10f;
+                var col = d.GetComponent<Collider>();
+                col.isTrigger = false;
+                Object.Destroy(d, Random.Range(1.0f, 1.8f));
+            }
+        }
+    }
+}
