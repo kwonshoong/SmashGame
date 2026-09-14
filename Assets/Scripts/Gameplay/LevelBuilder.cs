@@ -247,7 +247,7 @@ namespace SmashGame
                 return info;
             }
 
-            int T = Balance.StructureTypes;
+            int T = level >= Balance.NewStructuresFromLevel ? Balance.StructureTypes : 6;   // 초반엔 기본 6종만
             int type = info.hard ? (level / 10 + 6) % T : (level * 5 + rng.Next(0, 3)) % T;
             if (level <= 3) type = new[] { 1, 0, 2 }[level - 1];   // 튜토리얼 구간은 쉬운 구조물
             switch (type)
@@ -355,7 +355,7 @@ namespace SmashGame
             foreach (var b in info.blocks) b.SettleAndSleep();
 
             // 시작 공
-            info.startBalls = Balance.StartBalls(level, info.hard);
+            info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count);
             info.structureName = type switch
             {
                 0 => "원통 다발", 1 => "큐브 격자", 2 => "판자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",
@@ -530,24 +530,34 @@ namespace SmashGame
         }
 
         // ---------------- 추가 구조물 6종 (난이도 상향: 넓은 바닥·두 겹·무거운 소재·가려진 안쪽) ----------------
+        // 레벨에 따라 완만하게: 16레벨 전엔 한 겹, 30레벨 전엔 돌 대신 상자·원통
+
+        static int Depth(LevelInfo info) => info.level >= Balance.DeepStructuresFromLevel ? 2 : 1;
+        static bool Heavy(LevelInfo info) => info.level >= Balance.HeavyStructuresFromLevel;
+        static readonly Color StoneCol = new Color(0.9f, 0.88f, 0.82f);
+        static readonly Color CrateCol = new Color(0.65f, 0.42f, 0.2f);
+        /// <summary>무거운 바닥용 소재: 30레벨부터 돌, 그 전엔 상자</summary>
+        static (BlockKind, Color) Base(LevelInfo info) => Heavy(info) ? (BlockKind.Stone, StoneCol) : (BlockKind.Crate, CrateCol);
+        /// <summary>기둥용 소재: 30레벨부터 돌기둥, 그 전엔 원통</summary>
+        static (BlockKind, Color) Pillar(LevelInfo info, Color light) => Heavy(info) ? (BlockKind.Stone, StoneCol) : (BlockKind.Cylinder, light);
 
         /// <summary>피라미드: 9열, 가운데가 높고 양끝이 낮은 두 겹. 아래층은 돌·상자, 위층은 큐브.</summary>
         static void BuildPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Pedestal(root, Vector3.zero, 2.5f, p, true);
-            int cols = 9; float u = Unit;
+            int cols = 9; float u = Unit; int depth = Depth(info);
             for (int i = 0; i < cols; i++)
             {
                 int rows = 6 - Mathf.Abs(i - 4);           // 2,3,4,5,6,5,4,3,2
                 float x = (i - (cols - 1) * 0.5f) * u;
-                for (int d = 0; d < 2; d++)
+                for (int d = 0; d < depth; d++)
                 {
-                    float z = (d - 0.5f) * u;
+                    float z = (d - (depth - 1) * 0.5f) * u;
                     int ii = i;
                     FillColumn(root, rng, new Vector3(x, PedestalTop, z), rows, 0.4f, (j, tall) =>
                     {
-                        if (j == 0) return (BlockKind.Stone, new Color(0.9f, 0.88f, 0.82f));
-                        if (j == 1 && rng.Next(2) == 0) return (BlockKind.Crate, new Color(0.65f, 0.42f, 0.2f));
+                        if (j == 0) return Base(info);
+                        if (j == 1 && rng.Next(2) == 0) return (BlockKind.Crate, CrateCol);
                         return (BlockKind.Cube, (ii + j) % 2 == 0 ? p.a : p.b);
                     }, info.blocks, u);
                 }
@@ -565,11 +575,11 @@ namespace SmashGame
                 float x = (i - 3.5f) * u;
                 int ii = i;
                 FillColumn(root, rng, new Vector3(x, PedestalTop, -0.75f), 3, 0.5f, (j, tall) =>
-                    ii % 3 == 1 ? (BlockKind.Crate, new Color(0.65f, 0.42f, 0.2f)) : (BlockKind.Stone, new Color(0.9f, 0.88f, 0.82f)), info.blocks, u);
+                    ii % 3 == 1 ? (BlockKind.Crate, CrateCol) : Base(info), info.blocks, u);
             }
-            // 본성: 4열 × 6칸 두 겹, 큐브 + 얼음
+            // 본성: 4열 × 6칸 (16레벨부터 두 겹), 큐브 + 얼음
             for (int i = 0; i < 4; i++)
-                for (int d = 0; d < 2; d++)
+                for (int d = 0; d < Depth(info); d++)
                 {
                     float x = (i - 1.5f) * u, z = 0.25f + d * u;
                     int ii = i;
@@ -585,18 +595,18 @@ namespace SmashGame
         {
             Pedestal(root, Vector3.zero, 2.2f, p);
             float u = Unit;
-            var stoneCol = new Color(0.92f, 0.9f, 0.84f);
+            int depth = Depth(info);
             foreach (float x in new[] { -1.25f, 1.25f })
-                for (int d = 0; d < 2; d++)
-                    FillColumn(root, rng, new Vector3(x, PedestalTop, (d - 0.5f) * u), 5, 0.8f, (j, tall) => (BlockKind.Stone, stoneCol), info.blocks, u);
+                for (int d = 0; d < depth; d++)
+                    FillColumn(root, rng, new Vector3(x, PedestalTop, (d - (depth - 1) * 0.5f) * u), 5, 0.8f, (j, tall) => Pillar(info, j % 2 == 0 ? p.a : p.b), info.blocks, u);
             float top = PedestalTop + 5 * u;
             MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, top + 0.1f, 0), new Vector3(3.4f, 0.2f, 1.1f), Quaternion.identity, p.d, MassFor(BlockKind.Plank) * 1.5f, info.blocks);
             // 성가퀴: 상인방 위 큐브 5개(한 칸 간격) + 가운데 사탕
             for (int i = -2; i <= 2; i++)
                 MakeUnit(root, i == 0 ? BlockKind.Candy : BlockKind.Cube, new Vector3(i * 0.7f, top + 0.2f, 0), i == 0, i == 0 ? p.c : p.b, info.blocks, u);
             // 문 안쪽 작은 탑 (기둥에 가려짐)
-            for (int d = 0; d < 2; d++)
-                FillColumn(root, rng, new Vector3(0, PedestalTop, (d - 0.5f) * u), 3, 0.5f, (j, tall) => (BlockKind.Crate, new Color(0.65f, 0.42f, 0.2f)), info.blocks, u);
+            for (int d = 0; d < depth; d++)
+                FillColumn(root, rng, new Vector3(0, PedestalTop, (d - (depth - 1) * 0.5f) * u), 3, 0.5f, (j, tall) => (BlockKind.Crate, CrateCol), info.blocks, u);
         }
 
         /// <summary>쌍둥이 탑: 두 겹 탑 두 개를 다리 판자로 잇고, 다리 위에 원통. 한쪽만 무너뜨리면 다리가 기운다.</summary>
@@ -604,13 +614,14 @@ namespace SmashGame
         {
             Pedestal(root, Vector3.zero, 2.4f, p, true);
             float u = Unit;
+            int depth = Depth(info);
             foreach (float cx in new[] { -1.25f, 1.25f })
                 for (int i = 0; i < 2; i++)
-                    for (int d = 0; d < 2; d++)
+                    for (int d = 0; d < depth; d++)
                     {
                         int ii = i, dd = d;
-                        FillColumn(root, rng, new Vector3(cx + (i - 0.5f) * u, PedestalTop, (d - 0.5f) * u), 7, 0.5f, (j, tall) =>
-                            j < 2 ? (BlockKind.Stone, new Color(0.9f, 0.88f, 0.82f)) : (BlockKind.Cube, (ii + j + dd) % 2 == 0 ? p.a : p.b), info.blocks, u);
+                        FillColumn(root, rng, new Vector3(cx + (i - 0.5f) * u, PedestalTop, (d - (depth - 1) * 0.5f) * u), 7, 0.5f, (j, tall) =>
+                            j < 2 ? Base(info) : (BlockKind.Cube, (ii + j + dd) % 2 == 0 ? p.a : p.b), info.blocks, u);
                     }
             float top = PedestalTop + 7 * u;
             MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, top + 0.1f, 0), new Vector3(3.6f, 0.2f, 1.0f), Quaternion.identity, p.d, MassFor(BlockKind.Plank) * 1.5f, info.blocks);
@@ -629,12 +640,13 @@ namespace SmashGame
                 int col = flip ? 7 - i : i;
                 float x = (col - 3.5f) * u;
                 int rows = i + 1;
-                for (int d = 0; d < 2; d++)
+                int depth = Depth(info);
+                for (int d = 0; d < depth; d++)
                 {
                     int ii = i;
-                    FillColumn(root, rng, new Vector3(x, PedestalTop, (d - 0.5f) * u), rows, 0.45f, (j, tall) =>
+                    FillColumn(root, rng, new Vector3(x, PedestalTop, (d - (depth - 1) * 0.5f) * u), rows, 0.45f, (j, tall) =>
                     {
-                        if (ii < 3) return (BlockKind.Stone, new Color(0.9f, 0.88f, 0.82f));
+                        if (ii < 3) return Base(info);
                         if (j >= 5 && (ii + j) % 2 == 0) return (BlockKind.Ice, new Color(0.6f, 0.9f, 1f));
                         return (BlockKind.Cube, (ii + j) % 2 == 0 ? p.a : p.b);
                     }, info.blocks, u);
@@ -647,13 +659,13 @@ namespace SmashGame
         {
             Pedestal(root, Vector3.zero, 2.0f, p);
             float u = Unit;
-            var stoneCol = new Color(0.92f, 0.9f, 0.84f);
             int n = 8; float r = 1.15f;
             for (int k = 0; k < n; k++)
             {
                 float a = (k + 0.5f) / n * Mathf.PI * 2f;
                 var pos = new Vector3(Mathf.Cos(a) * r, PedestalTop, Mathf.Sin(a) * r);
-                FillColumn(root, rng, pos, 4, 0.7f, (j, tall) => (BlockKind.Stone, stoneCol), info.blocks, u);
+                int kk = k;
+                FillColumn(root, rng, pos, 4, 0.7f, (j, tall) => Pillar(info, (kk + j) % 2 == 0 ? p.a : p.b), info.blocks, u);
             }
             // 가운데 사탕 탑 3칸
             FillColumn(root, rng, new Vector3(0, PedestalTop, 0), 3, 0.5f, (j, tall) => (BlockKind.Candy, p.c), info.blocks, u);

@@ -13,7 +13,7 @@ namespace SmashGame
         public const float BallSpeed = 30f;       // 발사 속도. 낮을수록 포물선이 커짐
         public const float BlockFriction = 0.22f; // 블록 운동 마찰. 낮을수록 밀리면 잘 미끄러져 떨어짐
         public const float BlockStaticFriction = 0.35f; // 블록 정지 마찰. 0.7이면 살짝 들썩인 블록이 다시 닿는 순간 죽은 듯 멈춘다(플레이 로그로 확인) — 구조물 안정은 SettleAndSleep이 맡는다
-        public const float BallImpulse = 13f;     // 기본 충격량 (파괴력 100% 기준). 공 자체의 물리 충돌은 거의 0이라 이 값이 밀림의 전부
+        public const float BallImpulse = 15f;     // 기본 충격량 (파괴력 100% 기준). 공 자체의 물리 충돌은 거의 0이라 이 값이 밀림의 전부
 
         // ---------- 공 스탯 ----------
         public const int StatMaxLevel = 50;
@@ -73,14 +73,20 @@ namespace SmashGame
         public const float ReinforcedRatioCap = 0.20f;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
         public const int StructureTypes = 12;
-        /// <summary>시작 공 개수. 초반 5레벨은 넉넉히, 이후 12~18개, 하드는 9개.</summary>
-        public static int StartBalls(int level, bool hard)
+        /// <summary>시작 공 개수. 기본 14~20(초반 5레벨 +6, 하드 14)에 블록 수가 많으면 더 준다 (20개 초과분 2개당 +1).</summary>
+        public static int StartBalls(int level, bool hard, int blockCount = 20)
         {
-            if (hard) return 9;
-            int n = 12 + (level * 5) % 7;
-            if (level <= 5) n += 6;
+            int n = hard ? 14 : 14 + (level * 5) % 7;
+            if (!hard && level <= 5) n += 6;
+            n += Mathf.Max(0, (blockCount - 20) / 2);
             return n;
         }
+        /// <summary>새 구조물(피라미드·요새·성문·쌍둥이 탑·계단·원진)이 등장하는 레벨. 그 전엔 기본 6종만.</summary>
+        public const int NewStructuresFromLevel = 8;
+        /// <summary>새 구조물이 두 겹(깊이 2)이 되는 레벨</summary>
+        public const int DeepStructuresFromLevel = 25;
+        /// <summary>새 구조물의 바닥·기둥이 돌(무거움)로 바뀌는 레벨. 그 전엔 상자·원통.</summary>
+        public const int HeavyStructuresFromLevel = 30;
         /// <summary>레벨이 오를수록 블록이 조금씩 무거워진다 (Lv1 1.0 → Lv51+ 1.4 상한). 무거운 블록이 위에 얹히면 마찰로 아래 블록이 굳으므로 상한을 낮게 둔다.</summary>
         public static float BlockMassScale(int level) => Mathf.Min(1.4f, 1f + Mathf.Max(0, level - 1) * 0.008f);
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>
