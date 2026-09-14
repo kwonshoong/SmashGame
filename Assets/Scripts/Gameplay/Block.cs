@@ -14,6 +14,7 @@ namespace SmashGame
         public int hp = 1;
         public bool crown;
         public bool sticky;
+        public bool tall;   // 긴 변형(세로 2배). 텍스처 타일링·질량에 반영
         public LevelController controller;
         public float fallY = 1.0f;
 
@@ -35,7 +36,7 @@ namespace SmashGame
             hp = hitPoints;
             rend = GetComponent<Renderer>();
             baseColor = color;
-            rend.material = Materials.GetBlock(k, color);
+            rend.material = Materials.GetBlock(k, color, tall);
             rb = GetComponent<Rigidbody>();
             if (rb == null) rb = gameObject.AddComponent<Rigidbody>();
             rb.mass = mass;
@@ -57,13 +58,16 @@ namespace SmashGame
             crown = true;
             kind = BlockKind.Crown;
             baseColor = new Color(1f, 0.82f, 0.15f);
-            rend.material = Materials.GetBlock(BlockKind.Crown, baseColor);
+            rend.material = Materials.GetBlock(BlockKind.Crown, baseColor, tall);
             // 왕관 마커: 위에 작은 금색 구
             var marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             DestroyImmediate(marker.GetComponent<Collider>());
             marker.transform.SetParent(transform, false);
             marker.transform.localPosition = new Vector3(0, 0.5f, -0.51f);
-            marker.transform.localScale = Vector3.one * 0.35f;
+            // 부모 스케일이 비균등(긴 블록·원통)이어도 구슬이 찌그러지지 않게 보정
+            var ls = transform.localScale;
+            const float markerWorld = 0.18f; // 월드 지름 고정 (판자처럼 납작·넓은 블록에서도 같은 크기)
+            marker.transform.localScale = new Vector3(markerWorld / ls.x, markerWorld / ls.y, markerWorld / ls.z);
             marker.GetComponent<Renderer>().material = Materials.Get(new Color(1f, 0.95f, 0.5f), false, true);
         }
 
@@ -71,7 +75,7 @@ namespace SmashGame
         {
             // hp 3: 진한 톤, hp 2: 금 간 톤(밝게), hp 1: 원래 색
             float t = hp >= 3 ? 0.55f : (hp == 2 ? 0.75f : 1f);
-            rend.material = Materials.GetBlock(kind, baseColor * t);
+            rend.material = Materials.GetBlock(kind, baseColor * t, tall);
         }
 
         /// <summary>공에 맞았을 때. dmg는 공 파괴력에서 계산된 정수.</summary>
@@ -144,7 +148,7 @@ namespace SmashGame
         public void Retint(Color c)
         {
             baseColor = c;
-            rend.material = Materials.GetBlock(kind, c);
+            rend.material = Materials.GetBlock(kind, c, tall);
         }
     }
 
@@ -188,10 +192,14 @@ namespace SmashGame
 
         static readonly System.Collections.Generic.Dictionary<long, Material> blockCache = new();
 
-        /// <summary>소재 텍스처 + 색이 입혀진 블록 머티리얼</summary>
-        public static Material GetBlock(BlockKind kind, Color c)
+        /// <summary>긴 블록에서 텍스처를 세로로 2번 반복할 소재 (상자는 상자 2개가 쌓인 듯, 얼음·통나무는 결이 늘어나지 않게). 나머지는 늘려 쓴다.</summary>
+        static bool TilesVertically(BlockKind kind) => kind == BlockKind.Crate || kind == BlockKind.Ice || kind == BlockKind.Log;
+
+        /// <summary>소재 텍스처 + 색이 입혀진 블록 머티리얼. tall이면 긴 변형용(세로 타일링).</summary>
+        public static Material GetBlock(BlockKind kind, Color c, bool tall = false)
         {
-            long key = ((long)kind << 32) | ((long)Mathf.RoundToInt(c.r * 255) << 16) | ((long)Mathf.RoundToInt(c.g * 255) << 8) | (long)Mathf.RoundToInt(c.b * 255);
+            bool tile = tall && TilesVertically(kind);
+            long key = ((long)kind << 32) | ((long)Mathf.RoundToInt(c.r * 255) << 16) | ((long)Mathf.RoundToInt(c.g * 255) << 8) | (long)Mathf.RoundToInt(c.b * 255) | (tile ? 1L << 40 : 0L);
             if (blockCache.TryGetValue(key, out var m) && m != null) return m;
             m = new Material(GetShader());
             var tex = BlockTextures.Get(kind, c);
@@ -203,6 +211,11 @@ namespace SmashGame
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smooth);
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smooth);
             if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metal);
+            if (tile)
+            {
+                m.mainTextureScale = new Vector2(1f, 2f);
+                if (m.HasProperty("_BaseMap")) m.SetTextureScale("_BaseMap", new Vector2(1f, 2f));
+            }
             if (kind == BlockKind.Ice) MakeIceLook(m, c);
             else if (kind == BlockKind.Candy || kind == BlockKind.Crown)
             {

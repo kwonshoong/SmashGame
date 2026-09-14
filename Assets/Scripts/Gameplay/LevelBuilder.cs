@@ -155,10 +155,10 @@ namespace SmashGame
 
         public const float BlockBevel = 0.035f; // 블록 모서리 라운딩 반지름(월드 단위)
 
-        static Block MakeBlock(Transform root, PrimitiveType prim, BlockKind kind, Vector3 pos, Vector3 scale, Quaternion rot, Color color, float mass, List<Block> list)
+        static Block MakeBlock(Transform root, PrimitiveType prim, BlockKind kind, Vector3 pos, Vector3 scale, Quaternion rot, Color color, float mass, List<Block> list, bool tall = false)
         {
             var go = GameObject.CreatePrimitive(prim);
-            go.name = kind.ToString();
+            go.name = kind.ToString() + (tall ? "_Tall" : "");
             go.transform.SetParent(root);
             go.transform.position = pos;
             go.transform.rotation = rot;
@@ -166,10 +166,47 @@ namespace SmashGame
             if (prim == PrimitiveType.Cylinder) FlattenCollider(go, true); // 캡슐 → 원기둥 (윗면이 평평해야 쌓인다)
             RoundedMesh.Apply(go, BlockBevel); // 보이는 메시만 둥근 모서리로 (콜라이더는 각진 원본 유지)
             var b = go.AddComponent<Block>();
+            b.tall = tall;
             b.fallY = PedestalTop - 1.0f;
             b.Setup(kind, color, mass, 1);
             list.Add(b);
             return b;
+        }
+
+        // ---------------- 규격 블록: 짧은 것(한 칸) / 긴 것(세로 두 칸) ----------------
+
+        /// <summary>규격 블록 한 칸 크기(월드). 짧은 블록 = U×U×U, 긴 블록 = U×2U×U (원통은 지름 U, 높이 U 또는 2U).</summary>
+        public const float Unit = 0.5f;
+
+        static bool IsCylinderKind(BlockKind k) => k == BlockKind.Cylinder || k == BlockKind.Candy || k == BlockKind.Log || k == BlockKind.Stone;
+
+        /// <summary>
+        /// 규격 블록 하나를 만든다. basePos는 블록 바닥 중심. tall이면 높이가 정확히 2배(질량도 2배).
+        /// 소재가 원통 계열이면 원기둥, 아니면 육면체로 만들어진다.
+        /// </summary>
+        static Block MakeUnit(Transform root, BlockKind kind, Vector3 basePos, bool tall, Color color, List<Block> list, float unit = Unit)
+        {
+            float h = tall ? unit * 2f : unit;
+            bool cyl = IsCylinderKind(kind);
+            var prim = cyl ? PrimitiveType.Cylinder : PrimitiveType.Cube;
+            Vector3 scale = cyl ? new Vector3(unit - 0.01f, h * 0.5f - 0.005f, unit - 0.01f) : new Vector3(unit - 0.01f, h - 0.01f, unit - 0.01f);
+            return MakeBlock(root, prim, kind, basePos + Vector3.up * h * 0.5f, scale, Quaternion.identity, color, MassFor(kind) * (tall ? 2f : 1f), list, tall);
+        }
+
+        /// <summary>
+        /// 한 열(column)을 아래에서 위로 rows칸 채운다. 남은 칸이 2 이상이면 tallChance 확률로 긴 블록(두 칸), 아니면 짧은 블록.
+        /// pick(rowIndex, isTall) 으로 칸마다 소재·색을 정한다. rowIndex는 블록 바닥 칸 번호.
+        /// </summary>
+        static void FillColumn(Transform root, System.Random rng, Vector3 basePos, int rows, float tallChance, System.Func<int, bool, (BlockKind kind, Color color)> pick, List<Block> list, float unit = Unit)
+        {
+            int j = 0;
+            while (j < rows)
+            {
+                bool tall = rows - j >= 2 && rng.NextDouble() < tallChance;
+                var (kind, color) = pick(j, tall);
+                MakeUnit(root, kind, basePos + Vector3.up * (j * unit), tall, color, list, unit);
+                j += tall ? 2 : 1;
+            }
         }
 
         static float MassFor(BlockKind k) => k switch
@@ -281,28 +318,31 @@ namespace SmashGame
             return info;
         }
 
-        // ---------------- 구조물 6종 ----------------
+        // ---------------- 구조물 6종 (짧은/긴 규격 블록 혼합) ----------------
 
         static void BuildCylinderCluster(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Pedestal(root, Vector3.zero, 1.7f, p);
+            float u = 0.55f;
             float y0 = PedestalTop;
             int cols = 3, rows = 2;
             float sp = 0.75f;
+            // 층 2개, 각 층 높이 = 두 칸(긴 원통 1개 또는 짧은 원통 2개)
             for (int layer = 0; layer < 2; layer++)
             {
-                float h = layer == 0 ? 1.6f : 1.2f;
                 for (int r = 0; r < rows; r++)
                     for (int c = 0; c < cols; c++)
                     {
                         float x = (c - 1) * sp, z = (r - 0.5f) * sp;
-                        var kind = rng.Next(3) == 0 ? BlockKind.Candy : BlockKind.Cylinder;
-                        Color col = (c + r + layer) % 2 == 0 ? p.a : p.b;
-                        if (kind == BlockKind.Candy) col = p.c;
-                        MakeBlock(root, PrimitiveType.Cylinder, kind, new Vector3(x, y0 + h * 0.5f, z), new Vector3(0.55f, h * 0.5f, 0.55f), Quaternion.identity, col, MassFor(kind), info.blocks);
+                        int cc = c, rr = r, ll = layer;
+                        FillColumn(root, rng, new Vector3(x, y0, z), 2, 0.6f, (j, tall) =>
+                        {
+                            var kind = rng.Next(3) == 0 ? BlockKind.Candy : BlockKind.Cylinder;
+                            Color col = kind == BlockKind.Candy ? p.c : ((cc + rr + ll + j) % 2 == 0 ? p.a : p.b);
+                            return (kind, col);
+                        }, info.blocks, u);
                     }
-                // 층 사이 판자
-                y0 += h;
+                y0 += u * 2f;
                 if (layer == 0)
                 {
                     MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y0 + 0.1f, 0), new Vector3(2.6f, 0.2f, 1.6f), Quaternion.identity, p.d, MassFor(BlockKind.Plank), info.blocks);
@@ -315,46 +355,51 @@ namespace SmashGame
         {
             Pedestal(root, Vector3.zero, 1.65f, p, true);
             int w = 6, h = 7;
-            float s = 0.5f;
-            for (int j = 0; j < h; j++)
-                for (int i = 0; i < w; i++)
+            float s = Unit;
+            Color crate = new Color(0.65f, 0.42f, 0.2f);
+            for (int i = 0; i < w; i++)
+            {
+                float x = (i - (w - 1) * 0.5f) * s;
+                int ii = i;
+                FillColumn(root, rng, new Vector3(x, PedestalTop, 0), h, 0.35f, (j, tall) =>
                 {
-                    float x = (i - (w - 1) * 0.5f) * s;
-                    float y = PedestalTop + s * 0.5f + j * s;
-                    Color col = ((i + j) % 3 == 0) ? p.b : p.a;
                     var kind = rng.Next(9) == 0 ? BlockKind.Crate : BlockKind.Cube;
-                    if (kind == BlockKind.Crate) col = new Color(0.65f, 0.42f, 0.2f);
-                    MakeBlock(root, PrimitiveType.Cube, kind, new Vector3(x, y, 0), Vector3.one * (s - 0.01f), Quaternion.identity, col, MassFor(kind), info.blocks);
-                }
+                    Color col = kind == BlockKind.Crate ? crate : (((ii + j) % 3 == 0) ? p.b : p.a);
+                    return (kind, col);
+                }, info.blocks, s);
+            }
         }
 
         static void BuildFrameShelf(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Pedestal(root, Vector3.zero, 1.8f, p);
+            float u = 0.55f;
             float y = PedestalTop;
             Color plank = info.theme == Theme.Winter ? new Color(0.95f, 0.9f, 0.75f) : p.c;
             for (int tier = 0; tier < 3; tier++)
             {
-                // 바닥 판자
                 MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.1f, 0), new Vector3(2.8f, 0.2f, 1.2f), Quaternion.identity, plank, MassFor(BlockKind.Plank), info.blocks);
                 y += 0.2f;
-                // 기둥 2~3개
+                // 기둥 2~3개: 긴 기둥 하나 또는 짧은 기둥 두 개 (높이 = 두 칸)
                 int posts = tier == 2 ? 2 : 3;
-                float ph = 1.1f;
                 for (int i = 0; i < posts; i++)
                 {
                     float x = posts == 3 ? (i - 1) * 1.1f : (i == 0 ? -0.9f : 0.9f);
-                    var kind = info.theme == Theme.Desert ? BlockKind.Stone : BlockKind.Cylinder;
-                    Color col = kind == BlockKind.Stone ? new Color(0.95f, 0.95f, 0.9f) : (i % 2 == 0 ? p.a : p.b);
-                    MakeBlock(root, PrimitiveType.Cylinder, kind, new Vector3(x, y + ph * 0.5f, 0), new Vector3(0.45f, ph * 0.5f, 0.45f), Quaternion.identity, col, MassFor(kind), info.blocks);
+                    int ii = i;
+                    FillColumn(root, rng, new Vector3(x, y, 0), 2, 0.7f, (j, tall) =>
+                    {
+                        var kind = info.theme == Theme.Desert ? BlockKind.Stone : BlockKind.Cylinder;
+                        Color col = kind == BlockKind.Stone ? new Color(0.95f, 0.95f, 0.9f) : ((ii + j) % 2 == 0 ? p.a : p.b);
+                        return (kind, col);
+                    }, info.blocks, u);
                 }
-                y += ph;
+                y += u * 2f;
             }
-            // 꼭대기 사탕
+            // 꼭대기 판자 + 짧은 사탕 3개
             MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.1f, 0), new Vector3(2.2f, 0.2f, 1.0f), Quaternion.identity, plank, MassFor(BlockKind.Plank), info.blocks);
             y += 0.2f;
             for (int i = -1; i <= 1; i++)
-                MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Candy, new Vector3(i * 0.7f, y + 0.45f, 0), new Vector3(0.4f, 0.45f, 0.4f), Quaternion.identity, p.c, MassFor(BlockKind.Candy), info.blocks);
+                MakeUnit(root, BlockKind.Candy, new Vector3(i * 0.7f, y, 0), false, p.c, info.blocks, u);
         }
 
         static void BuildLogTower(Transform root, System.Random rng, Palette p, LevelInfo info)
@@ -378,9 +423,13 @@ namespace SmashGame
                 }
                 y += 0.6f;
             }
-            // 꼭대기 큐브 3개
+            // 꼭대기: 세워 둔 짧은/긴 통나무와 큐브
             for (int i = -1; i <= 1; i++)
-                MakeBlock(root, PrimitiveType.Cube, BlockKind.Cube, new Vector3(i * 0.6f, y + 0.3f, 0), Vector3.one * 0.55f, Quaternion.identity, p.b, 1f, info.blocks);
+            {
+                bool tall = i == 0;
+                var kind = i == 0 ? BlockKind.Log : BlockKind.Cube;
+                MakeUnit(root, kind, new Vector3(i * 0.6f, y, 0), tall, kind == BlockKind.Log ? wood : p.b, info.blocks, 0.55f);
+            }
         }
 
         static void BuildIceWall(Transform root, System.Random rng, Palette p, LevelInfo info)
@@ -390,45 +439,47 @@ namespace SmashGame
             Color crate = new Color(0.72f, 0.5f, 0.25f);
             int w = 5, h = 6;
             float s = 0.55f;
-            for (int j = 0; j < h; j++)
-                for (int i = 0; i < w; i++)
+            for (int i = 0; i < w; i++)
+            {
+                float x = (i - (w - 1) * 0.5f) * s;
+                int ii = i;
+                FillColumn(root, rng, new Vector3(x, PedestalTop, 0), h, 0.3f, (j, tall) =>
                 {
-                    float x = (i - (w - 1) * 0.5f) * s;
-                    float y = PedestalTop + s * 0.5f + j * s;
-                    bool isCrate = (j >= 4 && (i + j) % 2 == 0) || (j == 1 && i == 2);
-                    var kind = isCrate ? BlockKind.Crate : BlockKind.Ice;
-                    MakeBlock(root, PrimitiveType.Cube, kind, new Vector3(x, y, 0), Vector3.one * (s - 0.01f), Quaternion.identity, isCrate ? crate : ice, MassFor(kind), info.blocks);
-                }
-            // 가운데 사탕 원통 하나
-            MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Candy, new Vector3(0, PedestalTop + h * s + 0.5f, 0), new Vector3(0.45f, 0.5f, 0.45f), Quaternion.identity, p.c, MassFor(BlockKind.Candy), info.blocks);
+                    bool isCrate = (j >= 4 && (ii + j) % 2 == 0) || (j == 1 && ii == 2);
+                    return (isCrate ? BlockKind.Crate : BlockKind.Ice, isCrate ? crate : ice);
+                }, info.blocks, s);
+            }
+            // 가운데 긴 사탕 원통 하나
+            MakeUnit(root, BlockKind.Candy, new Vector3(0, PedestalTop + h * s, 0), true, p.c, info.blocks, s);
         }
 
         static void BuildMultiPedestal(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             int count = rng.Next(2) == 0 ? 2 : 3;
             float spacing = count == 3 ? 2.1f : 2.4f;
+            float u = Unit;
+            int stackRows = count == 2 ? 7 : 6 + rng.Next(3); // 두 받침대일 땐 판자를 얹기 위해 높이 통일
             for (int k = 0; k < count; k++)
             {
                 float cx = (k - (count - 1) * 0.5f) * spacing;
                 Pedestal(root, new Vector3(cx, 0, 0), 0.9f, p);
-                float y = PedestalTop;
-                int tall = 3 + rng.Next(2);
-                for (int l = 0; l < tall; l++)
+                int kk = k;
+                int rows = count == 2 ? stackRows : 6 + rng.Next(3);
+                FillColumn(root, rng, new Vector3(cx, PedestalTop, 0), rows, 0.55f, (j, tall) =>
                 {
-                    var kind = l == tall - 1 ? BlockKind.Candy : (info.theme == Theme.Desert ? BlockKind.Stone : BlockKind.Cylinder);
-                    Color col = kind == BlockKind.Candy ? p.c : kind == BlockKind.Stone ? new Color(0.95f, 0.95f, 0.9f) : ((l + k) % 2 == 0 ? p.a : p.b);
-                    float h = 0.9f;
-                    MakeBlock(root, PrimitiveType.Cylinder, kind, new Vector3(cx, y + h * 0.5f, 0), new Vector3(0.5f, h * 0.5f, 0.5f), Quaternion.identity, col, MassFor(kind), info.blocks);
-                    y += h;
-                }
+                    bool top = j + (tall ? 2 : 1) >= rows;
+                    var kind = top ? BlockKind.Candy : (info.theme == Theme.Desert ? BlockKind.Stone : BlockKind.Cylinder);
+                    Color col = kind == BlockKind.Candy ? p.c : kind == BlockKind.Stone ? new Color(0.95f, 0.95f, 0.9f) : ((j + kk) % 2 == 0 ? p.a : p.b);
+                    return (kind, col);
+                }, info.blocks, u);
             }
             if (count == 2)
             {
-                // 두 받침대 사이 판자 + 그 위 원통
-                float y = PedestalTop + 3.6f + 0.1f;
+                // 두 받침대 사이 판자 + 그 위 짧은/긴 원통
+                float y = PedestalTop + stackRows * u + 0.1f;
                 MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y, 0), new Vector3(3.2f, 0.2f, 0.8f), Quaternion.identity, p.d, MassFor(BlockKind.Plank), info.blocks);
                 for (int i = -1; i <= 1; i++)
-                    MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Cylinder, new Vector3(i * 0.8f, y + 0.1f + 0.5f, 0), new Vector3(0.4f, 0.5f, 0.4f), Quaternion.identity, i == 0 ? p.a : p.b, 1f, info.blocks);
+                    MakeUnit(root, BlockKind.Cylinder, new Vector3(i * 0.8f, y + 0.1f, 0), i == 0, i == 0 ? p.a : p.b, info.blocks, u);
             }
         }
 
@@ -474,15 +525,14 @@ namespace SmashGame
                 structRoot.SetParent(root);
                 blocks.Clear();
                 var p = GetPalette(theme);
-                float s = 0.5f;
-                for (int j = 0; j < 4; j++)
-                    for (int i = 0; i < 4; i++)
-                    {
-                        float x = (i - 1.5f) * s;
-                        float y = PedestalTop + s * 0.5f + j * s;
-                        Color col = (i + j) % 2 == 0 ? p.a : p.b;
-                        MakeBlock(structRoot, PrimitiveType.Cube, BlockKind.Cube, new Vector3(x, y, 0), Vector3.one * (s - 0.01f), Quaternion.identity, col, 1f, blocks);
-                    }
+                float s = Unit;
+                var rng = new System.Random(Random.Range(0, 9999));
+                for (int i = 0; i < 4; i++)
+                {
+                    float x = (i - 1.5f) * s;
+                    int ii = i;
+                    FillColumn(structRoot, rng, new Vector3(x, PedestalTop, 0), 4, 0.35f, (j, tall) => (BlockKind.Cube, (ii + j) % 2 == 0 ? p.a : p.b), blocks, s);
+                }
                 foreach (var b in blocks) b.SettleAndSleep();
                 rebuildAt = -1f;
             }
