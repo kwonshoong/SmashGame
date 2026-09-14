@@ -102,8 +102,9 @@ namespace SmashGame
             float radius = 0.6f * stats.size;
             int dmg = Mathf.Max(1, Mathf.CeilToInt(stats.power - 0.01f));
 
-            // 직접 맞은 블록
+            // 직접 맞은 블록 (짧은 간격으로 같은 블록을 다시 맞히면 콤보로 더 세게 민다)
             bool perfect = block.crown;
+            float combo = block.RegisterHitCombo();
             block.Hit(dmg, dir, stats.power);
 
             // 반경 안의 블록에 충격 (크기 스탯이 클수록 인접 블록도 밀림)
@@ -118,12 +119,9 @@ namespace SmashGame
                 float dist = Vector3.Distance(point, h.ClosestPoint(point));
                 float falloff = Mathf.Clamp01(1f - dist / radius);
                 if (b == block) { if (b.IsReinforced) continue; falloff = 1f; }
-                float mult = perfect && b == block ? 1.5f : 1f;
+                float mult = (perfect && b == block ? 1.5f : 1f) * (b == block ? combo : 1f);
                 Vector3 J = (dir + Vector3.up * 0.08f).normalized * impulse * falloff * mult;
-                // 대부분은 질량중심에 밀어 넣어 "뒤로 밀리는" 힘이 되게 하고, 일부만 맞은 지점에 줘서 회전감을 남긴다
-                brb.WakeUp();
-                brb.AddForce(J * 0.75f, ForceMode.Impulse);
-                brb.AddForceAtPosition(J * 0.25f, point, ForceMode.Impulse);
+                b.Push(J, point);   // 몇 물리 스텝에 나눠 밀어 이웃 사슬까지 같이 밀리게 (Block.Push 참고)
             }
 
             onHit?.Invoke(perfect, point);

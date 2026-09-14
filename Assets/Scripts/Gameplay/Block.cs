@@ -141,6 +141,43 @@ namespace SmashGame
             rb.Sleep();
         }
 
+        // ---------- 밀기(임펄스)를 몇 물리 스텝에 나눠 적용 + 연속 타격 콤보 ----------
+        // 한 번에 큰 임펄스를 주면 이웃과 깊게 겹쳤다가 침투 복원으로 되튕겨 "밀었던 힘이 사라진" 것처럼 보인다.
+        // 몇 스텝에 나눠 밀면 이웃 사슬이 같이 밀리고, 같은 블록을 짧은 간격으로 다시 맞히면 콤보로 더 세게 민다.
+        public const int   PushSpreadSteps = 5;     // 90Hz 기준 약 55ms
+        public const float ComboWindow = 0.9f;      // 이 시간 안에 다시 맞으면 콤보 유지
+        public const float ComboStep = 0.35f;       // 콤보당 +35%, 최대 4콤보(×2.4)
+        Vector3 pushJ, pushPoint; int pushSteps;
+        float lastHitTime = -10f; int combo;
+
+        /// <summary>직접 맞은 블록의 콤보 배율. 호출할 때마다 타격으로 기록된다.</summary>
+        public float RegisterHitCombo()
+        {
+            combo = Time.time - lastHitTime < ComboWindow ? Mathf.Min(combo + 1, 4) : 0;
+            lastHitTime = Time.time;
+            return 1f + ComboStep * combo;
+        }
+
+        /// <summary>임펄스를 예약한다. 이후 FixedUpdate에서 몇 스텝에 걸쳐 나눠 적용.</summary>
+        public void Push(Vector3 impulse, Vector3 point)
+        {
+            if (rb == null || removed) return;
+            rb.WakeUp();
+            pushJ += impulse;
+            pushPoint = point;
+            pushSteps = PushSpreadSteps;
+        }
+
+        void FixedUpdate()
+        {
+            if (pushSteps <= 0 || rb == null || removed) return;
+            Vector3 j = pushJ / pushSteps;
+            rb.AddForce(j * 0.75f, ForceMode.Impulse);                 // 대부분은 질량중심으로: 뒤로 미는 힘
+            rb.AddForceAtPosition(j * 0.25f, pushPoint, ForceMode.Impulse); // 일부만 접점에: 약간의 회전감
+            pushJ -= j;
+            pushSteps--;
+        }
+
         public bool WasHit => everHit;
         public Color BaseColor => baseColor;
 
@@ -170,7 +207,7 @@ namespace SmashGame
                     {
                         dynamicFriction = Balance.BlockFriction,
                         staticFriction = Balance.BlockStaticFriction,   // 정지 마찰은 높게: 가만히 있을 땐 미끄러지지 않음
-                        bounciness = 0.05f,
+                        bounciness = 0f,
                         frictionCombine = PhysicsMaterialCombine.Minimum,
                         bounceCombine = PhysicsMaterialCombine.Minimum,
                     };
