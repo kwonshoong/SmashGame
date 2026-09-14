@@ -322,7 +322,20 @@ namespace SmashGame
                         var j = a.gameObject.AddComponent<FixedJoint>();
                         j.connectedBody = best.GetComponent<Rigidbody>();
                         a.sticky = best.sticky = true;
-                        a.Retint(a.BaseColor * 0.85f + new Color(0.1f, 0.1f, 0f)); // 접착 표시: 살짝 누런 톤
+                        // 접착 표시: 두 블록 다 누런 톤 + 사이를 잇는 노란 "접착제 띠" (붙어서 같이 움직이는 게 의도임을 보이게)
+                        a.Retint(Color.Lerp(a.BaseColor, new Color(1f, 0.85f, 0.2f), 0.45f));
+                        best.Retint(Color.Lerp(best.BaseColor, new Color(1f, 0.85f, 0.2f), 0.45f));
+                        var glue = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                        glue.name = "Glue";
+                        Object.DestroyImmediate(glue.GetComponent<Collider>());
+                        Vector3 pa = a.transform.position, pb = best.transform.position;
+                        glue.transform.position = (pa + pb) * 0.5f;
+                        glue.transform.rotation = Quaternion.FromToRotation(Vector3.up, (pb - pa).normalized);
+                        glue.transform.localScale = new Vector3(0.16f, (pb - pa).magnitude * 0.5f, 0.16f);
+                        glue.transform.SetParent(a.transform, true);
+                        var gm = Materials.Get(new Color(1f, 0.8f, 0.1f), true);
+                        if (gm.HasProperty("_EmissionColor")) { gm.EnableKeyword("_EMISSION"); gm.SetColor("_EmissionColor", new Color(0.6f, 0.45f, 0f)); }
+                        glue.GetComponent<Renderer>().material = gm;
                         pool.Remove(a); pool.Remove(best);
                     }
                 }
