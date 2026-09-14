@@ -19,7 +19,7 @@ namespace SmashGame
         float cooldown;
         float recoil;
 
-        public static readonly Vector3 DefaultPos = new Vector3(0f, 1.5f, -6.2f); // 받침대(2.0)보다 약간 낮은 높이 — 낮게 쏘면 받침대에 맞는다
+        public static readonly Vector3 DefaultPos = new Vector3(0f, 1.5f, -7.6f); // 받침대(2.0)보다 약간 낮은 높이 — 낮게 쏘면 받침대에 맞는다
 
         public static Cannon Create(Transform parent, Camera cam, BallStats stats, LevelController controller)
         {
