@@ -150,6 +150,20 @@ namespace SmashGame
             Deco(PrimitiveType.Cylinder, root, "PedestalFoot2", new Vector3(center.x, -1.45f, center.z), new Vector3(1.6f, 0.08f, 1.6f), purpleDark, 0.05f);
         }
 
+        /// <summary>
+        /// 구조물을 미리 물리로 몇 스텝 굴려 접촉이 안정된 자세(솔버 평형)로 만든 뒤 잠재운다. 이렇게 하지 않으면 첫 발에 깨어나는 순간
+        /// 접촉 오프셋만큼(줄당 ~0.005) 내려앉고 위쪽 블록이 살짝 흔들려 "떠 있다가 주저앉는" 것처럼 보인다.
+        /// </summary>
+        public static void PreSettle(List<Block> blocks, int steps = 40)
+        {
+            Physics.SyncTransforms();
+            var prev = Physics.simulationMode;
+            Physics.simulationMode = SimulationMode.Script;
+            try { for (int i = 0; i < steps; i++) Physics.Simulate(Time.fixedDeltaTime); }
+            finally { Physics.simulationMode = prev; }
+            foreach (var b in blocks) if (b != null) b.SettleAndSleep();
+        }
+
         /// <summary>Unity의 Cylinder 프리미티브는 캡슐 콜라이더라 윗면이 둥글다. 메시 콜라이더로 바꿔 평평하게 만든다.</summary>
         static void FlattenCollider(GameObject go, bool convex)
         {
@@ -202,7 +216,9 @@ namespace SmashGame
             float h = tall ? unit * 2f : unit;
             bool cyl = IsCylinderKind(kind);
             var prim = cyl ? PrimitiveType.Cylinder : PrimitiveType.Cube;
-            Vector3 scale = cyl ? new Vector3(unit - 0.01f, h * 0.5f - 0.005f, unit - 0.01f) : new Vector3(unit - 0.01f, h - 0.01f, unit - 0.01f);
+            // 옆으로는 0.01 틈(이웃과 마찰로 엉기지 않게), 위아래는 틈 없이 정확히 맞닿게. 세로 틈을 두면 쌓인 블록이 살짝 떠 있다가
+            // 첫 발에 깨어나며 줄마다 0.005씩 내려앉아(10줄이면 0.1) 구조물이 주저앉는 것처럼 보인다.
+            Vector3 scale = cyl ? new Vector3(unit - 0.01f, h * 0.5f, unit - 0.01f) : new Vector3(unit - 0.01f, h, unit - 0.01f);
             return MakeBlock(root, prim, kind, basePos + Vector3.up * h * 0.5f, scale, Quaternion.identity, color, MassFor(kind) * (tall ? 2f : 1f) * UnitMass(unit), list, tall);
         }
 
@@ -250,7 +266,7 @@ namespace SmashGame
             {
                 info.bonus = true;
                 BuildCarStage(root, rng, p, info);
-                foreach (var b in info.blocks) b.SettleAndSleep();
+                PreSettle(info.blocks);
                 info.startBalls = 9999;
                 info.timeLimit = Balance.BonusSeconds;
                 info.structureName = "보너스: 자동차 부수기";
@@ -354,7 +370,7 @@ namespace SmashGame
             }
 
             // 구조물을 정지 상태로 잠재운다 (물리 솔버의 미세 떨림으로 저절로 무너지는 것 방지)
-            foreach (var b in info.blocks) b.SettleAndSleep();
+            PreSettle(info.blocks);
 
             // 시작 공
             info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count) + Balance.RangeExtraBalls(info.rangeTier);
@@ -474,7 +490,9 @@ namespace SmashGame
                 }
                 y += d;
             }
-            // 꼭대기: 세워 둔 짧은/긴 통나무와 큐브
+            // 꼭대기: 판자 한 장 위에 세워 둔 짧은/긴 통나무와 큐브 (둥근 통나무 등 위에 바로 세우면 깨어날 때 굴러떨어진다)
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.08f, 0), new Vector3(2.0f, 0.16f, 2.0f), Quaternion.identity, p.d, MassFor(BlockKind.Plank), info.blocks);
+            y += 0.16f;
             for (int i = -2; i <= 2; i++)
             {
                 bool tall = i == 0;
@@ -755,7 +773,7 @@ namespace SmashGame
                 b.Setup(b.kind, b.BaseColor, b.GetComponent<Rigidbody>().mass, hp);
             }
 
-            foreach (var b in info.blocks) b.SettleAndSleep();
+            PreSettle(info.blocks);
             info.startBalls = 9999;
             info.structureName = $"격파 도전 {stage}단계";
             return info;
@@ -868,7 +886,7 @@ namespace SmashGame
                     int ii = i;
                     FillColumn(structRoot, rng, new Vector3(x, PedestalTop, 0), 4, 0.35f, (j, tall) => (BlockKind.Cube, (ii + j) % 2 == 0 ? p.a : p.b), blocks, s);
                 }
-                foreach (var b in blocks) b.SettleAndSleep();
+                PreSettle(blocks);
                 rebuildAt = -1f;
             }
 
