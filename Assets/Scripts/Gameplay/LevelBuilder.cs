@@ -418,7 +418,7 @@ namespace SmashGame
 
         static void BuildCubeGrid(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            int w = Balance.Grow(info.level, 8, 12, 14), h = Balance.Grow(info.level, 10, 15, 16);
+            int w = Balance.Grow(info.level, 8, 12, 14), h = Balance.Grow(info.level, 10, 15, 14);   // 한 겹 벽은 14칸(높이 5.0)까지만: 더 높으면 깨어날 때 기울어 흔들린다
             float s = DU;
             Pedestal(root, Vector3.zero, w * s * 0.5f + 0.15f, p, true);
             Color crate = new Color(0.65f, 0.42f, 0.2f);
