@@ -44,8 +44,8 @@ namespace SmashGame
         Vector3 camTargetPos; Quaternion camTargetRot; bool camLerp;
         // 원근감을 약하게: 화각을 45°로 좁히고 그만큼 카메라를 뒤로 뺀다 (블록 격자가 덜 퍼져 보임)
         public const float CamFov = 45f;
-        public static readonly Vector3 CamDefaultPos = new Vector3(0f, 4.4f, -13f);   // 위에서 살짝 내려다보는 시점: 대포는 화면 아래에 반쯤만 보인다
-        public static readonly Quaternion CamDefaultRot = Quaternion.Euler(6f, 0f, 0f);
+        public static readonly Vector3 CamDefaultPos = new Vector3(0f, 3.7f, -13f);   // 눈높이를 낮춰 블록 윗면이 덜 보이게 (받침대 상판 y 1.6 기준 9°에서 내려다봄). 대포는 화면 아래에 반쯤
+        public static readonly Quaternion CamDefaultRot = Quaternion.Euler(3.5f, 0f, 0f);
         public static readonly Vector3 CamPanelPos = new Vector3(0f, 4.7f, -18.1f);   // 뒤로 빠져 대포·받침대·구조물이 한 화면에
         public static readonly Quaternion CamPanelRot = Quaternion.Euler(8f, 0f, 0f);
 
