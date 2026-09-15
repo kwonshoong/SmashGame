@@ -20,6 +20,7 @@ namespace SmashGame
         public float timeLimit;
         public int rangeTier;   // 0 단거리 · 1 중거리 · 2 장거리
         public float rangeZ;    // 구조물이 뒤로 밀린 거리(월드 z)
+        public float fitScale = 1f;   // 화면 맞춤으로 축소된 배율 (1 = 그대로)
     }
 
     /// <summary>
@@ -73,6 +74,7 @@ namespace SmashGame
         {
             var p = GetPalette(theme);
             PedestalColliders.Clear();
+            pedestalCenters.Clear();
             cam.backgroundColor = p.sky;
             cam.transform.position = GameManager.CamDefaultPos;
             cam.transform.rotation = GameManager.CamDefaultRot;
@@ -125,8 +127,31 @@ namespace SmashGame
                 Deco(PrimitiveType.Cylinder, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.06f, radius * PedestalDepthRound - 0.1f), purpleDark, 0.03f);
             }
 
-            // 기둥(콜라이더 있음): 보라색 본체 + 위아래 금색 링
-            float colTop = PedestalTop - 0.16f, colBottom = -1.5f;
+            pedestalCenters.Add(center);
+            PedestalColumn(root, center, PedestalTop - 0.16f, p);
+        }
+
+        /// <summary>
+        /// 구조물을 미리 물리로 몇 스텝 굴려 접촉이 안정된 자세(솔버 평형)로 만든 뒤 잠재운다. 이렇게 하지 않으면 첫 발에 깨어나는 순간
+        /// 접촉 오프셋만큼(줄당 ~0.005) 내려앉고 위쪽 블록이 살짝 흔들려 "떠 있다가 주저앉는" 것처럼 보인다.
+        /// </summary>
+        public static void PreSettle(List<Block> blocks, int steps = 40)
+        {
+            Physics.SyncTransforms();
+            var prev = Physics.simulationMode;
+            Physics.simulationMode = SimulationMode.Script;
+            try { for (int i = 0; i < steps; i++) Physics.Simulate(Time.fixedDeltaTime); }
+            finally { Physics.simulationMode = prev; }
+            foreach (var b in blocks) if (b != null) b.SettleAndSleep();
+        }
+
+
+        /// <summary>받침대 기둥·발 (상판과 분리: 화면 맞춤으로 상판을 줄여도 기둥은 땅까지 닿아야 하므로 따로 다시 만든다)</summary>
+        static void PedestalColumn(Transform root, Vector3 center, float colTop, Palette p)
+        {
+            var gold = Materials.Get(new Color(1f, 0.78f, 0.25f), true, true);
+            var purpleDark = Materials.Get(p.pedestal * 0.75f, true);
+            float colBottom = -1.5f;
             var col = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             col.name = "PedestalColumn";
             col.transform.SetParent(root);
@@ -144,25 +169,50 @@ namespace SmashGame
                 Deco(PrimitiveType.Cube, root, "ColumnStripe", new Vector3(center.x + Mathf.Cos(a) * 0.2f, (colTop + colBottom) * 0.5f - 0.1f, center.z + Mathf.Sin(a) * 0.2f),
                     new Vector3(0.05f, (colTop - colBottom) - 0.7f, 0.05f), gold, 0.01f);
             }
-
             // 받침 발: 넓은 둥근 판 두 장
             Deco(PrimitiveType.Cylinder, root, "PedestalFoot", new Vector3(center.x, -1.3f, center.z), new Vector3(1.2f, 0.12f, 1.2f), Materials.Get(p.pedestal, true), 0.06f);
             Deco(PrimitiveType.Cylinder, root, "PedestalFoot2", new Vector3(center.x, -1.45f, center.z), new Vector3(1.6f, 0.08f, 1.6f), purpleDark, 0.05f);
         }
 
+        /// <summary>이번 빌드에서 만든 받침대 중심들 (화면 맞춤 축소 후 기둥을 다시 세울 때 사용)</summary>
+        static readonly List<Vector3> pedestalCenters = new();
+
         /// <summary>
-        /// 구조물을 미리 물리로 몇 스텝 굴려 접촉이 안정된 자세(솔버 평형)로 만든 뒤 잠재운다. 이렇게 하지 않으면 첫 발에 깨어나는 순간
-        /// 접촉 오프셋만큼(줄당 ~0.005) 내려앉고 위쪽 블록이 살짝 흔들려 "떠 있다가 주저앉는" 것처럼 보인다.
+        /// 구조물(받침대 상판 포함)이 화면 좌우를 벗어나면 상판 높이를 축으로 통째로 균일 축소한다. 받침대 기둥·발은 축소하지 않고
+        /// 땅까지 닿게 다시 세운다. 블록 질량은 규격 규칙(크기 제곱)에 맞춰 s²배. 세로 폰(9:19.5) 기준으로 맞추므로 어느 기기에서도 잘리지 않는다.
         /// </summary>
-        public static void PreSettle(List<Block> blocks, int steps = 40)
+        static float FitToScreen(Transform structRoot, Transform levelRoot, Camera cam, List<Block> blocks, float rangeZ, Palette p)
         {
+            float halfW = 0f;
+            foreach (var r in structRoot.GetComponentsInChildren<Renderer>())
+            {
+                if (r.name.StartsWith("Column") || r.name.StartsWith("PedestalFoot") || r.name == "PedestalColumn" || r.name == "Glue") continue;
+                halfW = Mathf.Max(halfW, Mathf.Abs(r.bounds.min.x), Mathf.Abs(r.bounds.max.x));
+            }
+            float dist = rangeZ - cam.transform.position.z;
+            float aspect = Mathf.Min(cam.aspect, 9f / 19.5f);   // 가장 좁은 폰 기준
+            float allowed = dist * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * aspect * FitMargin;
+            float s = halfW > allowed ? allowed / halfW : 1f;
+            if (s >= 0.999f) return 1f;
+
+            // 상판 윗면(y = PedestalTop) 높이를 축으로 축소: 상판 위치는 그대로, 폭·블록만 작아진다
+            structRoot.localScale = Vector3.one * s;
+            structRoot.position = new Vector3(0f, PedestalTop * (1f - s), rangeZ);
+            foreach (var b in blocks) { var rb = b.GetComponent<Rigidbody>(); if (rb != null) rb.mass *= s * s; }
+
+            // 기둥·발은 버리고 축소되지 않은 루트에 땅까지 닿게 다시 세운다
+            var doomed = new List<GameObject>();
+            foreach (var t in structRoot.GetComponentsInChildren<Transform>())
+                if (t.name == "PedestalColumn" || t.name.StartsWith("Column") || t.name.StartsWith("PedestalFoot")) doomed.Add(t.gameObject);
+            foreach (var g in doomed) { var c = g.GetComponent<Collider>(); if (c != null) PedestalColliders.Remove(c); Object.DestroyImmediate(g); }
+            var baseRoot = new GameObject("PedestalBase").transform;
+            baseRoot.SetParent(levelRoot);
+            foreach (var c in pedestalCenters)
+                PedestalColumn(baseRoot, new Vector3(c.x * s, 0f, rangeZ + c.z * s), PedestalTop - 0.16f * s, p);
             Physics.SyncTransforms();
-            var prev = Physics.simulationMode;
-            Physics.simulationMode = SimulationMode.Script;
-            try { for (int i = 0; i < steps; i++) Physics.Simulate(Time.fixedDeltaTime); }
-            finally { Physics.simulationMode = prev; }
-            foreach (var b in blocks) if (b != null) b.SettleAndSleep();
+            return s;
         }
+        public const float FitMargin = 0.93f;   // 화면 반폭의 93%까지만 (가장자리 여유)
 
         /// <summary>Unity의 Cylinder 프리미티브는 캡슐 콜라이더라 윗면이 둥글다. 메시 콜라이더로 바꿔 평평하게 만든다.</summary>
         static void FlattenCollider(GameObject go, bool convex)
@@ -300,6 +350,7 @@ namespace SmashGame
             }
             root.position = new Vector3(0f, 0f, info.rangeZ);
             Physics.SyncTransforms();
+            info.fitScale = FitToScreen(root, levelRoot, cam, info.blocks, info.rangeZ, p);
 
             // 강화 블록 — 레벨 61부터, 돌·상자·판자에만, 20% 이하
             if (level >= Balance.ReinforcedFromLevel)
@@ -730,6 +781,9 @@ namespace SmashGame
             var p = GetPalette(theme);
             BuildEnvironment(root, cam, theme);
             massScale = 1f;
+            var levelRoot = root;
+            root = new GameObject("Structure").transform;
+            root.SetParent(levelRoot);
 
             int cols = Balance.TowerCols(stage), rows = Balance.TowerRows(stage), depth = Balance.TowerDepth(stage);
             float u = Unit;
@@ -755,6 +809,9 @@ namespace SmashGame
                         return (kind, col);
                     }, info.blocks, u);
                 }
+
+            Physics.SyncTransforms();
+            info.fitScale = FitToScreen(root, levelRoot, cam, info.blocks, 0f, p);
 
             // 초중량 + 강화
             float massMult = Balance.TowerMassMult(stage);
