@@ -59,8 +59,10 @@ namespace SmashGame
                         if (brb.IsSleeping()) brb.WakeUp();
                     }
             }
-            // 승강: 정지 상태(코사인 최대)에서 부드럽게 출발하도록 (1 - cos) 형태
-            float y = bobAmplitude > 0f ? bobAmplitude * (Mathf.Cos(phase) - Mathf.Cos(phase + u * Mathf.PI * 2f / bobPeriod)) : 0f;
+            // 승강: 원래 높이를 중심으로 ±amplitude 대칭 왕복. (1-cos) 형태를 쓰면 위로만 오르내려 테이블이 평균 +0.35 높아 보였다.
+            // 처음 2초는 램프로 진폭을 키워 급출발 없이 시작한다.
+            float ramp = Mathf.SmoothStep(0f, 1f, u / 2f);
+            float y = bobAmplitude > 0f ? bobAmplitude * ramp * Mathf.Sin(phase + u * Mathf.PI * 2f / bobPeriod) : 0f;
             rb.MovePosition(basePos + Vector3.up * y);
             if (spinDegPerSec != 0f)
             {
