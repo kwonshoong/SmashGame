@@ -73,22 +73,25 @@ namespace SmashGame
         public const float ReinforcedRatioCap = 0.20f;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
         public const int StructureTypes = 12;
-        /// <summary>시작 공 개수. 기본 14~20(초반 5레벨 +6, 하드 14)에 블록 수가 많으면 더 준다 (20개 초과분 2개당 +1).</summary>
+        /// <summary>시작 공 개수 = 기본(일반 12~16, 하드 8, 초반 5레벨 +5) + 블록 수의 40%. 블록이 많을수록 공도 비례해서 늘되, 비율은 조금씩 빡빡하게.</summary>
         public static int StartBalls(int level, bool hard, int blockCount = 20)
         {
-            int n = hard ? 14 : 14 + (level * 5) % 7;
-            if (!hard && level <= 5) n += 6;
-            n += Mathf.Max(0, (blockCount - 20) / 2);
+            int n = hard ? 8 : 12 + (level * 5) % 5;
+            if (!hard && level <= 5) n += 5;
+            n += Mathf.RoundToInt(blockCount * 0.4f);
             return n;
         }
+        /// <summary>구조물 크기 성장: base에서 시작해 perLevels 레벨마다 +1, cap까지</summary>
+        public static int Grow(int level, int baseVal, int perLevels, int cap) => Mathf.Min(cap, baseVal + level / perLevels);
         /// <summary>새 구조물(피라미드·요새·성문·쌍둥이 탑·계단·원진)이 등장하는 레벨. 그 전엔 기본 6종만.</summary>
         public const int NewStructuresFromLevel = 8;
         /// <summary>새 구조물이 두 겹(깊이 2)이 되는 레벨</summary>
         public const int DeepStructuresFromLevel = 25;
         /// <summary>새 구조물의 바닥·기둥이 돌(무거움)로 바뀌는 레벨. 그 전엔 상자·원통.</summary>
         public const int HeavyStructuresFromLevel = 30;
-        /// <summary>레벨이 오를수록 블록이 조금씩 무거워진다 (Lv1 1.0 → Lv51+ 1.4 상한). 무거운 블록이 위에 얹히면 마찰로 아래 블록이 굳으므로 상한을 낮게 둔다.</summary>
-        public static float BlockMassScale(int level) => Mathf.Min(1.4f, 1f + Mathf.Max(0, level - 1) * 0.008f);
+        /// <summary>블록 전체 질량 배율. 난이도는 "무거움"보다 "개수"로 잡는다: 전체적으로 가볍게(0.6) 하고 레벨에 따라 아주 완만히(최대 0.75).</summary>
+        public const float BlockMassBase = 0.6f;
+        public static float BlockMassScale(int level) => BlockMassBase * Mathf.Min(1.25f, 1f + Mathf.Max(0, level - 1) * 0.004f);
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>
         public static bool HasObstacle(int level) => IsHardLevel(level) || (level >= 4 && level % 5 == 2);
 
