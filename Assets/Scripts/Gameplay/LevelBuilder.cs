@@ -366,10 +366,13 @@ namespace SmashGame
                 return info;
             }
 
-            int T = level >= Balance.WideStructuresFromLevel ? Balance.StructureTypes : level >= Balance.NewStructuresFromLevel ? 12 : 6;   // 초반엔 기본 6종만
-            // 곱수는 T와 서로소여야 모든 종류가 고르게 나온다 (5는 15와 서로소가 아니라 20레벨부터는 7을 쓴다)
-            int mult = T == 15 ? 7 : 5;
-            int type = info.hard ? (level / 10 + 6) % T : (level * mult + rng.Next(0, 3)) % T;
+            // 레벨 구간별로 나올 수 있는 구조물 목록. 원통 다발·판자 선반·통나무 탑은 한 발에 무너지는 극초반용이라 12레벨부터 제외
+            var allowed = Balance.StructurePool(level);
+            int T = allowed.Length;
+            // 곱수는 T와 서로소여야 모든 종류가 고르게 나온다 (T=6,9,12 → 5, T=15 → 7)
+            int mult = T % 5 == 0 ? 7 : 5;
+            int pick = info.hard ? (level / 10 + 6) % T : (level * mult + rng.Next(0, 3)) % T;
+            int type = allowed[pick];
             if (level <= 3) type = new[] { 1, 0, 2 }[level - 1];   // 튜토리얼 구간은 쉬운 구조물
 
             // 사거리: 구조물(받침대 포함)을 자식 루트에 짓고 통째로 뒤로 민다. 카메라·대포는 그대로라 멀수록 작게 보이고 포물선이 높아진다.

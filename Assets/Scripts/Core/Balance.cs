@@ -113,6 +113,19 @@ namespace SmashGame
         /// <summary>새 구조물(피라미드·요새·성문·쌍둥이 탑·계단·원진)이 등장하는 레벨. 그 전엔 기본 6종만.</summary>
         public const int NewStructuresFromLevel = 8;
         public const int WideStructuresFromLevel = 20;   // 얼음 성문·통나무 다리·얼음 젠가 (긴 부재·넓은 구조)
+        public const int EasyStructuresUntilLevel = 11;  // 원통 다발(0)·판자 선반(2)·통나무 탑(3)은 이 레벨까지만 (그 뒤엔 너무 쉽다)
+        static readonly int[] PoolEarly = { 0, 1, 2, 3, 4, 5 };
+        static readonly int[] PoolMid   = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+        static readonly int[] PoolNoEasy = { 1, 4, 5, 6, 7, 8, 9, 10, 11 };
+        static readonly int[] PoolFull  = { 1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
+        /// <summary>레벨에서 고를 수 있는 구조물 종류 목록</summary>
+        public static int[] StructurePool(int level)
+        {
+            if (level < NewStructuresFromLevel) return PoolEarly;
+            if (level <= EasyStructuresUntilLevel) return PoolMid;
+            if (level < WideStructuresFromLevel) return PoolNoEasy;
+            return PoolFull;
+        }
         /// <summary>새 구조물이 두 겹(깊이 2)이 되는 레벨</summary>
         public const int DeepStructuresFromLevel = 25;
         /// <summary>새 구조물의 바닥·기둥이 돌(무거움)로 바뀌는 레벨. 그 전엔 상자·원통.</summary>
