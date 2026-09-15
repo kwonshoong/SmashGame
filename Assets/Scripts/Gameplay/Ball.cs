@@ -60,6 +60,11 @@ namespace SmashGame
                 if (other != null) Physics.IgnoreCollision(col, other, true);
             }
             alive.Add(b);
+            // 받침대(상판·기둥)는 첫 블록 타격 전까지 무시한다. 카메라가 위에서 보므로 공은 살짝 내려오며 날아오는데, 받침대 상판이
+            // 블록보다 1.5 앞까지 나와 있어 블록 아래쪽(바닥에서 0.2 이내)을 겨냥하면 공이 상판 앞 테두리에 먼저 닿아 소모돼 버렸다
+            // (실측: 0.36 블록의 아래 절반은 아예 맞힐 수 없었고, 윗면을 스칠 때만 정상 충격이 들어갔다). 블록을 맞힌 뒤에는 다시 켜서 자연스럽게 튄다.
+            foreach (var pc in LevelBuilder.PedestalColliders)
+                if (pc != null) Physics.IgnoreCollision(col, pc, true);
             b.stats = stats;
             b.controller = controller;
             b.rb = rb;
@@ -119,6 +124,11 @@ namespace SmashGame
             }
 
             consumed = true;
+            {
+                var myCol = GetComponent<Collider>();
+                foreach (var pc in LevelBuilder.PedestalColliders)
+                    if (pc != null) Physics.IgnoreCollision(myCol, pc, false);   // 이제부터는 받침대에 튄다
+            }
             Vector3 dir = lastVelocity.sqrMagnitude > 0.01f ? lastVelocity.normalized : transform.forward;
             Vector3 point = c.GetContact(0).point;
             float impulse = BaseImpulse * stats.power * Mathf.Sqrt(stats.mass);
