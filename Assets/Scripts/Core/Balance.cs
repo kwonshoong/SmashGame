@@ -80,6 +80,24 @@ namespace SmashGame
             return n;
         }
         /// <summary>구조물 크기 성장: base에서 시작해 perLevels 레벨마다 +1, cap까지</summary>
+        // ---------- 움직이는 받침대 ----------
+        public enum MotionKind { None, Spin, Bob, SpinBob }
+        public const int MotionFromLevel = 30;
+        /// <summary>레벨별 받침대 움직임: 30레벨부터 4레벨마다 하나씩 (회전 → 승강 → 회전+승강 순환). 하드 레벨은 항상 회전+승강.</summary>
+        public static MotionKind PedestalMotionKind(int level)
+        {
+            if (level < MotionFromLevel) return MotionKind.None;
+            if (IsHardLevel(level)) return MotionKind.SpinBob;
+            if (level % 4 != 2) return MotionKind.None;
+            int n = (level - MotionFromLevel) / 4;
+            return n % 3 == 0 ? MotionKind.Spin : n % 3 == 1 ? MotionKind.Bob : MotionKind.SpinBob;
+        }
+        public static float PedestalSpinDegPerSec(int level) => Mathf.Min(30f, 15f + (level - MotionFromLevel) * 0.1f);
+        public const float PedestalBobAmplitude = 0.35f;   // 위아래 ±0.35
+        public const float PedestalBobPeriod = 4f;
+        public const int MotionExtraBalls = 3;   // 움직이는 받침대 레벨은 타이밍을 맞춰야 하니 공 +3
+        public static string MotionName(MotionKind k) => k switch { MotionKind.Spin => "회전", MotionKind.Bob => "승강", MotionKind.SpinBob => "회전+승강", _ => "" };
+
         // ---------- 사거리(테이블 거리) ----------
         /// <summary>테이블 거리 단계별 z 오프셋: 단거리(지금) · 중거리 · 장거리. 카메라·대포는 그대로, 구조물만 뒤로 간다.</summary>
         public static readonly float[] RangeZ = { 0f, 2.5f, 5f };

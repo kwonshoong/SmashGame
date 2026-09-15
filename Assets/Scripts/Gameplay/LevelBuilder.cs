@@ -21,6 +21,7 @@ namespace SmashGame
         public int rangeTier;   // 0 단거리 · 1 중거리 · 2 장거리
         public float rangeZ;    // 구조물이 뒤로 밀린 거리(월드 z)
         public float fitScale = 1f;   // 화면 맞춤으로 축소된 배율 (1 = 그대로)
+        public Balance.MotionKind motion; // 받침대 움직임
     }
 
     /// <summary>
@@ -75,6 +76,7 @@ namespace SmashGame
             var p = GetPalette(theme);
             PedestalColliders.Clear();
             pedestalCenters.Clear();
+            pedestalGroups.Clear();
             cam.backgroundColor = p.sky;
             cam.transform.position = GameManager.CamDefaultPos;
             cam.transform.rotation = GameManager.CamDefaultRot;
@@ -97,10 +99,17 @@ namespace SmashGame
             return go;
         }
 
-        static void Pedestal(Transform root, Vector3 center, float radius, Palette p, bool square = false)
+        static void Pedestal(Transform parent, Vector3 center, float radius, Palette p, bool square = false)
         {
             var gold = Materials.Get(new Color(1f, 0.78f, 0.25f), true, true);
             var purpleDark = Materials.Get(p.pedestal * 0.75f, true);
+
+            // 받침대 묶음(상판·테두리·기둥·발): 움직이는 받침대는 이 묶음째 kinematic으로 움직인다
+            var group = new GameObject("PedestalGroup");
+            group.transform.SetParent(parent);
+            group.transform.position = new Vector3(center.x, PedestalTop, center.z);   // 회전축 = 상판 중심
+            var root = group.transform;
+            pedestalGroups.Add(group);
 
             // 상판(콜라이더 있음) — 위치·두께는 물리와 맞물려 있으므로 유지
             var top = GameObject.CreatePrimitive(square ? PrimitiveType.Cube : PrimitiveType.Cylinder);
@@ -110,7 +119,7 @@ namespace SmashGame
             // 앞뒤 깊이는 좌우 폭보다 얕게 (원형은 타원, 사각형은 가로로 긴 판). 구조물 깊이(원진 1.43, 통나무 1.0, 원통 다발 1.2)는 다 들어간다.
             top.transform.localScale = square ? new Vector3(radius * 2f, 0.16f, radius * PedestalDepthSquare) : new Vector3(radius * 2f, 0.08f, radius * PedestalDepthRound);
             top.GetComponent<Renderer>().material = Materials.Get(p.pedestal, true);
-            FlattenCollider(top, false);
+            if (!square) FlattenCollider(top, false);   // 사각 상판은 기본 BoxCollider가 이미 평평하다 (움직이는 받침대에선 메시보다 접촉이 안정적)
             RoundedMesh.Apply(top, 0.03f);
             PedestalColliders.Add(top.GetComponent<Collider>());
 
@@ -147,35 +156,39 @@ namespace SmashGame
 
 
         /// <summary>받침대 기둥·발 (상판과 분리: 화면 맞춤으로 상판을 줄여도 기둥은 땅까지 닿아야 하므로 따로 다시 만든다)</summary>
-        static void PedestalColumn(Transform root, Vector3 center, float colTop, Palette p)
+        static void PedestalColumn(Transform root, Vector3 center, float colTop, Palette p, float sizeMul = 1f)
         {
+            // sizeMul: 부모가 s배로 축소돼 있을 때 1/s를 넘기면 월드 크기가 원래대로 유지된다 (위치는 월드 좌표로 직접 지정)
             var gold = Materials.Get(new Color(1f, 0.78f, 0.25f), true, true);
             var purpleDark = Materials.Get(p.pedestal * 0.75f, true);
-            float colBottom = -1.5f;
+            float colBottom = -1.5f - 0.6f;   // 승강 받침대가 올라가도 기둥이 땅에서 뜨지 않게 아래로 더 묻어 둔다
             var col = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             col.name = "PedestalColumn";
             col.transform.SetParent(root);
             col.transform.position = new Vector3(center.x, (colTop + colBottom) * 0.5f, center.z);
-            col.transform.localScale = new Vector3(0.42f, (colTop - colBottom) * 0.5f, 0.42f);
+            col.transform.localScale = new Vector3(0.42f, (colTop - colBottom) * 0.5f, 0.42f) * sizeMul;
             col.GetComponent<Renderer>().material = Materials.Get(p.pedestal, true);
             RoundedMesh.Apply(col, 0.04f);
             PedestalColliders.Add(col.GetComponent<Collider>());
-            Deco(PrimitiveType.Cylinder, root, "ColumnCap", new Vector3(center.x, colTop - 0.22f, center.z), new Vector3(0.56f, 0.06f, 0.56f), gold, 0.02f);
-            Deco(PrimitiveType.Cylinder, root, "ColumnBase", new Vector3(center.x, -1.05f, center.z), new Vector3(0.56f, 0.06f, 0.56f), gold, 0.02f);
+            Deco(PrimitiveType.Cylinder, root, "ColumnCap", new Vector3(center.x, colTop - 0.22f, center.z), new Vector3(0.56f, 0.06f, 0.56f) * sizeMul, gold, 0.02f);
+            // 아래 링·발은 받침대가 오르내려도 땅에 남아 있도록 묶음 바깥(부모)에 둔다
+            var ground = root.parent != null ? root.parent : root;
+            Deco(PrimitiveType.Cylinder, ground, "ColumnBase", new Vector3(center.x, -1.05f, center.z), new Vector3(0.56f, 0.06f, 0.56f) * sizeMul, gold, 0.02f);
             // 기둥 세로 홈 느낌의 얇은 금색 줄 4개
             for (int k = 0; k < 4; k++)
             {
                 float a = k * 90f * Mathf.Deg2Rad;
-                Deco(PrimitiveType.Cube, root, "ColumnStripe", new Vector3(center.x + Mathf.Cos(a) * 0.2f, (colTop + colBottom) * 0.5f - 0.1f, center.z + Mathf.Sin(a) * 0.2f),
-                    new Vector3(0.05f, (colTop - colBottom) - 0.7f, 0.05f), gold, 0.01f);
+                Deco(PrimitiveType.Cube, root, "ColumnStripe", new Vector3(center.x + Mathf.Cos(a) * 0.2f, (colTop - 1.5f) * 0.5f - 0.1f, center.z + Mathf.Sin(a) * 0.2f),
+                    new Vector3(0.05f, (colTop + 1.5f) - 0.7f, 0.05f) * sizeMul, gold, 0.01f);
             }
             // 받침 발: 넓은 둥근 판 두 장
-            Deco(PrimitiveType.Cylinder, root, "PedestalFoot", new Vector3(center.x, -1.3f, center.z), new Vector3(1.2f, 0.12f, 1.2f), Materials.Get(p.pedestal, true), 0.06f);
-            Deco(PrimitiveType.Cylinder, root, "PedestalFoot2", new Vector3(center.x, -1.45f, center.z), new Vector3(1.6f, 0.08f, 1.6f), purpleDark, 0.05f);
+            Deco(PrimitiveType.Cylinder, ground, "PedestalFoot", new Vector3(center.x, -1.3f, center.z), new Vector3(1.2f, 0.12f, 1.2f) * sizeMul, Materials.Get(p.pedestal, true), 0.06f);
+            Deco(PrimitiveType.Cylinder, ground, "PedestalFoot2", new Vector3(center.x, -1.45f, center.z), new Vector3(1.6f, 0.08f, 1.6f) * sizeMul, purpleDark, 0.05f);
         }
 
         /// <summary>이번 빌드에서 만든 받침대 중심들 (화면 맞춤 축소 후 기둥을 다시 세울 때 사용)</summary>
         static readonly List<Vector3> pedestalCenters = new();
+        static readonly List<GameObject> pedestalGroups = new();
 
         /// <summary>
         /// 구조물(받침대 상판 포함)이 화면 좌우를 벗어나면 상판 높이를 축으로 통째로 균일 축소한다. 받침대 기둥·발은 축소하지 않고
@@ -200,19 +213,42 @@ namespace SmashGame
             structRoot.position = new Vector3(0f, PedestalTop * (1f - s), rangeZ);
             foreach (var b in blocks) { var rb = b.GetComponent<Rigidbody>(); if (rb != null) rb.mass *= s * s; }
 
-            // 기둥·발은 버리고 축소되지 않은 루트에 땅까지 닿게 다시 세운다
+            // 기둥·발은 버리고 각 받침대 묶음 안에 원래 크기(1/s)로 땅까지 닿게 다시 세운다 (묶음이 움직이면 같이 움직인다)
             var doomed = new List<GameObject>();
             foreach (var t in structRoot.GetComponentsInChildren<Transform>())
                 if (t.name == "PedestalColumn" || t.name.StartsWith("Column") || t.name.StartsWith("PedestalFoot")) doomed.Add(t.gameObject);
             foreach (var g in doomed) { var c = g.GetComponent<Collider>(); if (c != null) PedestalColliders.Remove(c); Object.DestroyImmediate(g); }
-            var baseRoot = new GameObject("PedestalBase").transform;
-            baseRoot.SetParent(levelRoot);
-            foreach (var c in pedestalCenters)
-                PedestalColumn(baseRoot, new Vector3(c.x * s, 0f, rangeZ + c.z * s), PedestalTop - 0.16f * s, p);
+            foreach (var g in pedestalGroups)
+            {
+                var wc = g.transform.position;   // 축소 후 상판 중심(월드)
+                PedestalColumn(g.transform, new Vector3(wc.x, 0f, wc.z), PedestalTop - 0.16f * s, p, 1f / s);
+            }
             Physics.SyncTransforms();
             return s;
         }
         public const float FitMargin = 0.93f;   // 화면 반폭의 93%까지만 (가장자리 여유)
+
+
+        /// <summary>
+        /// 움직이는 받침대 적용 (Balance.PedestalMotionKind). 받침대가 여럿이고 서로 독립된 탑(삼중 받침대)이면 위상을 어긋나게,
+        /// 하나의 구조물이 여러 받침대에 걸쳐 있으면(얼음 성문·통나무 다리) 같은 위상으로 오르내려 구조물이 찢어지지 않는다.
+        /// </summary>
+        static void ApplyPedestalMotion(int level, int type, LevelInfo info)
+        {
+            var kind = Balance.PedestalMotionKind(level);
+            if (kind == Balance.MotionKind.None) return;
+            bool independent = type == 5;   // 삼중 받침대만 탑이 독립
+            float spin = kind == Balance.MotionKind.Bob ? 0f : Balance.PedestalSpinDegPerSec(level);
+            float bob = kind == Balance.MotionKind.Spin ? 0f : Balance.PedestalBobAmplitude;
+            for (int i = 0; i < pedestalGroups.Count; i++)
+            {
+                float phase = independent ? i * Mathf.PI * 2f / Mathf.Max(1, pedestalGroups.Count) : 0f;
+                // 회전은 받침대가 하나일 때만 (여러 받침대가 각자 돌면 걸쳐 있는 구조물이 즉시 찢어진다)
+                float sp = pedestalGroups.Count == 1 || independent ? spin : 0f;
+                PedestalMotion.Attach(pedestalGroups[i], sp, bob, Balance.PedestalBobPeriod, phase).blocks = info.blocks;
+            }
+            info.motion = kind;
+        }
 
         /// <summary>Unity의 Cylinder 프리미티브는 캡슐 콜라이더라 윗면이 둥글다. 메시 콜라이더로 바꿔 평평하게 만든다.</summary>
         static void FlattenCollider(GameObject go, bool convex)
@@ -363,6 +399,7 @@ namespace SmashGame
             root.position = new Vector3(0f, 0f, info.rangeZ);
             Physics.SyncTransforms();
             info.fitScale = FitToScreen(root, levelRoot, cam, info.blocks, info.rangeZ, p);
+            ApplyPedestalMotion(level, type, info);
 
             // 강화 블록 — 레벨 61부터, 돌·상자·판자에만, 20% 이하
             if (level >= Balance.ReinforcedFromLevel)
@@ -423,7 +460,9 @@ namespace SmashGame
             }
 
             // 장애물 — 구조물 앞면보다 앞에 두어 공만 막고 블록은 건드리지 않게 (통나무처럼 z로 긴 구조물 대응)
-            if (Balance.HasObstacle(level))
+            // 회전하는 받침대에는 장애물을 두지 않는다: 구조물이 돌면서 앞에 매달린 망치에 스스로 부딪혀 무너진다(실측: 50° 근처에서 붕괴)
+            bool spinning = info.motion == Balance.MotionKind.Spin || info.motion == Balance.MotionKind.SpinBob;
+            if (Balance.HasObstacle(level) && !spinning)
             {
                 Physics.SyncTransforms(); // 같은 프레임에 만든 콜라이더의 bounds를 정확히 읽기 위해
                 float minZ = info.rangeZ;
@@ -436,7 +475,7 @@ namespace SmashGame
             PreSettle(info.blocks);
 
             // 시작 공
-            info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count) + Balance.RangeExtraBalls(info.rangeTier);
+            info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count) + Balance.RangeExtraBalls(info.rangeTier) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
             info.structureName = type switch
             {
                 0 => "원통 다발", 1 => "큐브 격자", 2 => "판자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",

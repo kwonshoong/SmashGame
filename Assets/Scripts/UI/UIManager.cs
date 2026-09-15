@@ -178,7 +178,7 @@ namespace SmashGame
             {
                 hudBallsTitle.text = "남은 공";
                 hudBalls.text = gm.Level.BallsLeft.ToString();
-                hudBlocks.text = $"레벨 {gm.Level.Level} · {gm.Level.Info.structureName}" + (gm.Level.Info.rangeTier > 0 ? $" · {Balance.RangeName[gm.Level.Info.rangeTier]}" : "") + $"\n블록 {gm.Level.BlocksLeft}";
+                hudBlocks.text = $"레벨 {gm.Level.Level} · {gm.Level.Info.structureName}" + (gm.Level.Info.rangeTier > 0 ? $" · {Balance.RangeName[gm.Level.Info.rangeTier]}" : "") + (gm.Level.Info.motion != Balance.MotionKind.None ? $" · {Balance.MotionName(gm.Level.Info.motion)}" : "") + $"\n블록 {gm.Level.BlocksLeft}";
             }
         }
 
