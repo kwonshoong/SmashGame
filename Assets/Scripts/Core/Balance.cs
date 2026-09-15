@@ -70,7 +70,7 @@ namespace SmashGame
         // ---------- 난이도 ----------
         public const float ReinforcedRatioCap = 0.20f;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
-        public const int StructureTypes = 12;
+        public const int StructureTypes = 15;
         /// <summary>시작 공 개수 = 기본(일반 12~16, 하드 8, 초반 5레벨 +5) + 블록 수의 40%. 블록이 많을수록 공도 비례해서 늘되, 비율은 조금씩 빡빡하게.</summary>
         public static int StartBalls(int level, bool hard, int blockCount = 20)
         {
@@ -94,6 +94,7 @@ namespace SmashGame
         public static int Grow(int level, int baseVal, int perLevels, int cap) => Mathf.Min(cap, baseVal + level / perLevels);
         /// <summary>새 구조물(피라미드·요새·성문·쌍둥이 탑·계단·원진)이 등장하는 레벨. 그 전엔 기본 6종만.</summary>
         public const int NewStructuresFromLevel = 8;
+        public const int WideStructuresFromLevel = 20;   // 얼음 성문·통나무 다리·얼음 젠가 (긴 부재·넓은 구조)
         /// <summary>새 구조물이 두 겹(깊이 2)이 되는 레벨</summary>
         public const int DeepStructuresFromLevel = 25;
         /// <summary>새 구조물의 바닥·기둥이 돌(무거움)로 바뀌는 레벨. 그 전엔 상자·원통.</summary>
