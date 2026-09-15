@@ -10,7 +10,7 @@ namespace SmashGame
     {
         public BallStats stats;
         public LevelController controller;
-        public System.Action<bool, Vector3> onHit; // (perfect, point)
+        public System.Action<Vector3> onHit; // (point)
 
         Rigidbody rb;
         Vector3 lastVelocity;
@@ -133,7 +133,6 @@ namespace SmashGame
             if (Vector3.Dot(normal, lastVelocity) > 0f) normal = -normal;   // 항상 공 쪽을 향하게
 
             // 직접 맞은 블록 (짧은 간격으로 같은 블록을 다시 맞히면 콤보로 더 세게 민다)
-            bool perfect = block.crown;
             float combo = block.RegisterHitCombo();
             block.Hit(dmg, dir, stats.power);
 
@@ -150,12 +149,12 @@ namespace SmashGame
                 float falloff = Mathf.Clamp01(1f - dist / radius);
                 falloff *= falloff;   // 거리에 따라 급하게 줄어들게 (이웃은 접촉을 통해서만 밀리는 게 자연스럽다)
                 if (b == block) { if (b.IsReinforced) continue; falloff = 1f; }
-                float mult = (perfect && b == block ? 1.5f : 1f) * (b == block ? combo : 1f);
+                float mult = b == block ? combo : 1f;
                 Vector3 J = (dir + Vector3.up * 0.08f).normalized * impulse * falloff * mult;
                 b.Push(J, point);   // 몇 물리 스텝에 나눠 밀어 이웃 사슬까지 같이 밀리게 (Block.Push 참고)
             }
 
-            onHit?.Invoke(perfect, point);
+            onHit?.Invoke(point);
             // 공은 사라지지 않고 튕겨 나와 떨어진다. 가벼운 공이라 이후 충돌은 블록을 거의 밀지 않는다.
             // 공의 되튕김: 맞은 면의 법선·양쪽 질량·반발계수로 1차원 충돌식을 풀어 실제와 비슷하게.
             // 가벼운 블록(사탕)이면 밀고 나가고, 무거운 블록(돌·격파 탑)이면 되튕기고, 원통 옆면을 비스듬히 치면 법선 방향으로 꺾여 나간다.

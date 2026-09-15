@@ -31,8 +31,8 @@ namespace SmashGame
         {
             public bool won;
             public int level;
-            public int clearCoin, refundCoin, perfectCoin, trackCoin, total;
-            public int remainingBalls, perfects;
+            public int clearCoin, refundCoin, trackCoin, total;
+            public int remainingBalls;
             public bool trackCompleted;
             public bool bonus;
             public bool tower; public int towerStage; public bool towerCleared;
@@ -323,15 +323,14 @@ namespace SmashGame
             Time.timeScale = 1f;
         }
 
-        /// <summary>레벨 클리어. 기획서 3.5 남은 공 환급, 3.6 퍼펙트 보너스, 20레벨 트랙.</summary>
-        public void OnLevelWon(int remainingBalls, int perfects)
+        /// <summary>레벨 클리어. 기획서 3.5 남은 공 환급, 20레벨 트랙.</summary>
+        public void OnLevelWon(int remainingBalls)
         {
             State = GameState.Result;
             int lvl = Data.currentLevel;
-            var r = new ResultInfo { won = true, level = lvl, remainingBalls = remainingBalls, perfects = perfects };
+            var r = new ResultInfo { won = true, level = lvl, remainingBalls = remainingBalls };
             r.clearCoin = Balance.ClearCoin(lvl);
             r.refundCoin = lvl >= Balance.RefundUnlockLevel ? remainingBalls * Balance.RefundPerBall : 0;
-            r.perfectCoin = perfects * Balance.PerfectBonus;
 
             Data.trackProgress++;
             if (Data.trackProgress >= Balance.TrackLevels)
@@ -340,7 +339,7 @@ namespace SmashGame
                 r.trackCoin = Balance.TrackReward;
                 r.trackCompleted = true;
             }
-            r.total = r.clearCoin + r.refundCoin + r.perfectCoin + r.trackCoin;
+            r.total = r.clearCoin + r.refundCoin + r.trackCoin;
             Data.coins += r.total;
             Data.winStreak++;
             Data.RefreshDay();

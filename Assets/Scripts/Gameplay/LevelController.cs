@@ -12,12 +12,10 @@ namespace SmashGame
         public LevelInfo Info { get; private set; }
         public int BallsLeft { get; private set; }
         public int BlocksLeft { get; private set; }
-        public int Perfects { get; private set; }
         public int Level { get; private set; }
         public bool Ended { get; private set; }
 
         public event Action OnHudChanged;
-        public event Action<Vector3> OnPerfect;
 
         GameManager gm;
         Cannon cannon;
@@ -71,24 +69,7 @@ namespace SmashGame
             OnHudChanged?.Invoke();
         }
 
-        public void OnBallHit(bool perfect, Vector3 point)
-        {
-            if (Ended) return;
-            if (perfect)
-            {
-                Perfects++;
-                OnPerfect?.Invoke(point);
-                StartCoroutine(SlowMo());
-                OnHudChanged?.Invoke();
-            }
-        }
-
-        IEnumerator SlowMo()
-        {
-            Time.timeScale = 0.3f;
-            yield return new WaitForSecondsRealtime(0.3f);
-            Time.timeScale = 1f;
-        }
+        public void OnBallHit(Vector3 point) { }
 
         public void OnBlockRemoved(Block b)
         {
@@ -113,7 +94,7 @@ namespace SmashGame
         {
             if (IsTower) gm.OnTowerEnded(Info.towerStage, BlocksDestroyed, totalBlocks);
             else if (IsBonus) gm.OnBonusEnded(BlocksDestroyed, totalBlocks);
-            else gm.OnLevelWon(BallsLeft, Perfects);
+            else gm.OnLevelWon(BallsLeft);
         }
 
         void Update()

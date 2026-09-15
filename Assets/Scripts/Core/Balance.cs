@@ -33,7 +33,6 @@ namespace SmashGame
 
         // ---------- 레벨 보상 ----------
         public const int RefundPerBall = 2;      // 남은 공 1개당 코인
-        public const int PerfectBonus = 5;       // 퍼펙트 히트 1회당 코인
         public const int TrackLevels = 20;       // 20레벨 트랙
         public const int TrackReward = 100;
         public static int ClearCoin(int level) => 15 + (level * 7) % 26; // 15~40 사이, 레벨마다 고정
@@ -42,7 +41,6 @@ namespace SmashGame
         public const int ForgeUnlockLevel = 8;
         public const int ForgeGiftCoins = 300;
         public const int RefundUnlockLevel = 10;
-        public const int CrownUnlockLevel = 12;
         public const int TrainingUnlockLevel = 15;
         public const int ReinforcedFromLevel = 61;
         public const int StickyFromLevel = 91;
@@ -78,7 +76,7 @@ namespace SmashGame
         {
             int n = hard ? 8 : 12 + (level * 5) % 5;
             if (!hard && level <= 5) n += 5;
-            n += Mathf.RoundToInt(blockCount * 0.4f);
+            n += Mathf.RoundToInt(blockCount * 0.25f);
             return n;
         }
         /// <summary>구조물 크기 성장: base에서 시작해 perLevels 레벨마다 +1, cap까지</summary>

@@ -60,7 +60,6 @@ namespace SmashGame
             for (int i = 0; i < m.mix.Length; i++) m.mix[i] = 1f;
             switch (kind)
             {
-                case BlockKind.Crown: CrownEmblem(m); break;
                 case BlockKind.Cylinder: Bands(m); break;
                 case BlockKind.Candy: CandyStripes(m); break;
                 case BlockKind.Ice: Ice(m); break;
@@ -81,7 +80,6 @@ namespace SmashGame
             BlockKind.Candy => (0.62f, 0f),
             BlockKind.Cylinder => (0.55f, 0f),
             BlockKind.Cube => (0.5f, 0f),
-            BlockKind.Crown => (0.6f, 0.4f),
             BlockKind.Stone => (0.25f, 0f),
             BlockKind.Crate => (0.2f, 0f),
             BlockKind.Log => (0.15f, 0f),
@@ -120,25 +118,6 @@ namespace SmashGame
         }
 
         /// <summary>왕관 큐브: 베벨 위에 금색 왕관 문양 (문양은 흰색+노랑으로 틴트와 무관)</summary>
-        static void CrownEmblem(Mask m)
-        {
-            Bevel(m);
-            for (int y = 0; y < Size; y++)
-                for (int x = 0; x < Size; x++)
-                {
-                    float u = x / (float)Size, v = y / (float)Size;
-                    bool inCrown = u > 0.28f && u < 0.72f && v > 0.30f && v < 0.42f;
-                    for (int k = 0; k < 3; k++)
-                    {
-                        float cx = 0.36f + k * 0.14f;
-                        float h = k == 1 ? 0.30f : 0.22f;
-                        float dy = v - 0.42f;
-                        if (dy >= 0 && dy < h && Mathf.Abs(u - cx) < 0.07f * (1f - dy / h)) inCrown = true;
-                    }
-                    if (inCrown) { m.mix[y * Size + x] = 0f; m.val[y * Size + x] = 1.0f; }
-                }
-        }
-
         /// <summary>원통: 위아래 흰 테두리 띠 + 세로 하이라이트</summary>
         static void Bands(Mask m)
         {

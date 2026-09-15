@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SmashGame
 {
-    public enum BlockKind { Cube, Cylinder, Candy, Ice, Crate, Log, Plank, Stone, Crown }
+    public enum BlockKind { Cube, Cylinder, Candy, Ice, Crate, Log, Plank, Stone }
 
     /// <summary>
     /// 받침대 위의 블록 하나. 받침대 아래로 떨어지면 "제거"로 카운트된다.
@@ -12,7 +12,6 @@ namespace SmashGame
     {
         public BlockKind kind;
         public int hp = 1;
-        public bool crown;
         public bool sticky;
         public bool tall;   // 긴 변형(세로 2배). 텍스처 타일링·질량에 반영
         public LevelController controller;
@@ -51,24 +50,6 @@ namespace SmashGame
             baseMass = mass;
             rb.isKinematic = false;
             if (hp > 1) { rb.mass = mass * ReinforcedMassMult; ApplyCrackTint(); }
-        }
-
-        public void MakeCrown()
-        {
-            crown = true;
-            kind = BlockKind.Crown;
-            baseColor = new Color(1f, 0.82f, 0.15f);
-            rend.material = Materials.GetBlock(BlockKind.Crown, baseColor, tall);
-            // 왕관 마커: 위에 작은 금색 구
-            var marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            DestroyImmediate(marker.GetComponent<Collider>());
-            marker.transform.SetParent(transform, false);
-            marker.transform.localPosition = new Vector3(0, 0.5f, -0.51f);
-            // 부모 스케일이 비균등(긴 블록·원통)이어도 구슬이 찌그러지지 않게 보정
-            var ls = transform.localScale;
-            const float markerWorld = 0.18f; // 월드 지름 고정 (판자처럼 납작·넓은 블록에서도 같은 크기)
-            marker.transform.localScale = new Vector3(markerWorld / ls.x, markerWorld / ls.y, markerWorld / ls.z);
-            marker.GetComponent<Renderer>().material = Materials.Get(new Color(1f, 0.95f, 0.5f), false, true);
         }
 
         void ApplyCrackTint()
@@ -254,9 +235,9 @@ namespace SmashGame
                 if (m.HasProperty("_BaseMap")) m.SetTextureScale("_BaseMap", new Vector2(1f, 2f));
             }
             if (kind == BlockKind.Ice) MakeIceLook(m, c);
-            else if (kind == BlockKind.Candy || kind == BlockKind.Crown)
+            else if (kind == BlockKind.Candy)
             {
-                // 사탕·왕관: 아주 약한 자체 발광으로 채도를 살린다 (블룸 없이도 "빛나는" 느낌)
+                // 사탕: 아주 약한 자체 발광으로 채도를 살린다 (블룸 없이도 "빛나는" 느낌)
                 if (m.HasProperty("_EmissionColor")) { m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", c * 0.08f); }
             }
             blockCache[key] = m;

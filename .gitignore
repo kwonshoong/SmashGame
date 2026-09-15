@@ -45,3 +45,6 @@ crashlytics-build.properties
 
 # 플레이 물리 로그(분석용)
 /PlayLogs/
+/Shots/
+/bot_result.txt
+/sweep_result.txt

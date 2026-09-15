@@ -20,7 +20,7 @@ namespace SmashGame
         Button playBtn;
 
         // HUD
-        Text hudBalls, hudBlocks, hudPerfect, hudBallsTitle;
+        Text hudBalls, hudBlocks, hudBallsTitle;
 
         // 결과
         Text resultTitle, resultBody;
@@ -149,8 +149,6 @@ namespace SmashGame
                 gm.EnterLobby();
             }, 30);
 
-            hudPerfect = UIKit.Label(hud, "", 90, UIKit.Gold, new Vector2(0.5f, 0.5f), new Vector2(0, 250), new Vector2(800, 140), TextAnchor.MiddleCenter, true);
-            hudPerfect.gameObject.SetActive(false);
         }
 
         public void ShowHUD()
@@ -160,7 +158,6 @@ namespace SmashGame
             if (gm.Level != null)
             {
                 gm.Level.OnHudChanged += RefreshHUD;
-                gm.Level.OnPerfect += OnPerfect;
             }
             RefreshHUD();
         }
@@ -183,27 +180,6 @@ namespace SmashGame
                 hudBalls.text = gm.Level.BallsLeft.ToString();
                 hudBlocks.text = $"레벨 {gm.Level.Level}  ·  {gm.Level.Info.structureName}  ·  블록 {gm.Level.BlocksLeft}";
             }
-        }
-
-        void OnPerfect(Vector3 worldPoint)
-        {
-            StopCoroutine(nameof(PerfectRoutine));
-            StartCoroutine(nameof(PerfectRoutine));
-        }
-
-        IEnumerator PerfectRoutine()
-        {
-            hudPerfect.gameObject.SetActive(true);
-            hudPerfect.text = "PERFECT!";
-            float t = 0f;
-            while (t < 1.0f)
-            {
-                t += Time.unscaledDeltaTime;
-                hudPerfect.transform.localScale = Vector3.one * (1f + 0.25f * Mathf.Sin(t * 8f) * (1f - t));
-                hudPerfect.color = new Color(1f, 0.8f, 0.2f, 1f - Mathf.Clamp01((t - 0.6f) / 0.4f));
-                yield return null;
-            }
-            hudPerfect.gameObject.SetActive(false);
         }
 
         // ======================= 결과 =======================
@@ -259,13 +235,11 @@ namespace SmashGame
                 body += $"클리어 보상          +{r.clearCoin}\n";
                 if (r.level >= Balance.RefundUnlockLevel) body += $"남은 공 {r.remainingBalls}개 환급     +{r.refundCoin}\n";
                 else body += $"남은 공 {r.remainingBalls}개 (환급은 레벨 {Balance.RefundUnlockLevel}부터)\n";
-                if (r.perfects > 0) body += $"퍼펙트 {r.perfects}회             +{r.perfectCoin}\n";
                 if (r.trackCompleted) body += $"20레벨 트랙 완료!      +{r.trackCoin}\n";
                 body += $"\n합계  +{r.total} 코인      (보유 {d.coins:N0})\n";
                 body += $"트랙 {d.trackProgress}/{Balance.TrackLevels}";
                 if (d.currentLevel - 1 == Balance.ForgeUnlockLevel) body += $"\n\n대장간이 열렸습니다! 코인 {Balance.ForgeGiftCoins} 지급";
                 if (d.currentLevel - 1 == Balance.TrainingUnlockLevel) body += "\n\n훈련장이 열렸습니다! Rocky가 합류합니다";
-                if (d.currentLevel - 1 == Balance.CrownUnlockLevel - 1) body += "\n\n다음 레벨부터 왕관 블록 등장: 맞히면 PERFECT!";
                 resultBody.text = body;
                 UIKit.SetButtonLabel(resultMain, Balance.IsHardLevel(d.currentLevel) ? $"하드! 레벨 {d.currentLevel}" : $"계속하기 (레벨 {d.currentLevel})");
                 resultMain.GetComponent<Image>().color = UIKit.Green;
