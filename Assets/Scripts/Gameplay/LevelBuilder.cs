@@ -589,8 +589,8 @@ namespace SmashGame
                     if (kind == BlockKind.Crate)
                         MakeBlock(root, PrimitiveType.Cube, kind, pos, Vector3.one * d, Quaternion.identity, p.d, MassFor(kind) * 0.5f, info.blocks);
                     else
-                        // 눕힌 통나무는 충돌을 상자로: 원통 그대로면 깨어 있는 동안 미세 떨림으로 서로 굴러 4~5판에 한 번꼴로 저절로 무너졌다(승강 받침대 118레벨 실측)
-                        MakeBlock(root, PrimitiveType.Cylinder, kind, pos, new Vector3(d, 1.0f, d), rot, wood, MassFor(kind) * 0.7f, info.blocks, false, true);
+                        // 눕힌 통나무는 원통 그대로 굴러가되, 정지 상태에선 구름 저항(Block.rollingLog)으로 미세 떨림에 저절로 구르지 않게
+                        MakeBlock(root, PrimitiveType.Cylinder, kind, pos, new Vector3(d, 1.0f, d), rot, wood, MassFor(kind) * 0.7f, info.blocks).SetRollingLog();
                 }
                 y += d;
             }

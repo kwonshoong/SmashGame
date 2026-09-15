@@ -14,6 +14,10 @@ namespace SmashGame
         public int hp = 1;
         public bool sticky;
         public bool tall;   // 긴 변형(세로 2배). 텍스처 타일링·질량에 반영
+        /// <summary>눕힌 통나무처럼 굴러갈 수 있는 원통. 가만히 있을 땐 구름 저항(높은 각감쇠)으로 미세 떨림에 저절로 굴러 내리는 걸 막고, 맞아서 움직이면 자유롭게 구른다.</summary>
+        public bool rollingLog;
+        public void SetRollingLog() { rollingLog = true; var r = GetComponent<Rigidbody>(); if (r != null) r.angularDamping = RollRestDamping; }   // 빌드 직후 정착(PreSettle)부터 구름 저항이 걸리게
+        public const float RollRestDamping = 12f, RollFreeDamping = 0.05f;
         public LevelController controller;
         public float fallY = 1.0f;
 
@@ -151,6 +155,14 @@ namespace SmashGame
 
         void FixedUpdate()
         {
+            if (rollingLog && rb != null && !removed)
+            {
+                // 구름 저항 흉내: 거의 정지해 있으면(선속도 1.5·각속도 2 미만 — 승강/회전 받침대에 실려 가는 속도 0.5~1.3은 정지로 본다)
+                // 각감쇠를 크게 — 실제 통나무도 마찰로 제자리에 머문다. 공에 맞거나 떨어지며 빨라지면 감쇠를 풀어 자연스럽게 굴러간다.
+                bool resting = rb.linearVelocity.sqrMagnitude < 2.25f && rb.angularVelocity.sqrMagnitude < 4f;
+                float want = resting ? RollRestDamping : RollFreeDamping;
+                if (rb.angularDamping != want) rb.angularDamping = want;
+            }
             if (pushSteps <= 0 || rb == null || removed) return;
             Vector3 j = pushJ / pushSteps;
             rb.AddForce(j * 0.9f, ForceMode.Impulse);                  // 대부분은 질량중심으로: 뒤로 미는 힘
