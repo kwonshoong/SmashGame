@@ -24,6 +24,7 @@ namespace SmashGame
         public const float Restitution = 0.35f;        // 반발계수 (0 = 완전 비탄성, 1 = 완전 탄성)
         public const float TangentKeep = 0.75f;        // 접선 속도 보존 비율 (마찰로 일부 손실)
         public const float Lifetime = 2f;
+        public const float PedestalBounceKeep = 0.97f;   // 받침대에 튈 때 유지되는 속도 비율 (감소량 3%)
         static PhysicsMaterial ballPhysics; // 발사 후 공이 사라지기까지의 시간(충돌 여부와 무관)
         public static float Speed => Balance.BallSpeed;
         static float BaseImpulse => Balance.BallImpulse;
@@ -60,11 +61,6 @@ namespace SmashGame
                 if (other != null) Physics.IgnoreCollision(col, other, true);
             }
             alive.Add(b);
-            // 받침대(상판·기둥)는 첫 블록 타격 전까지 무시한다. 카메라가 위에서 보므로 공은 살짝 내려오며 날아오는데, 받침대 상판이
-            // 블록보다 1.5 앞까지 나와 있어 블록 아래쪽(바닥에서 0.2 이내)을 겨냥하면 공이 상판 앞 테두리에 먼저 닿아 소모돼 버렸다
-            // (실측: 0.36 블록의 아래 절반은 아예 맞힐 수 없었고, 윗면을 스칠 때만 정상 충격이 들어갔다). 블록을 맞힌 뒤에는 다시 켜서 자연스럽게 튄다.
-            foreach (var pc in LevelBuilder.PedestalColliders)
-                if (pc != null) Physics.IgnoreCollision(col, pc, true);
             b.stats = stats;
             b.controller = controller;
             b.rb = rb;
@@ -118,17 +114,37 @@ namespace SmashGame
 #endif
             if (block == null)
             {
+                if (LevelBuilder.PedestalColliders.Contains(c.collider))
+                {
+                    // 받침대 상판·기둥에 먼저 닿은 공: 소모하지 않고 거의 그대로 튕겨 계속 날아간다.
+                    // 카메라가 위에서 보므로 공은 살짝 내려오며 날아오는데, 상판이 블록보다 1.5 앞까지 나와 있어 블록 아래쪽을 겨냥하면
+                    // 상판 앞 테두리에 먼저 닿는다(실측: 0.36 블록의 아래 절반이 안 맞았다). 물리 재질에 맡기면 마찰·반발로 속도가
+                    // 크게 죽으므로 접촉면 기준으로 직접 반사시켜 PedestalBounceKeep 만큼만 유지한다. 반사된 공은 같은 기울기로
+                    // 살짝 떠오르며 블록 아랫부분을 그대로 때린다.
+                    Vector3 v = lastVelocity.sqrMagnitude > 0.01f ? lastVelocity : rb.linearVelocity;
+                    float r = transform.localScale.x * 0.5f;
+                    float topY = c.collider.bounds.max.y;
+                    if (transform.position.y >= topY - r * 0.6f)
+                    {
+                        // 상판 윗면이나 앞 모서리를 스침: 살짝 떠서 넘어간다(수직 성분만 뒤집고 상판 위로 올려 둔다).
+                        // 모서리에 정직하게 반사시키면 공이 카메라 쪽으로 되돌아와 낮은 블록을 영영 못 맞힌다.
+                        var pos = transform.position; pos.y = Mathf.Max(pos.y, topY + r + 0.01f); transform.position = pos; rb.position = pos;
+                        rb.linearVelocity = new Vector3(v.x, Mathf.Max(Mathf.Abs(v.y), 0.3f), v.z) * PedestalBounceKeep;
+                    }
+                    else
+                    {
+                        // 상판 옆면·기둥을 정면으로 맞힘: 접촉면 기준으로 반사 (되돌아온다)
+                        rb.linearVelocity = Vector3.Reflect(v, c.GetContact(0).normal) * PedestalBounceKeep;
+                    }
+                    lastVelocity = rb.linearVelocity;
+                    return;
+                }
                 // 장애물·바닥에 맞음: 이후는 일반 물리 공
                 consumed = true;
                 return;
             }
 
             consumed = true;
-            {
-                var myCol = GetComponent<Collider>();
-                foreach (var pc in LevelBuilder.PedestalColliders)
-                    if (pc != null) Physics.IgnoreCollision(myCol, pc, false);   // 이제부터는 받침대에 튄다
-            }
             Vector3 dir = lastVelocity.sqrMagnitude > 0.01f ? lastVelocity.normalized : transform.forward;
             Vector3 point = c.GetContact(0).point;
             float impulse = BaseImpulse * stats.power * Mathf.Sqrt(stats.mass);
