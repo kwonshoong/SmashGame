@@ -253,6 +253,7 @@ namespace SmashGame
         {
             State = GameState.Lobby;
             ClearLevel();
+            Cannon.AimPlaneZ = 0f;
             LevelBuilder.BuildLobbyBackdrop(levelRoot, mainCamera, Data);
             SetCameraFocus(false);
             UI.ShowLobby();

@@ -80,6 +80,17 @@ namespace SmashGame
             return n;
         }
         /// <summary>구조물 크기 성장: base에서 시작해 perLevels 레벨마다 +1, cap까지</summary>
+        // ---------- 사거리(테이블 거리) ----------
+        /// <summary>테이블 거리 단계별 z 오프셋: 단거리(지금) · 중거리 · 장거리. 카메라·대포는 그대로, 구조물만 뒤로 간다.</summary>
+        public static readonly float[] RangeZ = { 0f, 2.5f, 5f };
+        public static readonly string[] RangeName = { "단거리", "중거리", "장거리" };
+        /// <summary>레벨별 사거리 단계(0~2). 1~5레벨은 단거리, 그 뒤로는 레벨마다 고정된 섞임.</summary>
+        /// <summary>디버그·테스트용: 0 이상이면 모든 레벨의 사거리 단계를 이 값으로 고정</summary>
+        public static int RangeTierOverride = -1;
+        public static int RangeTier(int level) => RangeTierOverride >= 0 ? RangeTierOverride : level <= 5 ? 0 : (level + level / 3 + 2) % 3;   // 6레벨 중거리, 7레벨 장거리로 첫 소개
+        /// <summary>멀수록 조준이 어려우니 시작 공 약간 추가</summary>
+        public static int RangeExtraBalls(int tier) => tier * 2;
+
         public static int Grow(int level, int baseVal, int perLevels, int cap) => Mathf.Min(cap, baseVal + level / perLevels);
         /// <summary>새 구조물(피라미드·요새·성문·쌍둥이 탑·계단·원진)이 등장하는 레벨. 그 전엔 기본 6종만.</summary>
         public const int NewStructuresFromLevel = 8;

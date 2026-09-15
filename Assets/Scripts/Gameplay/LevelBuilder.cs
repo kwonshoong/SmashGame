@@ -18,6 +18,8 @@ namespace SmashGame
         public bool tower;   // 격파 도전: 제한 시간·공 무제한, 전부 무너뜨리면 단계 상승
         public int towerStage;
         public float timeLimit;
+        public int rangeTier;   // 0 단거리 · 1 중거리 · 2 장거리
+        public float rangeZ;    // 구조물이 뒤로 밀린 거리(월드 z)
     }
 
     /// <summary>
@@ -255,6 +257,13 @@ namespace SmashGame
             int T = level >= Balance.NewStructuresFromLevel ? Balance.StructureTypes : 6;   // 초반엔 기본 6종만
             int type = info.hard ? (level / 10 + 6) % T : (level * 5 + rng.Next(0, 3)) % T;
             if (level <= 3) type = new[] { 1, 0, 2 }[level - 1];   // 튜토리얼 구간은 쉬운 구조물
+
+            // 사거리: 구조물(받침대 포함)을 자식 루트에 짓고 통째로 뒤로 민다. 카메라·대포는 그대로라 멀수록 작게 보이고 포물선이 높아진다.
+            info.rangeTier = Balance.RangeTier(level);
+            info.rangeZ = Balance.RangeZ[info.rangeTier];
+            var levelRoot = root;
+            root = new GameObject("Structure").transform;
+            root.SetParent(levelRoot);
             switch (type)
             {
                 case 0: BuildCylinderCluster(root, rng, p, info); break;
@@ -270,6 +279,8 @@ namespace SmashGame
                 case 10: BuildStaircase(root, rng, p, info); break;
                 default: BuildRing(root, rng, p, info); break;
             }
+            root.position = new Vector3(0f, 0f, info.rangeZ);
+            Physics.SyncTransforms();
 
             // 강화 블록 — 레벨 61부터, 돌·상자·판자에만, 20% 이하
             if (level >= Balance.ReinforcedFromLevel)
@@ -333,7 +344,7 @@ namespace SmashGame
             if (Balance.HasObstacle(level))
             {
                 Physics.SyncTransforms(); // 같은 프레임에 만든 콜라이더의 bounds를 정확히 읽기 위해
-                float minZ = 0f;
+                float minZ = info.rangeZ;
                 foreach (var b in info.blocks) { var c = b.GetComponent<Collider>(); if (c != null) minZ = Mathf.Min(minZ, c.bounds.min.z); }
                 if (info.hard && level % 20 == 0) Windmill.Create(root, new Vector3(0f, PedestalTop + 2.2f, minZ - 0.6f), 1.8f);
                 else PendulumHammer.Create(root, new Vector3(0f, PedestalTop + 7.5f, minZ - 0.9f), 5.2f); // 망치 머리 반지름 0.35 + 여유
@@ -343,7 +354,7 @@ namespace SmashGame
             foreach (var b in info.blocks) b.SettleAndSleep();
 
             // 시작 공
-            info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count);
+            info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count) + Balance.RangeExtraBalls(info.rangeTier);
             info.structureName = type switch
             {
                 0 => "원통 다발", 1 => "큐브 격자", 2 => "판자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",

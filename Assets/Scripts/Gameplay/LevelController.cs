@@ -50,6 +50,7 @@ namespace SmashGame
 
         void Finish()
         {
+            Cannon.AimPlaneZ = Info.rangeZ;   // 탭 조준 기준 평면을 구조물 정면으로
             foreach (var b in Info.blocks) b.controller = this;
             BlocksLeft = Info.blocks.Count;
             totalBlocks = BlocksLeft;

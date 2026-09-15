@@ -159,7 +159,7 @@ namespace SmashGame
         }
 
         /// <summary>구조물 앞면 근처(z ≤ AimPlaneZ + 여유)로 간주할 깊이. 그 뒤는 블록 틈으로 보이는 땅·배경이므로 무시한다.</summary>
-        public const float AimPlaneZ = 0f;
+        public static float AimPlaneZ = 0f;   // LevelController가 레벨 사거리에 맞춰 설정, 그 외엔 0
         const float AimDepthTolerance = 1.2f;
 
         /// <summary>
@@ -184,7 +184,11 @@ namespace SmashGame
                 if (h.collider.isTrigger) continue;
                 if (h.collider.GetComponentInParent<Ball>() != null) continue;      // 날아가는 공은 무시
                 if (h.point.z > AimPlaneZ + AimDepthTolerance) break;                // 구조물 뒤(틈 사이로 보이는 땅·배경)
-                return h.point;                                                       // 블록·받침대·장애물·앞쪽 땅
+                // 블록을 탭했으면 표면점이 아니라 그 블록의 중심을 지나게 쏜다. 카메라가 위에서 내려다보므로 낮은 블록은
+                // 탭이 윗면에 떨어지는데, 윗면을 겨냥하면 공이 스치듯 넘어가 밀지 못한다(봇 로그로 확인). 중심을 지나는 포물선은
+                // 날아오는 쪽 면(앞면·앞모서리)에 정면으로 박힌다.
+                if (h.collider.GetComponentInParent<Block>() != null) return h.collider.bounds.center;
+                return h.point;                                                       // 받침대·장애물·앞쪽 땅
             }
             return plane;
         }
@@ -196,6 +200,13 @@ namespace SmashGame
             // 포신 회전축(pivot)에서 목표까지, 중력을 고려한 포물선 발사각으로 조준 (탭한 지점을 정확히 지나간다)
             Vector3 dir = BallisticDirection(barrel.position, target, Ball.Speed);
             barrel.rotation = Quaternion.LookRotation(dir, Vector3.up);
+            // 공은 회전축이 아니라 포구에서 출발한다. 회전축 기준 해로 쏘면 포구까지 1.5 정도 앞선 만큼 포물선이 덜 꺾여
+            // 목표를 2~3° 위로 지나간다(멀수록 0.5까지 벗어남). 포구 위치에서 다시 풀어 보정한다(두 번이면 충분).
+            for (int i = 0; i < 2; i++)
+            {
+                dir = BallisticDirection(muzzle.position, target, Ball.Speed);
+                barrel.rotation = Quaternion.LookRotation(dir, Vector3.up);
+            }
             var ball = Ball.Spawn(muzzle.position, dir, stats, controller);
             PlayLog.Shot(muzzle.position, target, stats);
             if (controller != null)

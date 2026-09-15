@@ -142,7 +142,7 @@ namespace SmashGame
             hudBallsTitle = UIKit.Label(ballBox, "남은 공", 28, Color.white, new Vector2(0.5f, 1), new Vector2(0, -8), new Vector2(220, 40));
             hudBalls = UIKit.Label(ballBox, "30", 76, Color.white, new Vector2(0.5f, 0), new Vector2(0, 6), new Vector2(220, 110), TextAnchor.MiddleCenter, true);
 
-            hudBlocks = UIKit.Label(hud, "", 30, Color.white, new Vector2(0.5f, 1), new Vector2(0, -50), new Vector2(560, 60));
+            hudBlocks = UIKit.Label(hud, "", 30, Color.white, new Vector2(0.5f, 1), new Vector2(0, -40), new Vector2(560, 90));
             UIKit.Button(hud, "나가기", new Color(0.5f, 0.15f, 0.3f), new Vector2(1, 1), new Vector2(-30, -40), new Vector2(200, 90), () =>
             {
                 if (gm.Level != null) gm.Level.Abort();
@@ -178,7 +178,7 @@ namespace SmashGame
             {
                 hudBallsTitle.text = "남은 공";
                 hudBalls.text = gm.Level.BallsLeft.ToString();
-                hudBlocks.text = $"레벨 {gm.Level.Level}  ·  {gm.Level.Info.structureName}  ·  블록 {gm.Level.BlocksLeft}";
+                hudBlocks.text = $"레벨 {gm.Level.Level} · {gm.Level.Info.structureName}" + (gm.Level.Info.rangeTier > 0 ? $" · {Balance.RangeName[gm.Level.Info.rangeTier]}" : "") + $"\n블록 {gm.Level.BlocksLeft}";
             }
         }
 
