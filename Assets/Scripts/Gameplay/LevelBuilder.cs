@@ -29,6 +29,8 @@ namespace SmashGame
     public static class LevelBuilder
     {
         public const float PedestalTop = 1.6f;
+        /// <summary>받침대 상판의 앞뒤 깊이 = 반지름 × 이 값 (좌우 폭은 반지름 × 2). 얕을수록 공이 상판 앞을 덜 스친다.</summary>
+        public const float PedestalDepthRound = 1.5f, PedestalDepthSquare = 1.0f;
 
         /// <summary>공이 받침대에 걸리지 않도록 무시할 콜라이더 목록 (레퍼런스처럼 공은 블록만 맞힌다)</summary>
         public static readonly List<Collider> PedestalColliders = new();
@@ -103,7 +105,8 @@ namespace SmashGame
             top.name = "PedestalTop";
             top.transform.SetParent(root);
             top.transform.position = new Vector3(center.x, PedestalTop - 0.08f, center.z);
-            top.transform.localScale = square ? new Vector3(radius * 2f, 0.16f, radius * 1.4f) : new Vector3(radius * 2f, 0.08f, radius * 2f);
+            // 앞뒤 깊이는 좌우 폭보다 얕게 (원형은 타원, 사각형은 가로로 긴 판). 구조물 깊이(원진 1.43, 통나무 1.0, 원통 다발 1.2)는 다 들어간다.
+            top.transform.localScale = square ? new Vector3(radius * 2f, 0.16f, radius * PedestalDepthSquare) : new Vector3(radius * 2f, 0.08f, radius * PedestalDepthRound);
             top.GetComponent<Renderer>().material = Materials.Get(p.pedestal, true);
             FlattenCollider(top, false);
             RoundedMesh.Apply(top, 0.03f);
@@ -113,13 +116,13 @@ namespace SmashGame
             float ringY = PedestalTop - 0.16f - 0.03f;
             if (square)
             {
-                Deco(PrimitiveType.Cube, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.06f, radius * 1.4f + 0.06f), gold, 0.02f);
-                Deco(PrimitiveType.Cube, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.12f, radius * 1.4f - 0.1f), purpleDark, 0.03f);
+                Deco(PrimitiveType.Cube, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.06f, radius * PedestalDepthSquare + 0.06f), gold, 0.02f);
+                Deco(PrimitiveType.Cube, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.12f, radius * PedestalDepthSquare - 0.1f), purpleDark, 0.03f);
             }
             else
             {
-                Deco(PrimitiveType.Cylinder, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.03f, radius * 2f + 0.06f), gold, 0.02f);
-                Deco(PrimitiveType.Cylinder, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.06f, radius * 2f - 0.1f), purpleDark, 0.03f);
+                Deco(PrimitiveType.Cylinder, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.03f, radius * PedestalDepthRound + 0.06f), gold, 0.02f);
+                Deco(PrimitiveType.Cylinder, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.06f, radius * PedestalDepthRound - 0.1f), purpleDark, 0.03f);
             }
 
             // 기둥(콜라이더 있음): 보라색 본체 + 위아래 금색 링
