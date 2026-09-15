@@ -90,6 +90,13 @@ namespace SmashGame
             // 겹친 블록을 떼어내는 복원 속도. 높이면(기본 10) 벽 속으로 밀린 블록이 이웃에 의해 제자리로 되밀려 연사 누적이 사라진다.
             // 2에서는 밀림이 누적되고, 접촉한 블록끼리는 밀기가 끝나면 정상적으로 떨어진다(측정 확인).
             Physics.defaultMaxDepenetrationVelocity = 2f;
+            // 공 ↔ 파편, 파편 ↔ 파편은 충돌하지 않는다 (파편이 공을 튕겨 조준이 틀어지거나 공이 파편을 흩뿌리는 것 방지). 레이어는 TagManager에 등록됨.
+            int ballLayer = LayerMask.NameToLayer("Ball"), debrisLayer = LayerMask.NameToLayer("Debris");
+            if (ballLayer >= 0 && debrisLayer >= 0)
+            {
+                Physics.IgnoreLayerCollision(ballLayer, debrisLayer, true);
+                Physics.IgnoreLayerCollision(debrisLayer, debrisLayer, true);
+            }
         }
 
         void Start()

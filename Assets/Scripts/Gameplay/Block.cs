@@ -304,7 +304,8 @@ namespace SmashGame
                 d.transform.localScale = Vector3.one * size * Random.Range(0.6f, 1.2f);
                 d.transform.rotation = Random.rotation;
                 d.GetComponent<Renderer>().material = Materials.Get(color);
-                d.layer = LayerMask.NameToLayer("Ignore Raycast");
+                int dl = LayerMask.NameToLayer("Debris");
+                d.layer = dl >= 0 ? dl : LayerMask.NameToLayer("Ignore Raycast");   // 공·다른 파편과 충돌 안 함 (GameManager.Awake 레이어 설정)
                 var rb = d.AddComponent<Rigidbody>();
                 rb.mass = 0.05f;
                 rb.linearVelocity = Random.insideUnitSphere * 5f + Vector3.up * 3f;

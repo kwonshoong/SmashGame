@@ -177,7 +177,9 @@ namespace SmashGame
             }
             else plane = ray.origin + ray.direction * 10f;
 
-            var hits = Physics.RaycastAll(ray, 100f);
+            int debrisLayer = LayerMask.NameToLayer("Debris");
+            int mask = debrisLayer >= 0 ? ~(1 << debrisLayer) : Physics.DefaultRaycastLayers;   // 파편은 조준 대상 아님
+            var hits = Physics.RaycastAll(ray, 100f, mask & ~(1 << 2));
             System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
             foreach (var h in hits)
             {

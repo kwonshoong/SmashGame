@@ -33,6 +33,7 @@ namespace SmashGame
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.name = "Ball";
+            { int bl = LayerMask.NameToLayer("Ball"); if (bl >= 0) go.layer = bl; }   // 파편과 충돌하지 않는 레이어
             float radius = 0.22f * stats.size;
             go.transform.position = from;
             go.transform.localScale = Vector3.one * radius * 2f;
