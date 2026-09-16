@@ -77,6 +77,8 @@ namespace SmashGame
             PedestalColliders.Clear();
             pedestalCenters.Clear();
             pedestalGroups.Clear();
+            pedestalLegOffsets.Clear();
+            independentPedestals = false;
             cam.backgroundColor = p.sky;
             cam.transform.position = GameManager.CamDefaultPos;
             cam.transform.rotation = GameManager.CamDefaultRot;
@@ -99,23 +101,33 @@ namespace SmashGame
             return go;
         }
 
-        static void Pedestal(Transform parent, Vector3 center, float radius, Palette p, bool square = false)
+        /// <summary>
+        /// 받침대 하나. legs: 상판을 받치는 기둥 수(1·3·5, 레퍼런스 202·243·252처럼 넓은 판 아래 다리 여러 개).
+        /// raise: 상판을 기본 높이보다 올림(가운데가 높은 3단 배치 등). 블록은 PedestalTop + raise 위에 놓아야 한다.
+        /// </summary>
+        static void Pedestal(Transform parent, Vector3 center, float radius, Palette p, bool square = false, int legs = 1, float raise = 0f)
         {
             var gold = Materials.Get(new Color(1f, 0.78f, 0.25f), true, true);
             var purpleDark = Materials.Get(p.pedestal * 0.75f, true);
+            float plateY = PedestalTop + raise;
 
             // 받침대 묶음(상판·테두리·기둥·발): 움직이는 받침대는 이 묶음째 kinematic으로 움직인다
             var group = new GameObject("PedestalGroup");
             group.transform.SetParent(parent);
-            group.transform.position = new Vector3(center.x, PedestalTop, center.z);   // 회전축 = 상판 중심
+            group.transform.position = new Vector3(center.x, plateY, center.z);   // 회전축 = 상판 중심
             var root = group.transform;
             pedestalGroups.Add(group);
+            // 다리 x 오프셋 (화면 맞춤 후 기둥을 다시 세울 때도 사용)
+            var offs = new List<float>();
+            if (legs <= 1) offs.Add(0f);
+            else for (int i = 0; i < legs; i++) offs.Add(Mathf.Lerp(-(radius - 0.45f), radius - 0.45f, (float)i / (legs - 1)));
+            pedestalLegOffsets.Add(offs);
 
             // 상판(콜라이더 있음) — 위치·두께는 물리와 맞물려 있으므로 유지
             var top = GameObject.CreatePrimitive(square ? PrimitiveType.Cube : PrimitiveType.Cylinder);
             top.name = "PedestalTop";
             top.transform.SetParent(root);
-            top.transform.position = new Vector3(center.x, PedestalTop - 0.08f, center.z);
+            top.transform.position = new Vector3(center.x, plateY - 0.08f, center.z);
             // 앞뒤 깊이는 좌우 폭보다 얕게 (원형은 타원, 사각형은 가로로 긴 판). 구조물 깊이(원진 1.43, 통나무 1.0, 원통 다발 1.2)는 다 들어간다.
             top.transform.localScale = square ? new Vector3(radius * 2f, 0.16f, radius * PedestalDepthSquare) : new Vector3(radius * 2f, 0.08f, radius * PedestalDepthRound);
             top.GetComponent<Renderer>().material = Materials.Get(p.pedestal, true);
@@ -124,7 +136,7 @@ namespace SmashGame
             PedestalColliders.Add(top.GetComponent<Collider>());
 
             // 상판 아래 금색 테두리 + 진한 보라 밑판(두께감)
-            float ringY = PedestalTop - 0.16f - 0.03f;
+            float ringY = plateY - 0.16f - 0.03f;
             if (square)
             {
                 Deco(PrimitiveType.Cube, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.06f, radius * PedestalDepthSquare + 0.06f), gold, 0.02f);
@@ -137,7 +149,7 @@ namespace SmashGame
             }
 
             pedestalCenters.Add(center);
-            PedestalColumn(root, center, PedestalTop - 0.16f, p);
+            foreach (var ox in offs) PedestalColumn(root, new Vector3(center.x + ox, 0f, center.z), plateY - 0.16f, p);
         }
 
         /// <summary>
@@ -189,6 +201,9 @@ namespace SmashGame
         /// <summary>이번 빌드에서 만든 받침대 중심들 (화면 맞춤 축소 후 기둥을 다시 세울 때 사용)</summary>
         static readonly List<Vector3> pedestalCenters = new();
         static readonly List<GameObject> pedestalGroups = new();
+        static readonly List<List<float>> pedestalLegOffsets = new();
+        /// <summary>이번 구조물의 받침대들이 서로 독립된 탑인가(승강 위상을 어긋나게 해도 되는가). 빌더가 설정</summary>
+        static bool independentPedestals;
 
         /// <summary>
         /// 구조물(받침대 상판 포함)이 화면 좌우를 벗어나면 상판 높이를 축으로 통째로 균일 축소한다. 받침대 기둥·발은 축소하지 않고
@@ -218,10 +233,12 @@ namespace SmashGame
             foreach (var t in structRoot.GetComponentsInChildren<Transform>())
                 if (t.name == "PedestalColumn" || t.name.StartsWith("Column") || t.name.StartsWith("PedestalFoot")) doomed.Add(t.gameObject);
             foreach (var g in doomed) { var c = g.GetComponent<Collider>(); if (c != null) PedestalColliders.Remove(c); Object.DestroyImmediate(g); }
-            foreach (var g in pedestalGroups)
+            for (int gi = 0; gi < pedestalGroups.Count; gi++)
             {
+                var g = pedestalGroups[gi];
                 var wc = g.transform.position;   // 축소 후 상판 중심(월드)
-                PedestalColumn(g.transform, new Vector3(wc.x, 0f, wc.z), PedestalTop - 0.16f * s, p, 1f / s);
+                foreach (var ox in pedestalLegOffsets[gi])
+                    PedestalColumn(g.transform, new Vector3(wc.x + ox * s, 0f, wc.z), wc.y - 0.16f * s, p, 1f / s);
             }
             Physics.SyncTransforms();
             return s;
@@ -236,8 +253,11 @@ namespace SmashGame
         static void ApplyPedestalMotion(int level, int type, LevelInfo info)
         {
             var kind = Balance.PedestalMotionKind(level);
+            bool independent = independentPedestals || type == 5;
+            // 독립 받침대가 여럿인 구조물(쌍둥이 탑·삼중 받침대 등)은 25레벨부터 기본으로 번갈아 오르내린다 (레퍼런스 206·215·228·297)
+            if (kind == Balance.MotionKind.None && independent && pedestalGroups.Count >= 2 && level >= Balance.MultiPedestalBobFromLevel)
+                kind = Balance.MotionKind.Bob;
             if (kind == Balance.MotionKind.None) return;
-            bool independent = type == 5;   // 삼중 받침대만 탑이 독립
             float spin = kind == Balance.MotionKind.Bob ? 0f : Balance.PedestalSpinDegPerSec(level);
             float bob = kind == Balance.MotionKind.Spin ? 0f : Balance.PedestalBobAmplitude;
             for (int i = 0; i < pedestalGroups.Count; i++)
@@ -397,7 +417,14 @@ namespace SmashGame
                 case 11: BuildRing(root, rng, p, info); break;
                 case 12: BuildIceGate(root, rng, p, info); break;
                 case 13: BuildLogBridge(root, rng, p, info); break;
-                default: BuildSlabJenga(root, rng, p, info); break;
+                case 14: BuildSlabJenga(root, rng, p, info); break;
+                case 15: BuildTwinCylinderTowers(root, rng, p, info); break;
+                case 16: BuildCenterHighPyramid(root, rng, p, info); break;
+                case 17: BuildTemple(root, rng, p, info); break;
+                case 18: BuildRoundCylinderTower(root, rng, p, info); break;
+                case 19: BuildFrame8(root, rng, p, info); break;
+                case 20: BuildDiamondTower(root, rng, p, info); break;
+                default: BuildCrateWallWithSide(root, rng, p, info); break;
             }
             root.position = new Vector3(0f, 0f, info.rangeZ);
             Physics.SyncTransforms();
@@ -483,7 +510,8 @@ namespace SmashGame
             {
                 0 => "원통 다발", 1 => "큐브 격자", 2 => "판자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",
                 6 => "피라미드", 7 => "요새", 8 => "성문", 9 => "쌍둥이 탑", 10 => "계단", 11 => "돌기둥 원진",
-                12 => "얼음 성문", 13 => "통나무 다리", _ => "얼음 젠가"
+                12 => "얼음 성문", 13 => "통나무 다리", 14 => "얼음 젠가",
+                15 => "쌍둥이 원통 탑", 16 => "가운데 높은 피라미드", 17 => "신전", 18 => "둥근 원통 탑", 19 => "8자 프레임", 20 => "마름모 탑", _ => "상자 벽과 곁탑"
             };
             return info;
         }
@@ -526,7 +554,7 @@ namespace SmashGame
         {
             int w = Balance.Grow(info.level, 8, 12, 14), h = Balance.Grow(info.level, 10, 15, 14);   // 한 겹 벽은 14칸(높이 5.0)까지만: 더 높으면 깨어날 때 기울어 흔들린다
             float s = DU;
-            Pedestal(root, Vector3.zero, w * s * 0.5f + 0.15f, p, true);
+            Pedestal(root, Vector3.zero, w * s * 0.5f + 0.15f, p, true, Balance.PedestalLegs(info.level));
             Color crate = new Color(0.65f, 0.42f, 0.2f);
             for (int i = 0; i < w; i++)
             {
@@ -614,7 +642,7 @@ namespace SmashGame
             Color crate = new Color(0.72f, 0.5f, 0.25f);
             int w = Balance.Grow(info.level, 7, 12, 13), h = Balance.Grow(info.level, 8, 15, 14);
             float s = DU;
-            Pedestal(root, Vector3.zero, w * s * 0.5f + 0.15f, p, true);
+            Pedestal(root, Vector3.zero, w * s * 0.5f + 0.15f, p, true, Balance.PedestalLegs(info.level));
             for (int i = 0; i < w; i++)
             {
                 float x = (i - (w - 1) * 0.5f) * s;
@@ -678,7 +706,7 @@ namespace SmashGame
         static void BuildPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             int cols = Balance.Grow(info.level, 13, 25, 15); float u = DU; int depth = Depth(info);
-            Pedestal(root, Vector3.zero, cols * u * 0.5f + 0.25f, p, true);
+            Pedestal(root, Vector3.zero, cols * u * 0.5f + 0.25f, p, true, Balance.PedestalLegs(info.level));
             int center = cols / 2;
             for (int i = 0; i < cols; i++)
             {
@@ -703,7 +731,7 @@ namespace SmashGame
         {
             float u = DU;
             int wall = Balance.Grow(info.level, 11, 25, 14);
-            Pedestal(root, Vector3.zero, Mathf.Max(2.4f, wall * u * 0.5f + 0.3f), p, true);
+            Pedestal(root, Vector3.zero, Mathf.Max(2.4f, wall * u * 0.5f + 0.3f), p, true, Balance.PedestalLegs(info.level));
             // 앞 성벽: 11~14열 × 4칸, 돌·상자
             for (int i = 0; i < wall; i++)
             {
@@ -749,7 +777,7 @@ namespace SmashGame
         /// <summary>쌍둥이 탑: 세 열짜리 탑 두 개를 다리 판자로 잇고, 다리 위에 원통. 한쪽만 무너뜨리면 다리가 기운다.</summary>
         static void BuildTwinTowers(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            Pedestal(root, Vector3.zero, 2.4f, p, true);
+            Pedestal(root, Vector3.zero, 2.4f, p, true, Balance.PedestalLegs(info.level));
             float u = DU;
             int depth = Depth(info);
             int twinRows = Balance.Grow(info.level, 10, 30, 13);
@@ -772,7 +800,7 @@ namespace SmashGame
         {
             int cols = Balance.Grow(info.level, 11, 30, 14);
             float u = DU;
-            Pedestal(root, Vector3.zero, cols * u * 0.5f + 0.4f, p, true);
+            Pedestal(root, Vector3.zero, cols * u * 0.5f + 0.4f, p, true, Balance.PedestalLegs(info.level));
             bool flip = rng.Next(2) == 0;
             for (int i = 0; i < cols; i++)
             {
@@ -856,7 +884,7 @@ namespace SmashGame
         /// </summary>
         static void BuildIceGate(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            Pedestal(root, Vector3.zero, 2.45f, p, true);
+            Pedestal(root, Vector3.zero, 2.45f, p, true, Balance.PedestalLegs(info.level));
             float y0 = PedestalTop;
             float legH = 1.5f;
             foreach (float sx in new[] { -1f, 1f })
@@ -887,7 +915,7 @@ namespace SmashGame
         /// </summary>
         static void BuildLogBridge(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            Pedestal(root, Vector3.zero, 2.3f, p, true);
+            Pedestal(root, Vector3.zero, 2.3f, p, true, Balance.PedestalLegs(info.level));
             float y0 = PedestalTop;
             int towerRows = Balance.Grow(info.level, 3, 40, 5);
             foreach (float sx in new[] { -1f, 1f })
@@ -948,6 +976,172 @@ namespace SmashGame
             // 꼭대기: 보라 상자 2개 + 긴 사탕
             PurpleRow(root, new Vector3(0f, y, 0f), 2, info.blocks);
             MakeUnit(root, BlockKind.Candy, new Vector3(0f, y + DU, 0f), true, p.c, info.blocks, DU);
+        }
+
+
+        // ---------------- 레퍼런스 201~300 기반 구조물 7종 (받침대 배치가 핵심) ----------------
+
+        static readonly Color PinkCol = new Color(0.95f, 0.35f, 0.75f);
+        static readonly Color BlueCol = new Color(0.25f, 0.5f, 0.95f);
+        static readonly Color RedCol = new Color(0.9f, 0.2f, 0.25f);
+        static readonly Color GoldCol = new Color(0.95f, 0.78f, 0.2f);
+        static readonly Color MarbleCol = new Color(0.93f, 0.92f, 0.88f);
+
+        /// <summary>쌍둥이 원통 탑 (206·253): 독립 원형 받침대 2개 위에 분홍 원통 줄과 파랑 상자 줄을 번갈아 6단. 25레벨부터 번갈아 오르내린다.</summary>
+        static void BuildTwinCylinderTowers(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            independentPedestals = true;
+            int rows = Balance.Grow(info.level, 6, 40, 8);
+            foreach (float cx in new[] { -1.2f, 1.2f })
+            {
+                Pedestal(root, new Vector3(cx, 0, 0), 0.85f, p);
+                for (int c = 0; c < 3; c++)
+                {
+                    int cc = c;
+                    FillColumn(root, rng, new Vector3(cx + (c - 1) * 0.37f, PedestalTop, 0f), rows, 0f, (j, tall) =>
+                        j % 2 == 0 ? (BlockKind.Cylinder, PinkCol) : (BlockKind.Crate, CrateCol), info.blocks, DU);
+                }
+                MakeUnit(root, BlockKind.Candy, new Vector3(cx, PedestalTop + rows * DU, 0f), false, p.c, info.blocks, DU);
+            }
+        }
+
+        /// <summary>가운데 높은 피라미드 (210·300): 가운데 받침대가 0.8 높고 그 위 원통 피라미드, 양옆 낮은 받침대엔 상자 더미.</summary>
+        static void BuildCenterHighPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            independentPedestals = true;
+            const float raise = 0.8f;
+            int baseN = Balance.Grow(info.level, 7, 40, 8);
+            Pedestal(root, Vector3.zero, baseN * DU * 0.5f + 0.2f, p, true, 1, raise);
+            float y0 = PedestalTop + raise;
+            for (int r = 0; r < baseN; r++)
+            {
+                int n = baseN - r;
+                for (int i = 0; i < n; i++)
+                {
+                    var kind = (r + i) % 3 == 2 ? BlockKind.Crate : BlockKind.Cylinder;
+                    MakeUnit(root, kind, new Vector3((i - (n - 1) * 0.5f) * DU, y0 + r * DU, 0f), false, kind == BlockKind.Crate ? CrateCol : BlueCol, info.blocks, DU);
+                }
+            }
+            foreach (float cx in new[] { -2.05f, 2.05f })
+            {
+                Pedestal(root, new Vector3(cx, 0, 0), 0.6f, p);
+                for (int c = 0; c < 2; c++)
+                {
+                    int cc = c;
+                    FillColumn(root, rng, new Vector3(cx + (c - 0.5f) * DU, PedestalTop, 0f), 3, 0.4f, (j, tall) => (BlockKind.Cube, (j + cc) % 2 == 0 ? BlueCol : p.a), info.blocks, DU);
+                }
+            }
+        }
+
+        /// <summary>신전 (204·215·230): 파랑 판 바닥 → 빨강 긴 원통 + 상자 기둥 → 상자 줄 → 대리석 기둥 4 → 상인방, 위에 빨강 원통 줄.</summary>
+        static void BuildTemple(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 2.2f, p, true, Balance.PedestalLegs(info.level));
+            float y = PedestalTop;
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.1f, 0), new Vector3(3.6f, 0.2f, 0.9f), Quaternion.identity, BlueCol, MassFor(BlockKind.Plank) * 1.5f, info.blocks);
+            y += 0.2f;
+            // 1층: 양끝 상자 기둥(긴 것) + 안쪽 빨강 긴 원통 4개
+            foreach (float x in new[] { -1.55f, 1.55f }) MakeUnit(root, BlockKind.Crate, new Vector3(x, y, 0), true, CrateCol, info.blocks, DU);
+            for (int i = 0; i < 4; i++) MakeUnit(root, BlockKind.Cylinder, new Vector3((i - 1.5f) * 0.6f, y, 0), true, RedCol, info.blocks, DU);
+            y += DU * 2f;
+            // 상자 줄
+            for (int i = 0; i < 9; i++) MakeUnit(root, BlockKind.Cube, new Vector3((i - 4f) * DU, y, 0), false, (i % 2 == 0) ? BlueCol : p.b, info.blocks, DU);
+            y += DU;
+            // 대리석 기둥 4개 (짧은 원통 2개 쌓기)
+            for (int i = 0; i < 4; i++)
+                for (int j = 0; j < 2; j++)
+                    MakeUnit(root, BlockKind.Stone, new Vector3((i - 1.5f) * 0.9f, y + j * DU, 0), false, MarbleCol, info.blocks, DU);
+            y += DU * 2f;
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.1f, 0), new Vector3(3.4f, 0.2f, 0.7f), Quaternion.identity, RedCol, MassFor(BlockKind.Plank) * 1.5f, info.blocks);
+            y += 0.2f;
+            for (int i = 0; i < 5; i++) MakeUnit(root, BlockKind.Cylinder, new Vector3((i - 2f) * 0.5f, y, 0), false, RedCol, info.blocks, DU);
+            if (info.level >= 50) MakeUnit(root, BlockKind.Candy, new Vector3(0, y + DU, 0), false, p.c, info.blocks, DU);
+        }
+
+        /// <summary>둥근 원통 탑 (201·260): 짧은 원통을 고리 모양으로 6층, 두 층마다 얼음 원판. 원통이 굴러 떨어져야 해서 어려운 축.</summary>
+        static void BuildRoundCylinderTower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 1.5f, p);
+            int layers = Balance.Grow(info.level, 6, 40, 8);
+            const int n = 10; const float r = 0.72f;
+            float y = PedestalTop;
+            for (int l = 0; l < layers; l++)
+            {
+                for (int k = 0; k < n; k++)
+                {
+                    float a = (k + (l % 2) * 0.5f) / n * Mathf.PI * 2f;
+                    MakeUnit(root, BlockKind.Cylinder, new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r), false, l % 2 == 0 ? BlueCol : PinkCol, info.blocks, DU);
+                }
+                y += DU;
+                if (l % 2 == 1 && l < layers - 1)
+                {
+                    MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Ice, new Vector3(0, y + 0.05f, 0), new Vector3(1.9f, 0.05f, 1.9f), Quaternion.identity, IceCol, 1.2f, info.blocks);
+                    y += 0.1f;
+                }
+            }
+            // 가운데 기둥: 상자 세로 스택
+            FillColumn(root, rng, new Vector3(0, PedestalTop, 0), 4, 0.5f, (j, tall) => (BlockKind.Crate, CrateCol), info.blocks, DU);
+        }
+
+        /// <summary>8자 프레임 (276·251): 받침대 3개에 걸친 긴 막대로 사각형 두 개를 위아래로 쌓고, 안에 보라 상자.</summary>
+        static void BuildFrame8(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            foreach (float cx in new[] { -1.55f, 0f, 1.55f }) Pedestal(root, new Vector3(cx, 0, 0), 0.62f, p);
+            float y = PedestalTop;
+            const float W = 3.4f, H = 1.1f;
+            for (int box = 0; box < 2; box++)
+            {
+                // 아래 가로 막대
+                MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.1f, 0), new Vector3(W, 0.2f, 0.5f), Quaternion.identity, box == 0 ? GoldCol : PurpleCol, MassFor(BlockKind.Plank) * 1.5f, info.blocks);
+                y += 0.2f;
+                // 세로 기둥 3개 (양끝 + 가운데), 사이에 보라 상자 2줄
+                foreach (float x in new[] { -W * 0.5f + 0.18f, 0f, W * 0.5f - 0.18f })
+                    MakeBlock(root, PrimitiveType.Cube, BlockKind.Cube, new Vector3(x, y + H * 0.5f, 0), new Vector3(0.36f, H, 0.5f), Quaternion.identity, box == 0 ? PurpleCol : GoldCol, 1.0f, info.blocks);
+                foreach (float cx in new[] { -0.85f, 0.85f })
+                    for (int j = 0; j < 2; j++) MakeUnit(root, BlockKind.Cube, new Vector3(cx, y + j * DU, 0), false, j == 0 ? PurpleCol : p.a, info.blocks, DU);
+                y += H;
+            }
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.1f, 0), new Vector3(W, 0.2f, 0.5f), Quaternion.identity, new Color(0.3f, 0.75f, 0.3f), MassFor(BlockKind.Plank) * 1.5f, info.blocks);
+            y += 0.2f;
+            for (int i = -1; i <= 1; i++) MakeUnit(root, BlockKind.Cube, new Vector3(i * 1.2f, y, 0), false, new Color(0.3f, 0.75f, 0.3f), info.blocks, DU);
+        }
+
+        /// <summary>마름모 탑 (237): 금·보라 막대 조각을 1-2-3-4-4-3-2-1로 쌓아 마름모, 가운데 얼음 막대, 꼭대기 사탕.</summary>
+        static void BuildDiamondTower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 1.6f, p);
+            int[] widths = info.level >= 60 ? new[] { 1, 2, 3, 4, 4, 4, 3, 2, 1 } : new[] { 1, 2, 3, 4, 4, 3, 2, 1 };
+            const float segLen = 0.7f;
+            float y = PedestalTop;
+            for (int l = 0; l < widths.Length; l++)
+            {
+                int n = widths[l];
+                for (int i = 0; i < n; i++)
+                {
+                    bool ice = n == 4 && (i == 1 || i == 2) && l % 2 == 0;
+                    MakeBlock(root, PrimitiveType.Cube, ice ? BlockKind.Ice : BlockKind.Plank, new Vector3((i - (n - 1) * 0.5f) * segLen, y + DU * 0.5f, 0), new Vector3(segLen - 0.02f, DU, 0.5f), Quaternion.identity,
+                        ice ? IceCol : (l % 2 == 0 ? GoldCol : PurpleCol), 0.55f, info.blocks);
+                }
+                y += DU;
+            }
+            MakeUnit(root, BlockKind.Candy, new Vector3(0, y, 0), true, p.c, info.blocks, DU);
+        }
+
+        /// <summary>상자 벽과 곁탑 (203): 큰 받침대에 긴 상자 3열 벽(가운데 틈), 오른쪽 작은 받침대에 사탕 기둥 2개. 곁탑은 독립.</summary>
+        static void BuildCrateWallWithSide(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            independentPedestals = true;
+            Pedestal(root, new Vector3(-0.5f, 0, 0), 1.35f, p, true);
+            int rows = Balance.Grow(info.level, 6, 40, 8);
+            foreach (float x in new[] { -1.35f, -0.5f, 0.35f })
+                FillColumn(root, rng, new Vector3(x, PedestalTop, 0), rows, 0.7f, (j, tall) => (BlockKind.Crate, CrateCol), info.blocks, DU);
+            // 틈을 메우는 판자 2장 (열 사이 상단)
+            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(-0.5f, PedestalTop + rows * DU + 0.08f, 0), new Vector3(2.2f, 0.16f, 0.5f), Quaternion.identity, p.d, MassFor(BlockKind.Plank), info.blocks);
+            for (int i = -1; i <= 1; i++) MakeUnit(root, BlockKind.Cube, new Vector3(-0.5f + i * 0.85f, PedestalTop + rows * DU + 0.16f, 0), false, p.b, info.blocks, DU);
+            // 곁탑
+            Pedestal(root, new Vector3(1.75f, 0, 0), 0.5f, p);
+            foreach (float x in new[] { 1.55f, 1.95f })
+                FillColumn(root, rng, new Vector3(x, PedestalTop, 0), 4, 0.8f, (j, tall) => (BlockKind.Candy, p.c), info.blocks, DU);
         }
 
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------

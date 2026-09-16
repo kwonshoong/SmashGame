@@ -70,7 +70,7 @@ namespace SmashGame
         // ---------- 난이도 ----------
         public const float ReinforcedRatioCap = 0.20f;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
-        public const int StructureTypes = 15;
+        public const int StructureTypes = 22;
         /// <summary>시작 공 개수 = 기본(일반 12~16, 하드 8, 초반 5레벨 +5) + 블록 수의 40%. 블록이 많을수록 공도 비례해서 늘되, 비율은 조금씩 빡빡하게.</summary>
         public static int StartBalls(int level, bool hard, int blockCount = 20)
         {
@@ -96,6 +96,9 @@ namespace SmashGame
         public const float PedestalBobAmplitude = 0.35f;   // 위아래 ±0.35
         public const float PedestalBobPeriod = 4f;
         public const int MotionExtraBalls = 3;   // 움직이는 받침대 레벨은 타이밍을 맞춰야 하니 공 +3
+        public const int MultiPedestalBobFromLevel = 25;   // 독립 받침대 여러 개짜리 구조물은 이 레벨부터 기본 승강
+        /// <summary>넓은 판 받침대의 다리 수 (레퍼런스: 다리 3개 202·243·248, 5개 252). 20레벨부터 가끔.</summary>
+        public static int PedestalLegs(int level) => level < 20 ? 1 : level % 9 == 0 ? 5 : level % 4 == 1 ? 3 : 1;
         public static string MotionName(MotionKind k) => k switch { MotionKind.Spin => "회전", MotionKind.Bob => "승강", MotionKind.SpinBob => "회전+승강", _ => "" };
 
         // ---------- 사거리(테이블 거리) ----------
@@ -117,7 +120,7 @@ namespace SmashGame
         static readonly int[] PoolEarly = { 0, 1, 2, 3, 4, 5 };
         static readonly int[] PoolMid   = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
         static readonly int[] PoolNoEasy = { 1, 4, 5, 6, 7, 8, 9, 10, 11 };
-        static readonly int[] PoolFull  = { 1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
+        static readonly int[] PoolFull  = { 1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 };
         /// <summary>레벨에서 고를 수 있는 구조물 종류 목록</summary>
         public static int[] StructurePool(int level)
         {
