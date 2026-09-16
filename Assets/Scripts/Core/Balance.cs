@@ -100,7 +100,8 @@ namespace SmashGame
         public const int MotionExtraBalls = 3;   // 움직이는 받침대 레벨은 타이밍을 맞춰야 하니 공 +3
         public const int MultiPedestalBobFromLevel = 25;   // 독립 받침대 여러 개짜리 구조물은 이 레벨부터 기본 승강
         /// <summary>넓은 판 받침대의 다리 수 (레퍼런스: 다리 3개 202·243·248, 5개 252). 20레벨부터 가끔.</summary>
-        public static int PedestalLegs(int level) => level < 20 ? 1 : level % 9 == 0 ? 5 : level % 4 == 1 ? 3 : 1;
+        /// <summary>넓은 상판의 다리 수: 가운데 1개 또는 양쪽 2개만 (3~5개는 어수선해서 제거)</summary>
+        public static int PedestalLegs(int level) => level < 20 ? 1 : level % 4 == 1 ? 2 : 1;
         public static string MotionName(MotionKind k) => k switch { MotionKind.Spin => "회전", MotionKind.Bob => "승강", MotionKind.SpinBob => "회전+승강", _ => "" };
 
         // ---------- 사거리(테이블 거리) ----------
