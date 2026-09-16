@@ -72,12 +72,14 @@ namespace SmashGame
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
         public const int StructureTypes = 22;
         /// <summary>시작 공 개수 = 기본(일반 12~16, 하드 8, 초반 5레벨 +5) + 블록 수의 40%. 블록이 많을수록 공도 비례해서 늘되, 비율은 조금씩 빡빡하게.</summary>
+        public const float StartBallsPerBlock = 0.2f;    // 블록 수 비례분 (레퍼런스: 블록 70~150개에 공 18~33)
+        public const int MaxStartBalls = 35;
         public static int StartBalls(int level, bool hard, int blockCount = 20)
         {
             int n = hard ? 8 : 12 + (level * 5) % 5;
             if (!hard && level <= 5) n += 5;
-            n += Mathf.RoundToInt(blockCount * 0.25f);
-            return n;
+            n += Mathf.RoundToInt(blockCount * StartBallsPerBlock);
+            return Mathf.Min(n, MaxStartBalls);
         }
         /// <summary>구조물 크기 성장: base에서 시작해 perLevels 레벨마다 +1, cap까지</summary>
         // ---------- 움직이는 받침대 ----------
@@ -110,7 +112,7 @@ namespace SmashGame
         public static int RangeTierOverride = -1;
         public static int RangeTier(int level) => RangeTierOverride >= 0 ? RangeTierOverride : level <= 5 ? 0 : (level + level / 3 + 2) % 3;   // 6레벨 중거리, 7레벨 장거리로 첫 소개
         /// <summary>멀수록 조준이 어려우니 시작 공 약간 추가</summary>
-        public static int RangeExtraBalls(int tier) => tier * 2;
+        public static int RangeExtraBalls(int tier) => tier * 3;   // 멀수록 화면 맞춤으로 블록이 커져(무거워져) 공을 더 준다
 
         public static int Grow(int level, int baseVal, int perLevels, int cap) => Mathf.Min(cap, baseVal + level / perLevels);
         /// <summary>새 구조물(피라미드·요새·성문·쌍둥이 탑·계단·원진)이 등장하는 레벨. 그 전엔 기본 6종만.</summary>
@@ -130,7 +132,7 @@ namespace SmashGame
             return PoolFull;
         }
         /// <summary>새 구조물이 두 겹(깊이 2)이 되는 레벨</summary>
-        public const int DeepStructuresFromLevel = 25;
+        public const int DeepStructuresFromLevel = 60;   // 세 겹이 되는 레벨 (두 겹은 1레벨부터 기본)
         /// <summary>새 구조물의 바닥·기둥이 돌(무거움)로 바뀌는 레벨. 그 전엔 상자·원통.</summary>
         public const int HeavyStructuresFromLevel = 30;
         /// <summary>블록 전체 질량 배율. 난이도는 "무거움"보다 "개수"로 잡는다: 전체적으로 가볍게(0.6) 하고 레벨에 따라 아주 완만히(최대 0.75).</summary>
