@@ -110,9 +110,13 @@ namespace SmashGame
         /// <summary>레벨별 사거리 단계(0~2). 1~5레벨은 단거리, 그 뒤로는 레벨마다 고정된 섞임.</summary>
         /// <summary>디버그·테스트용: 0 이상이면 모든 레벨의 사거리 단계를 이 값으로 고정</summary>
         public static int RangeTierOverride = -1;
-        public static int RangeTier(int level) => RangeTierOverride >= 0 ? RangeTierOverride : level <= 5 ? 0 : (level + level / 3 + 2) % 3;   // 6레벨 중거리, 7레벨 장거리로 첫 소개
+        /// <summary>사거리 섞기 사용 여부. 꺼두면 전부 단거리(구조물이 화면을 꽉 채우는 레퍼런스 구도). 켜면 6레벨부터 3단계가 섞인다.</summary>
+        public const bool UseRangeTiers = false;
+        public static int RangeTier(int level) => RangeTierOverride >= 0 ? RangeTierOverride : (!UseRangeTiers || level <= 5) ? 0 : (level + level / 3 + 2) % 3;
         /// <summary>멀수록 조준이 어려우니 시작 공 약간 추가</summary>
-        public static int RangeExtraBalls(int tier) => tier * 3;   // 멀수록 화면 맞춤으로 블록이 커져(무거워져) 공을 더 준다
+        public static int RangeExtraBalls(int tier) => tier * 3;
+        /// <summary>구조물별 시작 공 보정. 얼음 젠가(14)는 부재 수가 적어 블록 비례 공이 적게 나오는데 실제로는 한 층씩 밀어내야 해서 더 준다 (봇: 20발에 딱 클리어)</summary>
+        public static int StructureExtraBalls(int type) => type == 14 ? 5 : 0;   // 멀수록 화면 맞춤으로 블록이 커져(무거워져) 공을 더 준다
 
         public static int Grow(int level, int baseVal, int perLevels, int cap) => Mathf.Min(cap, baseVal + level / perLevels);
         /// <summary>새 구조물(피라미드·요새·성문·쌍둥이 탑·계단·원진)이 등장하는 레벨. 그 전엔 기본 6종만.</summary>

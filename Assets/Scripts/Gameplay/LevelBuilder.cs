@@ -520,7 +520,7 @@ namespace SmashGame
             PreSettle(info.blocks);
 
             // 시작 공
-            info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count) + Balance.RangeExtraBalls(info.rangeTier) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
+            info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
             info.structureName = type switch
             {
                 0 => "원통 다발", 1 => "큐브 격자", 2 => "판자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",
@@ -925,7 +925,15 @@ namespace SmashGame
             LogH(root, new Vector3(0f, yl, 0.25f), 4.6f, info.blocks, 2.2f);
             IceSlabH(root, new Vector3(-1.3f, yl + LogD, 0.25f), 1.0f, info.blocks, 0.8f);
             IceSlabH(root, new Vector3(1.3f, yl + LogD, 0.25f), 1.0f, info.blocks, 0.8f);
-            if (info.level >= 40) PurpleRow(root, new Vector3(0f, yl + LogD, 0.25f), 2, info.blocks);
+            PurpleRow(root, new Vector3(0f, yl + LogD, 0.25f), info.level >= 40 ? 4 : 3, info.blocks);
+            // 문 안쪽: 큐브 4열 × 5칸 × 두 겹 (레퍼런스 성문은 안쪽이 작은 블록으로 채워져 있다)
+            for (int i = 0; i < 4; i++)
+                for (int d = 0; d < 2; d++)
+                {
+                    int ii = i, dd = d;
+                    FillColumn(root, rng, new Vector3((i - 1.5f) * DU, y0, (d - 0.5f) * DU), 5, 0.3f, (j, tall) =>
+                        (j + ii + dd) % 2 == 0 ? (BlockKind.Cube, PurpleCol) : (BlockKind.Cube, BlueCol), info.blocks, DU);
+                }
         }
 
         /// <summary>
@@ -936,16 +944,17 @@ namespace SmashGame
         {
             Pedestal(root, Vector3.zero, 2.3f, p, true, Balance.PedestalLegs(info.level));
             float y0 = PedestalTop;
-            int towerRows = Balance.Grow(info.level, 3, 40, 5);
+            int towerRows = Balance.Grow(info.level, 4, 30, 6);
             foreach (float sx in new[] { -1f, 1f })
             {
                 float cx = sx * 1.45f;
-                for (int c = 0; c < 2; c++)
-                {
-                    int cc = c;
-                    FillColumn(root, rng, new Vector3(cx + (c - 0.5f) * DU, y0, 0f), towerRows, 0.4f,
-                        (j, tall) => (j + cc) % 2 == 0 ? (BlockKind.Cube, PurpleCol) : (BlockKind.Crate, CrateCol), info.blocks, DU);
-                }
+                for (int c = 0; c < 3; c++)
+                    for (int d = 0; d < 2; d++)
+                    {
+                        int cc = c + d;
+                        FillColumn(root, rng, new Vector3(cx + (c - 1f) * DU, y0, (d - 0.5f) * DU), towerRows, 0.3f,
+                            (j, tall) => (j + cc) % 2 == 0 ? (BlockKind.Cube, PurpleCol) : (BlockKind.Crate, CrateCol), info.blocks, DU);
+                    }
             }
             float yb = y0 + towerRows * DU;
             LogH(root, new Vector3(0f, yb, 0f), 3.9f, info.blocks, 2.0f);
@@ -957,9 +966,16 @@ namespace SmashGame
             float yt = ys + 1.2f;
             LogH(root, new Vector3(0f, yt, 0f), 3.9f, info.blocks, 2.0f);
             IceSlabH(root, new Vector3(0f, yt + LogD, 0f), 2.6f, info.blocks, 1.0f);
-            PurpleRow(root, new Vector3(0f, yt + LogD + 0.2f, 0f), info.level >= 60 ? 5 : 4, info.blocks);
-            // 다리 아래 가운데 작은 사탕 탑 (보에 가려짐)
-            FillColumn(root, rng, new Vector3(0f, y0, 0f), 2, 0.5f, (j, tall) => (BlockKind.Candy, p.c), info.blocks, DU);
+            PurpleRow(root, new Vector3(0f, yt + LogD + 0.2f, 0f), info.level >= 60 ? 6 : 5, info.blocks);
+            PurpleRow(root, new Vector3(0f, yt + LogD + 0.2f + DU, 0f), 3, info.blocks);
+            // 다리 아래: 큐브·사탕 블록 4열 × (탑 높이 - 1)칸 × 두 겹 (보에 가려짐)
+            for (int i = 0; i < 4; i++)
+                for (int d = 0; d < 2; d++)
+                {
+                    int ii = i;
+                    FillColumn(root, rng, new Vector3((i - 1.5f) * DU, y0, (d - 0.5f) * DU), Mathf.Max(2, towerRows - 1), 0.4f,
+                        (j, tall) => ii % 3 == 1 ? (BlockKind.Candy, p.c) : (BlockKind.Cube, (ii + j) % 2 == 0 ? BlueCol : p.a), info.blocks, DU);
+                }
         }
 
         /// <summary>
@@ -967,33 +983,37 @@ namespace SmashGame
         /// </summary>
         static void BuildSlabJenga(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            Pedestal(root, Vector3.zero, 1.8f, p);
+            // 탑 발자국(2.0×2.0)에 딱 맞는 사각 상판: 넓으면 쳐낸 부재가 상판 위에 쌓여 떨어지지 않는다 (봇 실측: 31개 잔류)
+            Pedestal(root, Vector3.zero, 1.15f, p, true, 1, 0f, 2.3f);
             float y = PedestalTop;
-            int layers = Balance.Grow(info.level, 7, 30, 9);
-            const float len = 1.5f, th = 0.3f, w = 0.48f;
+            int layers = Balance.Grow(info.level, 10, 30, 13);
+            // 층마다 3개, 얼음 층과 통나무 층을 번갈아. 얼음 판은 깨지지 않고 밀린다(noShatter): 4개짜리 층을 깨서 빼내는 방식은
+            // 한 발에 한 조각만 없어져 45개를 다 치워야 했다(봇 실측). 밀리면 위층이 기울며 무너진다.
+            const float len = 1.9f, th = 0.3f, w = 0.55f;
             for (int l = 0; l < layers; l++)
             {
                 bool alongX = l % 2 == 0;
-                for (int i = -1; i <= 1; i++)
+                bool logLayer = l % 4 == 1 || l % 4 == 3;
+                for (int k = -1; k <= 1; k++)
                 {
-                    float off = i * 0.5f;
-                    bool log = (l % 3 == 1 && i == 0) || (l % 3 == 2 && i != 0);
+                    float off = k * 0.62f;
                     Vector3 pos = alongX ? new Vector3(0f, y + th * 0.5f, off) : new Vector3(off, y + th * 0.5f, 0f);
-                    if (log)
+                    if (logLayer)
                     {
                         Quaternion rot = alongX ? Quaternion.Euler(0, 0, 90) : Quaternion.Euler(90, 0, 0);
-                        MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Log, pos, new Vector3(th, len * 0.5f, th), rot, WoodCol, 1.0f, info.blocks, false, true);
+                        MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Log, pos, new Vector3(th, len * 0.5f, th), rot, WoodCol, 0.75f, info.blocks, false, true);
                     }
                     else
                     {
                         Vector3 scale = alongX ? new Vector3(len, th, w) : new Vector3(w, th, len);
-                        MakeBlock(root, PrimitiveType.Cube, BlockKind.Ice, pos, scale, Quaternion.identity, IceCol, 0.9f, info.blocks);
+                        MakeBlock(root, PrimitiveType.Cube, BlockKind.Ice, pos, scale, Quaternion.identity, IceCol, 0.6f, info.blocks).noShatter = true;
                     }
                 }
                 y += th;
             }
-            // 꼭대기: 보라 상자 2개 + 긴 사탕
-            PurpleRow(root, new Vector3(0f, y, 0f), 2, info.blocks);
+            // 꼭대기: 보라 상자 2×2 + 긴 사탕
+            PurpleRow(root, new Vector3(0f, y, -0.19f), 2, info.blocks);
+            PurpleRow(root, new Vector3(0f, y, 0.19f), 2, info.blocks);
             MakeUnit(root, BlockKind.Candy, new Vector3(0f, y + DU, 0f), true, p.c, info.blocks, DU);
         }
 
@@ -1062,18 +1082,26 @@ namespace SmashGame
             foreach (float x in new[] { -1.55f, 1.55f }) MakeUnit(root, BlockKind.Crate, new Vector3(x, y, 0), true, CrateCol, info.blocks, DU);
             for (int i = 0; i < 4; i++) MakeUnit(root, BlockKind.Cylinder, new Vector3((i - 1.5f) * 0.6f, y, 0), true, RedCol, info.blocks, DU);
             y += DU * 2f;
-            // 상자 줄
-            for (int i = 0; i < 9; i++) MakeUnit(root, BlockKind.Cube, new Vector3((i - 4f) * DU, y, 0), false, (i % 2 == 0) ? BlueCol : p.b, info.blocks, DU);
-            y += DU;
-            // 대리석 기둥 4개 (짧은 원통 2개 쌓기)
+            // 상자 띠: 9열 × 2칸 × 두 겹
+            for (int i = 0; i < 9; i++)
+                for (int d = 0; d < 2; d++)
+                    for (int j = 0; j < 2; j++)
+                        MakeUnit(root, BlockKind.Cube, new Vector3((i - 4f) * DU, y + j * DU, (d - 0.5f) * DU), false, ((i + j + d) % 2 == 0) ? BlueCol : p.b, info.blocks, DU);
+            y += DU * 2f;
+            // 대리석 기둥 4개 (짧은 원통 2개 쌓기) + 기둥 사이 큐브 2칸 × 두 겹
             for (int i = 0; i < 4; i++)
                 for (int j = 0; j < 2; j++)
                     MakeUnit(root, BlockKind.Stone, new Vector3((i - 1.5f) * 0.9f, y + j * DU, 0), false, MarbleCol, info.blocks, DU);
+            for (int i = 0; i < 3; i++)
+                for (int d = 0; d < 2; d++)
+                    for (int j = 0; j < 2; j++)
+                        MakeUnit(root, BlockKind.Cube, new Vector3((i - 1f) * 0.9f, y + j * DU, (d - 0.5f) * DU), false, (i + j + d) % 2 == 0 ? RedCol : GoldCol, info.blocks, DU);
             y += DU * 2f;
             MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.1f, 0), new Vector3(3.4f, 0.2f, 0.7f), Quaternion.identity, RedCol, MassFor(BlockKind.Plank) * 1.5f, info.blocks);
             y += 0.2f;
-            for (int i = 0; i < 5; i++) MakeUnit(root, BlockKind.Cylinder, new Vector3((i - 2f) * 0.5f, y, 0), false, RedCol, info.blocks, DU);
-            if (info.level >= 50) MakeUnit(root, BlockKind.Candy, new Vector3(0, y + DU, 0), false, p.c, info.blocks, DU);
+            for (int i = 0; i < 7; i++) MakeUnit(root, BlockKind.Cylinder, new Vector3((i - 3f) * 0.42f, y, 0), false, RedCol, info.blocks, DU);
+            for (int i = 0; i < 3; i++) MakeUnit(root, BlockKind.Cube, new Vector3((i - 1f) * 0.42f, y + DU, 0), false, BlueCol, info.blocks, DU);
+            if (info.level >= 50) MakeUnit(root, BlockKind.Candy, new Vector3(0, y + DU * 2f, 0), false, p.c, info.blocks, DU);
         }
 
         /// <summary>둥근 원통 탑 (201·260): 짧은 원통을 고리 모양으로 6층, 두 층마다 얼음 원판. 원통이 굴러 떨어져야 해서 어려운 축.</summary>
@@ -1116,12 +1144,12 @@ namespace SmashGame
                 foreach (float x in new[] { -W * 0.5f + 0.18f, 0f, W * 0.5f - 0.18f })
                     MakeBlock(root, PrimitiveType.Cube, BlockKind.Cube, new Vector3(x, y + H * 0.5f, 0), new Vector3(0.36f, H, 0.5f), Quaternion.identity, box == 0 ? PurpleCol : GoldCol, 1.0f, info.blocks);
                 foreach (float cx in new[] { -1.12f, -0.75f, -0.38f, 0.38f, 0.75f, 1.12f })
-                    for (int j = 0; j < 2; j++) MakeUnit(root, BlockKind.Cube, new Vector3(cx, y + j * DU, 0), false, j == 0 ? PurpleCol : p.a, info.blocks, DU);
+                    for (int j = 0; j < 3; j++) MakeUnit(root, BlockKind.Cube, new Vector3(cx, y + j * DU, 0), false, j == 1 ? p.a : PurpleCol, info.blocks, DU);
                 y += H;
             }
             MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y + 0.1f, 0), new Vector3(W, 0.2f, 0.5f), Quaternion.identity, new Color(0.3f, 0.75f, 0.3f), MassFor(BlockKind.Plank) * 1.5f, info.blocks);
             y += 0.2f;
-            for (int i = -1; i <= 1; i++) MakeUnit(root, BlockKind.Cube, new Vector3(i * 1.2f, y, 0), false, new Color(0.3f, 0.75f, 0.3f), info.blocks, DU);
+            for (int i = -3; i <= 3; i++) MakeUnit(root, i % 3 == 0 ? BlockKind.Candy : BlockKind.Cube, new Vector3(i * 0.42f, y, 0), false, i % 3 == 0 ? p.c : new Color(0.3f, 0.75f, 0.3f), info.blocks, DU);
         }
 
         /// <summary>마름모 탑 (237): 금·보라 막대 조각을 1-2-3-4-4-3-2-1로 쌓아 마름모, 가운데 얼음 막대, 꼭대기 사탕.</summary>
@@ -1152,16 +1180,21 @@ namespace SmashGame
             independentPedestals = true;
             Pedestal(root, new Vector3(-0.5f, 0, 0), 1.35f, p, true);
             int rows = Balance.Grow(info.level, 6, 40, 8);
-            foreach (float x in new[] { -1.35f, -0.5f, 0.35f })
+            for (int c = 0; c < 5; c++)
                 for (int d = 0; d < 2; d++)
-                    FillColumn(root, rng, new Vector3(x, PedestalTop, (d - 0.5f) * DU), rows, 0.7f, (j, tall) => (BlockKind.Crate, CrateCol), info.blocks, DU);
+                {
+                    int cc = c;
+                    FillColumn(root, rng, new Vector3(-0.5f + (c - 2) * 0.37f, PedestalTop, (d - 0.5f) * DU), rows, 0.4f,
+                        (j, tall) => (cc + j) % 3 == 0 ? (BlockKind.Cube, PurpleCol) : (BlockKind.Crate, CrateCol), info.blocks, DU);
+                }
             // 틈을 메우는 판자 2장 (열 사이 상단)
             MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(-0.5f, PedestalTop + rows * DU + 0.08f, 0), new Vector3(2.2f, 0.16f, 0.5f), Quaternion.identity, p.d, MassFor(BlockKind.Plank), info.blocks);
             for (int i = -1; i <= 1; i++) MakeUnit(root, BlockKind.Cube, new Vector3(-0.5f + i * 0.85f, PedestalTop + rows * DU + 0.16f, 0), false, p.b, info.blocks, DU);
             // 곁탑
-            Pedestal(root, new Vector3(1.75f, 0, 0), 0.5f, p);
-            foreach (float x in new[] { 1.55f, 1.95f })
-                FillColumn(root, rng, new Vector3(x, PedestalTop, 0), 4, 0.8f, (j, tall) => (BlockKind.Candy, p.c), info.blocks, DU);
+            Pedestal(root, new Vector3(1.75f, 0, 0), 0.65f, p);
+            for (int c = 0; c < 3; c++)
+                for (int d = 0; d < 2; d++)
+                    FillColumn(root, rng, new Vector3(1.75f + (c - 1) * 0.37f, PedestalTop, (d - 0.5f) * 0.37f), 4, 0.5f, (j, tall) => (BlockKind.Candy, p.c), info.blocks, DU);
         }
 
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------

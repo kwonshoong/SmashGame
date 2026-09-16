@@ -12,6 +12,8 @@ namespace SmashGame
     {
         public BlockKind kind;
         public int hp = 1;
+        /// <summary>얼음이라도 맞았을 때 깨지지 않고 밀리기만 한다 (젠가 부재처럼 구조를 받치는 얼음 판)</summary>
+        public bool noShatter;
         public bool sticky;
         public bool tall;   // 긴 변형(세로 2배). 텍스처 타일링·질량에 반영
         /// <summary>눕힌 통나무처럼 굴러갈 수 있는 원통. 가만히 있을 땐 구름 저항(높은 각감쇠)으로 미세 떨림에 저절로 굴러 내리는 걸 막고, 맞아서 움직이면 자유롭게 구른다.</summary>
@@ -77,7 +79,7 @@ namespace SmashGame
                 else return;                        // 아직 강화 상태(충격 무시)
             }
 
-            bool shatter = kind == BlockKind.Ice || (kind == BlockKind.Candy && impactPower >= 1.2f);
+            bool shatter = !noShatter && (kind == BlockKind.Ice || (kind == BlockKind.Candy && impactPower >= 1.2f));
             if (shatter)
             {
                 Debris.Spawn(transform.position, baseColor, 8, transform.localScale.magnitude * 0.25f);
