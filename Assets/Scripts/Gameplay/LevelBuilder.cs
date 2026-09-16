@@ -30,7 +30,7 @@ namespace SmashGame
     /// </summary>
     public static class LevelBuilder
     {
-        public const float PedestalTop = 1.6f;
+        public const float PedestalTop = 0.98f;   // 상판 윗면 높이. 땅(-1.5)에서 다리 2.48 (1.6이었을 때 3.1의 80%)
         /// <summary>받침대 상판의 앞뒤 깊이 = 반지름 × 이 값 (좌우 폭은 반지름 × 2). 얕을수록 공이 상판 앞을 덜 스친다.</summary>
         public const float PedestalDepthRound = 1.5f, PedestalDepthSquare = 1.0f;
 
