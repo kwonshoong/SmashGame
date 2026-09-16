@@ -890,9 +890,13 @@ namespace SmashGame
         /// <summary>세운 통나무. basePos는 바닥 중심.</summary>
         static Block LogV(Transform root, Vector3 basePos, float h, List<Block> list, float mass = 1.3f)
             => MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Log, basePos + Vector3.up * h * 0.5f, new Vector3(LogD, h * 0.5f, LogD), Quaternion.identity, WoodCol, mass, list);
-        /// <summary>x 방향으로 눕힌 긴 통나무(보). basePos는 바닥 중심.</summary>
+        /// <summary>x 방향으로 눕힌 긴 통나무(보). basePos는 바닥 중심. 진짜 원통이라 맞으면 굴러가되, 정지 상태에선 구름 저항(rollingLog)으로 제자리를 지킨다.</summary>
         static Block LogH(Transform root, Vector3 basePos, float len, List<Block> list, float mass = 1.8f)
-            => MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Log, basePos + Vector3.up * LogD * 0.5f, new Vector3(LogD, len * 0.5f, LogD), Quaternion.Euler(0, 0, 90), WoodCol, mass, list, false, true);
+        {
+            var b = MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Log, basePos + Vector3.up * LogD * 0.5f, new Vector3(LogD, len * 0.5f, LogD), Quaternion.Euler(0, 0, 90), WoodCol, mass, list);
+            b.SetRollingLog();
+            return b;
+        }
         /// <summary>보라 상자 한 줄(n개, 규격 간격). basePos는 줄 가운데 바닥.</summary>
         static void PurpleRow(Transform root, Vector3 basePos, int n, List<Block> list)
         {
@@ -1004,7 +1008,7 @@ namespace SmashGame
                     if (logLayer)
                     {
                         Quaternion rot = alongX ? Quaternion.Euler(0, 0, 90) : Quaternion.Euler(90, 0, 0);
-                        MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Log, pos, new Vector3(th, len * 0.5f, th), rot, WoodCol, 0.75f, info.blocks, false, true);
+                        MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Log, pos, new Vector3(th, len * 0.5f, th), rot, WoodCol, 0.75f, info.blocks).SetRollingLog();
                     }
                     else
                     {
