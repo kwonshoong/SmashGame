@@ -70,7 +70,7 @@ namespace SmashGame
         // ---------- 난이도 ----------
         public const float ReinforcedRatioCap = 0.20f;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
-        public const int StructureTypes = 61;
+        public const int StructureTypes = 44;
         /// <summary>시작 공 개수 = 기본(일반 12~16, 하드 8, 초반 5레벨 +5) + 블록 수의 40%. 블록이 많을수록 공도 비례해서 늘되, 비율은 조금씩 빡빡하게.</summary>
         public const float StartBallsPerBlock = 0.2f;    // 블록 수 비례분 (레퍼런스: 블록 70~150개에 공 18~33)
         public const int MaxStartBalls = 35;
@@ -125,9 +125,9 @@ namespace SmashGame
         public const int WideStructuresFromLevel = 20;   // 얼음 성문·통나무 다리·얼음 젠가 (긴 부재·넓은 구조)
         public const int EasyStructuresUntilLevel = 11;  // 원통 다발(0)·판자 선반(2)·통나무 탑(3)은 이 레벨까지만 (그 뒤엔 너무 쉽다)
         static readonly int[] PoolEarly = { 0, 1, 2, 3, 4, 5 };
-        static readonly int[] PoolMid   = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
-        static readonly int[] PoolNoEasy = { 1, 4, 5, 6, 7, 8, 9, 10, 11, 22, 26, 31, 33, 37, 40, 44 };   // 12~19: 마스크 3종(창문 벽·계단 성·무늬 벽) 먼저 소개
-        static readonly int[] PoolFull  = { 1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60 };
+        static readonly int[] PoolMid   = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+        static readonly int[] PoolNoEasy = { 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 };   // 12~19: 마스크 3종(창문 벽·계단 성·무늬 벽) 먼저 소개
+        static readonly int[] PoolFull  = { 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43 };
         /// <summary>레벨에서 고를 수 있는 구조물 종류 목록</summary>
         public static int[] StructurePool(int level)
         {
