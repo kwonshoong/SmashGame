@@ -104,25 +104,25 @@ namespace SmashGame
             barrel.SetParent(transform, false);
             barrel.localPosition = new Vector3(0, 0.1f, 0);
 
-            // 본체: 뒤(약실)가 굵고 앞이 가는 테이퍼 느낌 — 세 구간으로
-            Part(PrimitiveType.Cylinder, barrel, "Breech", new Vector3(0, 0, 0.15f), new Vector3(0.66f, 0.35f, 0.66f), Quaternion.Euler(90, 0, 0), iron, 0.08f);
-            Part(PrimitiveType.Cylinder, barrel, "Tube", new Vector3(0, 0, 0.75f), new Vector3(0.58f, 0.45f, 0.58f), Quaternion.Euler(90, 0, 0), iron, 0.05f);
-            Part(PrimitiveType.Cylinder, barrel, "Neck", new Vector3(0, 0, 1.3f), new Vector3(0.52f, 0.2f, 0.52f), Quaternion.Euler(90, 0, 0), iron, 0.04f);
+            // 본체: 뒤(약실)가 굵고 앞이 가는 테이퍼 느낌 — 세 구간으로. 길이는 원래의 절반(포구 1.55 → 0.78)
+            Part(PrimitiveType.Cylinder, barrel, "Breech", new Vector3(0, 0, 0.075f), new Vector3(0.66f, 0.175f, 0.66f), Quaternion.Euler(90, 0, 0), iron, 0.08f);
+            Part(PrimitiveType.Cylinder, barrel, "Tube", new Vector3(0, 0, 0.375f), new Vector3(0.58f, 0.225f, 0.58f), Quaternion.Euler(90, 0, 0), iron, 0.05f);
+            Part(PrimitiveType.Cylinder, barrel, "Neck", new Vector3(0, 0, 0.65f), new Vector3(0.52f, 0.1f, 0.52f), Quaternion.Euler(90, 0, 0), iron, 0.04f);
             // 포구 링(나팔) + 띠 2개 + 뒤쪽 둥근 꼬리
-            Part(PrimitiveType.Cylinder, barrel, "MuzzleRing", new Vector3(0, 0, 1.47f), new Vector3(0.68f, 0.07f, 0.68f), Quaternion.Euler(90, 0, 0), brass, 0.025f);
-            Part(PrimitiveType.Cylinder, barrel, "Band1", new Vector3(0, 0, 0.5f), new Vector3(0.64f, 0.045f, 0.64f), Quaternion.Euler(90, 0, 0), brass, 0.015f);
-            Part(PrimitiveType.Cylinder, barrel, "Band2", new Vector3(0, 0, 1.05f), new Vector3(0.6f, 0.045f, 0.6f), Quaternion.Euler(90, 0, 0), brass, 0.015f);
+            Part(PrimitiveType.Cylinder, barrel, "MuzzleRing", new Vector3(0, 0, 0.735f), new Vector3(0.68f, 0.07f, 0.68f), Quaternion.Euler(90, 0, 0), brass, 0.025f);
+            Part(PrimitiveType.Cylinder, barrel, "Band1", new Vector3(0, 0, 0.25f), new Vector3(0.64f, 0.045f, 0.64f), Quaternion.Euler(90, 0, 0), brass, 0.015f);
+            Part(PrimitiveType.Cylinder, barrel, "Band2", new Vector3(0, 0, 0.525f), new Vector3(0.6f, 0.045f, 0.6f), Quaternion.Euler(90, 0, 0), brass, 0.015f);
             Part(PrimitiveType.Sphere, barrel, "Cascabel", new Vector3(0, 0, -0.28f), Vector3.one * 0.3f, Quaternion.identity, brass, 0f);
             Part(PrimitiveType.Sphere, barrel, "BreechCap", new Vector3(0, 0, -0.05f), Vector3.one * 0.62f, Quaternion.identity, iron, 0f);
             // 포이(회전축 핀) 좌우
             for (int side = -1; side <= 1; side += 2)
-                Part(PrimitiveType.Cylinder, barrel, "Trunnion", new Vector3(side * 0.38f, 0, 0.15f), new Vector3(0.16f, 0.1f, 0.16f), Quaternion.Euler(0, 0, 90), darkMetal, 0.02f);
+                Part(PrimitiveType.Cylinder, barrel, "Trunnion", new Vector3(side * 0.38f, 0, 0.075f), new Vector3(0.16f, 0.1f, 0.16f), Quaternion.Euler(0, 0, 90), darkMetal, 0.02f);
             // 포구 안쪽(검은 구멍)
-            Part(PrimitiveType.Cylinder, barrel, "Bore", new Vector3(0, 0, 1.5f), new Vector3(0.4f, 0.02f, 0.4f), Quaternion.Euler(90, 0, 0), Materials.Get(new Color(0.08f, 0.06f, 0.08f)), 0f);
+            Part(PrimitiveType.Cylinder, barrel, "Bore", new Vector3(0, 0, 0.75f), new Vector3(0.4f, 0.02f, 0.4f), Quaternion.Euler(90, 0, 0), Materials.Get(new Color(0.08f, 0.06f, 0.08f)), 0f);
 
             muzzle = new GameObject("Muzzle").transform;
             muzzle.SetParent(barrel, false);
-            muzzle.localPosition = new Vector3(0, 0, 1.55f);
+            muzzle.localPosition = new Vector3(0, 0, 0.78f);
 
             // 장전된 공 미리보기(스탯에 따라 크기·색이 바뀜)
             var pv = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -138,7 +138,7 @@ namespace SmashGame
         void RefreshPreview()
         {
             if (previewBall == null) return;
-            previewBall.localPosition = new Vector3(0, 0, 1.45f);
+            previewBall.localPosition = new Vector3(0, 0, 0.72f);
             previewBall.localScale = Vector3.one * 0.44f * stats.size;
             previewBall.GetComponent<Renderer>().material = Materials.Get(Ball.BallColor(stats.star), true);
         }
