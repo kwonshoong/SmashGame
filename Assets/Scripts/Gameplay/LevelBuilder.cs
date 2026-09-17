@@ -533,6 +533,16 @@ namespace SmashGame
                 case 48: BuildFoldingWall(root, rng, p, info); break;
                 case 49: BuildFanWall(root, rng, p, info); break;
                 case 50: BuildBowTower(root, rng, p, info); break;
+                case 51: BuildTwinWings(root, rng, p, info); break;
+                case 52: BuildCrossFort(root, rng, p, info); break;
+                case 53: BuildPinwheel(root, rng, p, info); break;
+                case 54: BuildTriangleFort(root, rng, p, info); break;
+                case 55: BuildFiveLeaves(root, rng, p, info); break;
+                case 56: BuildStaggeredWalls(root, rng, p, info); break;
+                case 57: BuildZigzag4(root, rng, p, info); break;
+                case 58: BuildArrowFort(root, rng, p, info); break;
+                case 59: BuildDiamondCross(root, rng, p, info); break;
+                case 60: BuildDiagonalWall(root, rng, p, info); break;
                 default: BuildColumnLattice(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -626,7 +636,9 @@ namespace SmashGame
                 22 => "창문 벽", 23 => "아치 문", 24 => "버섯 탑", 25 => "처마 벽", 26 => "계단 성", 27 => "쌍탑 성", 28 => "기둥 홀", 29 => "창문 탑", 30 => "이중 아치", 31 => "무늬 벽", 32 => "H자 벽",
                 33 => "벽돌 벽", 34 => "벽돌 탑", 35 => "벽돌 피라미드", 36 => "쌍둥이 벽돌 탑", 37 => "지그재그 벽", 38 => "대각 젠가 탑",
                 39 => "다리", 40 => "부메랑 벽", 41 => "둥근 성", 42 => "나선 계단", 43 => "입체 성",
-                44 => "원통 피라미드", 45 => "삼중 성문", 47 => "계단식 성문", 48 => "병풍 벽", 49 => "부채꼴 성벽", 50 => "뱃머리 탑", _ => "기둥 격자"
+                44 => "원통 피라미드", 45 => "삼중 성문", 47 => "계단식 성문", 48 => "병풍 벽", 49 => "부채꼴 성벽", 50 => "뱃머리 탑",
+                51 => "쌍날개", 52 => "십자 성", 53 => "풍차", 54 => "삼각 요새", 55 => "다섯 잎", 56 => "엇갈린 두 벽", 57 => "꺾인 벽", 58 => "화살촉 성", 59 => "다이아몬드 십자", 60 => "대각선 벽",
+                _ => "기둥 격자"
             };
             return info;
         }
@@ -1880,6 +1892,202 @@ namespace SmashGame
             Vector3 ap = A + Vector3.up * (PedestalTop + 0.03f);
             RCol(root, ap, 6, BlockKind.Cylinder, BlueCol, 0f, L);
             RUnit(root, ap + Vector3.up * 6 * DU, 1, BlockKind.Cylinder, GoldCol, 0f, L);
+        }
+
+        // ---------------- 회전 받침대 구조물 10종 (상판 개수·각도 변주) ----------------
+
+        /// <summary>yaw로 돌린 상판 하나 (다리 하나, 사각). halfLen: 축 방향 반길이, depth: 앞뒤 폭</summary>
+        static void RPlate(Transform root, Palette p, Vector3 center, float yaw, float halfLen, float depth, float raise = 0f)
+            => Pedestal(root, center, halfLen, p, true, 1, raise, depth, yaw);
+        /// <summary>상판 축(yaw)을 따라 열 기둥들. b는 상판 윗면 중심. cols[i]는 k = i-(n-1)/2 칸 위치. h 0이면 빈 열</summary>
+        static void RCols(Transform root, Vector3 b, float yaw, (BlockKind kind, Color col, int h, bool each)[] cols, List<Block> L)
+        {
+            Vector3 u = YawDir(yaw); int n = cols.Length;
+            for (int i = 0; i < n; i++) { float k = i - (n - 1) * 0.5f; var cs = cols[i]; if (cs.h > 0) RCol(root, b + u * (k * DS), cs.h, cs.kind, cs.col, yaw, L, cs.each); }
+        }
+        /// <summary>상판 축 위 k칸 위치, row단 높이에 n칸 부재</summary>
+        static void RBarAt(Transform root, Vector3 b, float yaw, float k, int row, int n, BlockKind kind, Color col, List<Block> L)
+            => RBar(root, b + YawDir(yaw) * (k * DS) + Vector3.up * (row * DU), n, kind, col, yaw, L);
+        static void RUnitAt(Transform root, Vector3 b, float yaw, float k, int row, int cells, BlockKind kind, Color col, List<Block> L)
+            => RUnit(root, b + YawDir(yaw) * (k * DS) + Vector3.up * (row * DU), cells, kind, col, yaw, L);
+        static Vector3 Top(Vector3 center, float raise = 0f) => center + Vector3.up * (PedestalTop + raise);
+
+        /// <summary>51 쌍날개 (상판 2, ∓20°): 살짝 안쪽으로 굽은 두 날개. 통나무·상자 성벽 + 사탕, 꼭대기 금색 큐브.</summary>
+        static void BuildTwinWings(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            foreach (int side in new[] { -1, 1 })
+            {
+                float yaw = side * 20f; Vector3 c = new Vector3(side * 1.25f, 0f, 0f);
+                RPlate(root, p, c, yaw, 1.5f * DS + 0.3f, 0.8f); var b = Top(c);
+                RCols(root, b, yaw, new[] { (BlockKind.Log, WoodCol, 3, false), (BlockKind.Crate, CrateCol, 3, true), (BlockKind.Log, WoodCol, 3, false) }, L);
+                RBarAt(root, b, yaw, 0f, 3, 3, BlockKind.Plank, WoodCol, L);
+                RUnitAt(root, b, yaw, -1f, 4, 1, BlockKind.Crate, CrateCol, L); RUnitAt(root, b, yaw, -1f, 5, 1, BlockKind.Crate, CrateCol, L);
+                RUnitAt(root, b, yaw, 1f, 4, 1, BlockKind.Crate, CrateCol, L); RUnitAt(root, b, yaw, 1f, 5, 1, BlockKind.Crate, CrateCol, L);
+                RUnitAt(root, b, yaw, 0f, 4, 2, BlockKind.Candy, PinkCol, L);
+                RBarAt(root, b, yaw, 0f, 6, 3, BlockKind.Plank, WoodCol, L);
+                RUnitAt(root, b, yaw, 0f, 7, 1, BlockKind.Cube, GoldCol, L);
+            }
+        }
+
+        /// <summary>52 십자 성 (상판 4: 앞 0°, 양옆 90°, 뒤 0°): 네 벽이 안뜰을 둘러싼 상자 요새. 앞 낮은 보라 담, 옆 상자 벽, 뒤 대리석·사탕 천수각.</summary>
+        static void BuildCrossFort(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            var front = new Vector3(0f, 0f, -1.05f); RPlate(root, p, front, 0f, 1.5f * DS + 0.3f, 0.75f, 0.03f); var bf = Top(front, 0.03f);
+            RCols(root, bf, 0f, new[] { (BlockKind.Cube, PurpleCol, 2, true), (BlockKind.Cube, PurpleCol, 2, true), (BlockKind.Cube, PurpleCol, 2, true) }, L);
+            RBarAt(root, bf, 0f, 0f, 2, 3, BlockKind.Cube, BlueCol, L);
+            foreach (int side in new[] { -1, 1 })
+            {
+                var c = new Vector3(side * 1.45f, 0f, 0.15f); RPlate(root, p, c, 90f, 1.5f * DS + 0.3f, 0.75f); var b = Top(c);
+                RCols(root, b, 90f, new[] { (BlockKind.Crate, CrateCol, 3, true), (BlockKind.Crate, CrateCol, 3, true), (BlockKind.Crate, CrateCol, 3, true) }, L);
+                RBarAt(root, b, 90f, 0f, 3, 3, BlockKind.Plank, WoodCol, L);
+                RUnitAt(root, b, 90f, -1f, 4, 1, BlockKind.Crate, CrateCol, L); RUnitAt(root, b, 90f, 1f, 4, 1, BlockKind.Crate, CrateCol, L);
+            }
+            var back = new Vector3(0f, 0f, 1.35f); RPlate(root, p, back, 0f, 1.5f * DS + 0.3f, 0.75f, 0.03f); var bb = Top(back, 0.03f);
+            RCols(root, bb, 0f, new[] { (BlockKind.Stone, MarbleCol, 5, false), (BlockKind.Candy, PinkCol, 5, false), (BlockKind.Stone, MarbleCol, 5, false) }, L);
+            RBarAt(root, bb, 0f, 0f, 5, 3, BlockKind.Cube, RedCol, L);
+            RUnitAt(root, bb, 0f, 0f, 6, 2, BlockKind.Cube, GoldCol, L);
+        }
+
+        /// <summary>53 풍차 (상판 4, 접선 방향으로 45°씩 돌아가며 사각 링): 원통·사탕 기둥 벽 넷이 안뜰을 두르고 위에 빨강 부재·금색 큐브.</summary>
+        static void BuildPinwheel(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            for (int i = 0; i < 4; i++)
+            {
+                float a = (45f + 90f * i) * Mathf.Deg2Rad;                 // 상판 중심의 방위각 (x→z)
+                Vector3 c = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 1.0f;
+                float yaw = -(45f + 90f * i) - 90f;                         // 접선 방향
+                RPlate(root, p, c, yaw, 1.5f * DS + 0.25f, 0.7f, (i % 2) * 0.03f); var b = Top(c, (i % 2) * 0.03f);
+                RCols(root, b, yaw, new[] { (BlockKind.Cylinder, BlueCol, 3, true), (BlockKind.Candy, PinkCol, 3, false), (BlockKind.Cylinder, BlueCol, 3, true) }, L);
+                RBarAt(root, b, yaw, 0f, 3, 3, BlockKind.Cube, RedCol, L);
+                RUnitAt(root, b, yaw, 0f, 4, 1, BlockKind.Cube, GoldCol, L);
+            }
+        }
+
+        /// <summary>54 삼각 요새 (상판 3이 삼각형: 앞변 0°, 뒷변 둘 ∓58°): 얼음·큐브 벽돌 벽 세 변, 꼭짓점마다 대리석 기둥.</summary>
+        static void BuildTriangleFort(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            Vector3 A = new Vector3(-1.5f, 0f, -0.9f), B = new Vector3(1.5f, 0f, -0.9f), C = new Vector3(0f, 0f, 1.5f);
+            var edges = new[] { (A, B, 0f, 0.03f), (A, C, -58f, 0f), (B, C, 58f, 0.06f) };
+            foreach (var (P, Q, yaw, raise) in edges)
+            {
+                Vector3 c = (P + Q) * 0.5f; float half = (Q - P).magnitude * 0.5f;
+                RPlate(root, p, c, yaw, half + 0.1f, 0.75f, raise); var b = Top(c, raise);
+                RCols(root, b, yaw, new[] { (BlockKind.Ice, IceCol, 2, true), (BlockKind.Cube, BlueCol, 2, true), (BlockKind.Ice, IceCol, 2, true) }, L);
+                RBarAt(root, b, yaw, 0f, 2, 3, BlockKind.Cube, BlueCol, L);
+                for (int k = -1; k <= 1; k++) RUnitAt(root, b, yaw, k, 3, 1, BlockKind.Ice, IceCol, L);
+                RBarAt(root, b, yaw, 0f, 4, 3, BlockKind.Cube, BlueCol, L);
+            }
+            RCol(root, Top(A, 0.03f), 6, BlockKind.Stone, MarbleCol, 0f, L);
+            RCol(root, Top(B, 0.06f), 6, BlockKind.Stone, MarbleCol, 0f, L);
+            RCol(root, Top(C, 0.06f), 6, BlockKind.Stone, MarbleCol, 0f, L);
+        }
+
+        /// <summary>55 다섯 잎 (작은 상판 5가 오목한 호 위에 30° 간격): 상판마다 기둥 하나, 이웃 기둥 사이를 잇는 부재 4개와 그 위 큐브.</summary>
+        static void BuildFiveLeaves(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            Vector3 O = new Vector3(0f, 0f, -1.0f); float r = 2.0f;
+            var kinds = new[] { (BlockKind.Cylinder, BlueCol), (BlockKind.Crate, CrateCol), (BlockKind.Stone, MarbleCol), (BlockKind.Crate, CrateCol), (BlockKind.Cylinder, BlueCol) };
+            for (int i = 0; i < 5; i++)
+            {
+                float a = (-60f + 30f * i);
+                Vector3 c = O + new Vector3(Mathf.Sin(a * Mathf.Deg2Rad), 0f, Mathf.Cos(a * Mathf.Deg2Rad)) * r;
+                RPlate(root, p, c, a, 0.5f * DS + 0.3f, 0.7f, (i % 2) * 0.03f); var b = Top(c, (i % 2) * 0.03f);
+                RCol(root, b, 4, kinds[i].Item1, kinds[i].Item2, a, L, kinds[i].Item1 != BlockKind.Stone);
+                if (i < 4)
+                {
+                    float am = a + 15f; Vector3 m = O + new Vector3(Mathf.Sin(am * Mathf.Deg2Rad), 0f, Mathf.Cos(am * Mathf.Deg2Rad)) * (r * Mathf.Cos(15f * Mathf.Deg2Rad));
+                    RBar(root, m + Vector3.up * (PedestalTop + 0.03f + 4 * DU), 2, BlockKind.Cube, RedCol, am, L);   // 2칸: 이웃 부재와 겹치지 않게
+                    RUnit(root, m + Vector3.up * (PedestalTop + 0.03f + 5 * DU), 1, BlockKind.Cube, GoldCol, am, L);
+                }
+            }
+        }
+
+        /// <summary>56 엇갈린 두 벽 (상판 2가 25°로 나란히, 앞뒤·좌우로 어긋남): 보라 큐브·상자 벽 두 장이 겹쳐 보인다.</summary>
+        static void BuildStaggeredWalls(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            float yaw = 25f; Vector3 u = YawDir(yaw), n = new Vector3(-u.z, 0f, u.x);
+            foreach (int s in new[] { -1, 1 })
+            {
+                Vector3 c = u * (s * 0.7f) + n * (s * 0.6f);
+                RPlate(root, p, c, yaw, 2f * DS + 0.25f, 0.75f, s > 0 ? 0.03f : 0f); var b = Top(c, s > 0 ? 0.03f : 0f);
+                RCols(root, b, yaw, new[] { (BlockKind.Cube, PurpleCol, 3, true), (BlockKind.Crate, CrateCol, 3, true), (BlockKind.Cube, PurpleCol, 3, true), (BlockKind.Crate, CrateCol, 3, true) }, L);
+                RBarAt(root, b, yaw, -1f, 3, 2, BlockKind.Cube, BlueCol, L); RBarAt(root, b, yaw, 1f, 3, 2, BlockKind.Cube, BlueCol, L);
+                RUnitAt(root, b, yaw, -1f, 4, 1, BlockKind.Cube, PurpleCol, L); RUnitAt(root, b, yaw, 1f, 4, 1, BlockKind.Cube, PurpleCol, L);
+                RBarAt(root, b, yaw, 0f, 5, 3, BlockKind.Cube, BlueCol, L);
+            }
+        }
+
+        /// <summary>57 꺾인 벽 (상판 4가 ±30°로 지그재그): 큐브·사탕 기둥 벽이 네 번 꺾인다.</summary>
+        static void BuildZigzag4(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            float half = 1.5f * DS; Vector3 end = new Vector3(-3f * half * Mathf.Cos(30f * Mathf.Deg2Rad), 0f, 0f) - YawDir(30f) * half;   // 첫 상판 시작점 (중심 x = -3·half·cos30)
+            for (int i = 0; i < 4; i++)
+            {
+                float yaw = (i % 2 == 0) ? 30f : -30f; Vector3 u = YawDir(yaw);
+                Vector3 c = end + u * half; end = c + u * half;
+                RPlate(root, p, c, yaw, half + 0.3f, 0.75f, (i % 2) * 0.03f); var b = Top(c, (i % 2) * 0.03f);
+                // 열 둘(k ±0.5): 세 열이면 이웃 상판 끝 열과 0.4로 겹친다
+                RCols(root, b, yaw, new[] { (BlockKind.Cube, (i % 2 == 0) ? BlueCol : PurpleCol, 4, true), (BlockKind.Candy, PinkCol, 4, false) }, L);
+                RBarAt(root, b, yaw, 0f, 4, 2, BlockKind.Cube, RedCol, L);
+                RUnitAt(root, b, yaw, 0f, 5, 1, BlockKind.Cube, GoldCol, L);
+            }
+        }
+
+        /// <summary>58 화살촉 성 (상판 3: 앞 꼭짓점에서 뒤로 벌어지는 V 둘 + 뒤 정면 상판): 원통 벽 두 날개와 뒤의 대리석·사탕 탑.</summary>
+        static void BuildArrowFort(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            Vector3 A = new Vector3(0f, 0f, -0.7f);
+            foreach (int side in new[] { -1, 1 })
+            {
+                float yaw = -side * 45f; Vector3 u = new Vector3(side * 0.7071f, 0f, 0.7071f); float raise = side > 0 ? 0.03f : 0f;
+                Vector3 c = A + u * (2f * DS); RPlate(root, p, c, yaw, 1.5f * DS + 0.25f, 0.75f, raise); var b = Top(c, raise);
+                RCols(root, b, yaw, new[] { (BlockKind.Cylinder, BlueCol, 3, true), (BlockKind.Cylinder, IceCol, 3, true), (BlockKind.Cylinder, BlueCol, 3, true) }, L);
+                RBarAt(root, b, yaw, 0f, 3, 3, BlockKind.Cube, RedCol, L);
+                RUnitAt(root, b, yaw, 0f, 4, 2, BlockKind.Cylinder, GoldCol, L);
+            }
+            Vector3 back = new Vector3(0f, 0f, 1.15f); RPlate(root, p, back, 0f, 1.5f * DS + 0.3f, 0.75f, 0.06f); var bb = Top(back, 0.06f);
+            RCols(root, bb, 0f, new[] { (BlockKind.Stone, MarbleCol, 5, false), (BlockKind.Candy, PinkCol, 5, false), (BlockKind.Stone, MarbleCol, 5, false) }, L);
+            RBarAt(root, bb, 0f, 0f, 5, 3, BlockKind.Cube, RedCol, L);
+            RUnitAt(root, bb, 0f, 0f, 6, 1, BlockKind.Cube, GoldCol, L);
+        }
+
+        /// <summary>59 다이아몬드 십자 (큰 상판 1을 45° 돌린 마름모): 가운데 대리석 탑, 두 대각선을 따라 큐브·상자 팔 넷과 그 위 부재·큐브.</summary>
+        static void BuildDiamondCross(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            Vector3 c = Vector3.zero; RPlate(root, p, c, 45f, 2.5f * DS + 0.3f, 2f * (2.5f * DS + 0.3f)); var b = Top(c);   // depth는 전체 폭
+            RCol(root, b, 6, BlockKind.Stone, MarbleCol, 45f, L); RUnit(root, b + Vector3.up * 6 * DU, 1, BlockKind.Cube, GoldCol, 45f, L);
+            foreach (float yaw in new[] { 45f, -45f })
+            {
+                var kind = yaw > 0 ? BlockKind.Cube : BlockKind.Crate; var col = yaw > 0 ? BlueCol : CrateCol;
+                foreach (int k in new[] { -2, -1, 1, 2 }) RCol(root, b + YawDir(yaw) * (k * DS), 3, kind, col, yaw, L, true);
+                foreach (float k in new[] { -1.5f, 1.5f }) { RBarAt(root, b, yaw, k, 3, 2, BlockKind.Cube, RedCol, L); RUnitAt(root, b, yaw, k, 4, 1, BlockKind.Cube, PurpleCol, L); }
+            }
+        }
+
+        /// <summary>60 대각선 벽 (상판 1을 30° 돌린 긴 벽, 7열): 얼음 큐브·파랑 부재 벽돌 벽 5단, 양 끝 대리석 기둥, 꼭대기 부재·금색 큐브.</summary>
+        static void BuildDiagonalWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var L = info.blocks; keepPlateShape = true;
+            float yaw = 30f; Vector3 c = Vector3.zero; RPlate(root, p, c, yaw, 4f * DS + 0.3f, 0.75f); var b = Top(c);
+            for (int row = 0; row < 5; row++)
+            {
+                if (row % 2 == 0) { for (int k = -3; k <= 3; k++) RUnitAt(root, b, yaw, k, row, 1, BlockKind.Ice, IceCol, L); }
+                else if (row == 1) { RBarAt(root, b, yaw, -2.5f, row, 2, BlockKind.Cube, BlueCol, L); RBarAt(root, b, yaw, -0.5f, row, 2, BlockKind.Cube, BlueCol, L); RBarAt(root, b, yaw, 1.5f, row, 2, BlockKind.Cube, BlueCol, L); RUnitAt(root, b, yaw, 3f, row, 1, BlockKind.Ice, IceCol, L); }
+                else { RUnitAt(root, b, yaw, -3f, row, 1, BlockKind.Ice, IceCol, L); RBarAt(root, b, yaw, -1.5f, row, 2, BlockKind.Cube, BlueCol, L); RBarAt(root, b, yaw, 0.5f, row, 2, BlockKind.Cube, BlueCol, L); RBarAt(root, b, yaw, 2.5f, row, 2, BlockKind.Cube, BlueCol, L); }
+            }
+            RBarAt(root, b, yaw, 0f, 5, 3, BlockKind.Cube, BlueCol, L);
+            RUnitAt(root, b, yaw, 0f, 6, 1, BlockKind.Cube, GoldCol, L);
+            RCol(root, b + YawDir(yaw) * (4f * DS), 5, BlockKind.Stone, MarbleCol, yaw, L);
+            RCol(root, b - YawDir(yaw) * (4f * DS), 5, BlockKind.Stone, MarbleCol, yaw, L);
         }
 
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------
