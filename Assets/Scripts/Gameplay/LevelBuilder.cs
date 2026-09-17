@@ -518,7 +518,10 @@ namespace SmashGame
                 case 40: BuildBoomerangWall(root, rng, p, info); break;
                 case 41: BuildRoundCastle(root, rng, p, info); break;
                 case 42: BuildSpiralStairs(root, rng, p, info); break;
-                default: BuildCastle3D(root, rng, p, info); break;
+                case 43: BuildCastle3D(root, rng, p, info); break;
+                case 44: BuildCylinderPyramid(root, rng, p, info); break;
+                case 45: BuildTripleGate(root, rng, p, info); break;
+                default: BuildColumnLattice(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
             FitPlatesToBlocks(info.blocks);
@@ -610,7 +613,8 @@ namespace SmashGame
                 15 => "쌍둥이 원통 탑", 16 => "가운데 높은 피라미드", 17 => "신전", 18 => "둥근 원통 탑", 19 => "세 탑", 20 => "마름모 무늬 벽", 21 => "상자 벽과 곁탑",
                 22 => "창문 벽", 23 => "아치 문", 24 => "버섯 탑", 25 => "처마 벽", 26 => "계단 성", 27 => "쌍탑 성", 28 => "기둥 홀", 29 => "창문 탑", 30 => "이중 아치", 31 => "무늬 벽", 32 => "H자 벽",
                 33 => "벽돌 벽", 34 => "벽돌 탑", 35 => "벽돌 피라미드", 36 => "쌍둥이 벽돌 탑", 37 => "지그재그 벽", 38 => "대각 젠가 탑",
-                39 => "다리", 40 => "부메랑 벽", 41 => "둥근 성", 42 => "나선 계단", _ => "입체 성"
+                39 => "다리", 40 => "부메랑 벽", 41 => "둥근 성", 42 => "나선 계단", 43 => "입체 성",
+                44 => "원통 피라미드", 45 => "삼중 성문", _ => "기둥 격자"
             };
             return info;
         }
@@ -1556,6 +1560,123 @@ namespace SmashGame
             }
             Grid(root, rng, 0f, 0.45f, 3, 3, towerRows - 2, 0.4f, (i, d, j, cells) => (m.wall, WallColor(m, i, j, 3, towerRows)), info.blocks);
             MakeUnit(root, BlockKind.Candy, new Vector3(0f, PedestalTop + (towerRows - 2) * DU, 0.45f), 2, p.c, info.blocks, DU);
+        }
+
+
+        // ---------------- 레퍼런스 3종 그대로: 원통 피라미드 · 삼중 성문 · 기둥 격자 (11칸 격자, 받침대 3개) ----------------
+
+        /// <summary>11칸 격자(x 0~10, 가운데 5)와 받침대 3개(x 1·5·9)를 쓰는 구조물의 공통 준비. 받침대 폭 0.78, 사이 틈 0.28.</summary>
+        static float G11(int i) => (i - 5) * DS;
+        static void ThreePlates(Transform root, Palette p, int depth)
+        {
+            independentPedestals = false;   // 위가 이어져 있으니 같은 위상으로 움직인다
+            foreach (int i in new[] { 1, 5, 9 }) Pedestal(root, new Vector3(G11(i), 0, 0), 0.78f, p, true, 1, 0f, depth * DS + 0.5f);
+        }
+        static void U11(Transform root, int x, int y, int cells, BlockKind kind, Color col, float z, List<Block> list)
+            => MakeUnit(root, kind, new Vector3(G11(x), PedestalTop + y * DU, z), cells, col, list, DU);
+        static void B11(Transform root, int x0, int y, int n, BlockKind kind, Color col, float z, List<Block> list)
+            => MakeBar(root, new Vector3(G11(x0) + (n - 1) * 0.5f * DS, PedestalTop + y * DU, z), n, kind, col, list);
+
+        /// <summary>
+        /// 원통 피라미드 (레퍼런스): 짧은 원통을 7·7·6·6·5·5·4·3·2·1개로 쌓는다. 폭이 같은 줄은 정렬, 하나 줄어드는 줄은 반 칸 어긋나
+        /// 원통마다 아래 두 개에 걸친다. 앞뒤 세 줄이고 가운데 줄은 반 칸 밀려 육각 배열처럼 보인다.
+        /// </summary>
+        static void BuildCylinderPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var m = PickMaterials(rng, p, info);
+            int[] widths = { 7, 7, 6, 6, 5, 5, 4, 3, 2, 1 };
+            int depth = Mathf.Min(3, Depth(info) + 1);
+            Pedestal(root, Vector3.zero, 7 * DS * 0.5f + 0.25f, p, false, 1, 0f, depth * DS + 0.5f);
+            Color[] cols = { IceCol, BlueCol, PurpleCol };
+            for (int d = 0; d < depth; d++)
+            {
+                float z = (d - (depth - 1) * 0.5f) * DS, xs = (d % 2 == 1) ? 0.5f * DS : 0f;
+                for (int y = 0; y < widths.Length; y++)
+                {
+                    int n = widths[y];
+                    for (int i = 0; i < n; i++)
+                    {
+                        Color c = cols[(i + y + d) % 3];
+                        MakeUnit(root, BlockKind.Cylinder, new Vector3((i - (n - 1) * 0.5f) * DS + xs, PedestalTop + y * DU, z), 1, c, info.blocks, DU);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 삼중 성문 (레퍼런스): 받침대 3개. 양쪽 큐브 탑(가운데 열은 분홍 사탕)은 아래·위에 3칸 머릿돌, 가운데는 빨강 부재 위 사탕 기둥.
+        /// 그 위를 빨강 3칸 부재가 벽돌처럼 세 줄 덮고, 탑 모서리에 금색 원통.
+        /// </summary>
+        static void BuildTripleGate(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            int depth = Mathf.Min(2, Depth(info));
+            ThreePlates(root, p, depth);
+            var L = info.blocks;
+            for (int d = 0; d < depth; d++)
+            {
+                float z = (d - (depth - 1) * 0.5f) * DS;
+                foreach (int x0 in new[] { 0, 8 })
+                {
+                    B11(root, x0, 0, 3, BlockKind.Cube, BlueCol, z, L);          // 아래 머릿돌
+                    for (int y = 1; y <= 5; y++)
+                    {
+                        U11(root, x0, y, 1, BlockKind.Cube, BlueCol, z, L);
+                        U11(root, x0 + 2, y, 1, BlockKind.Cube, BlueCol, z, L);
+                    }
+                    U11(root, x0 + 1, 1, 3, BlockKind.Candy, PinkCol, z, L);      // 가운데 열: 사탕 3칸 + 큐브 2
+                    U11(root, x0 + 1, 4, 1, BlockKind.Cube, BlueCol, z, L);
+                    U11(root, x0 + 1, 5, 1, BlockKind.Cube, BlueCol, z, L);
+                    B11(root, x0, 6, 3, BlockKind.Cube, BlueCol, z, L);          // 위 머릿돌
+                }
+                // 가운데: 빨강 부재 → 사탕 3칸 두 개(x5) + 양옆 큐브 6칸
+                B11(root, 4, 0, 3, BlockKind.Cube, RedCol, z, L);
+                U11(root, 5, 1, 3, BlockKind.Candy, PinkCol, z, L);
+                U11(root, 5, 4, 3, BlockKind.Candy, PinkCol, z, L);
+                for (int y = 1; y <= 6; y++) { U11(root, 4, y, 1, BlockKind.Cube, RedCol, z, L); U11(root, 6, y, 1, BlockKind.Cube, RedCol, z, L); }
+                // 지붕: 빨강 3칸 부재 세 줄 (벽돌처럼 어긋남)
+                foreach (int x0 in new[] { 1, 4, 7 }) B11(root, x0, 7, 3, BlockKind.Cube, RedCol, z, L);
+                U11(root, 1, 8, 1, BlockKind.Cube, RedCol, z, L); B11(root, 2, 8, 3, BlockKind.Cube, RedCol, z, L);
+                U11(root, 5, 8, 1, BlockKind.Cube, RedCol, z, L); B11(root, 6, 8, 3, BlockKind.Cube, RedCol, z, L); U11(root, 9, 8, 1, BlockKind.Cube, RedCol, z, L);
+                foreach (int x0 in new[] { 1, 4, 7 }) B11(root, x0, 9, 3, BlockKind.Cube, RedCol, z, L);
+                // 탑 모서리 금색 원통
+                U11(root, 0, 7, 1, BlockKind.Cylinder, GoldCol, z, L);
+                U11(root, 10, 7, 1, BlockKind.Cylinder, GoldCol, z, L);
+            }
+        }
+
+        /// <summary>
+        /// 기둥 격자 (레퍼런스, 물 위): 받침대 3개 위에 파랑 3칸 부재와 대리석 기둥(2칸)을 번갈아 쌓고, 위쪽은 받침대 사이 틈을
+        /// 3칸 부재가 양끝 걸쳐 잇는다. 꼭대기 큐브. 기둥 하나만 빼도 위층이 기운다.
+        /// </summary>
+        static void BuildColumnLattice(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            int depth = Mathf.Min(2, Depth(info));
+            ThreePlates(root, p, depth);
+            var L = info.blocks;
+            for (int d = 0; d < depth; d++)
+            {
+                float z = (d - (depth - 1) * 0.5f) * DS;
+                foreach (int x0 in new[] { 0, 4, 8 })
+                {
+                    B11(root, x0, 0, 3, BlockKind.Cube, BlueCol, z, L);
+                    U11(root, x0, 1, 2, BlockKind.Stone, MarbleCol, z, L);
+                    U11(root, x0 + 2, 1, 2, BlockKind.Stone, MarbleCol, z, L);
+                    B11(root, x0, 3, 3, BlockKind.Cube, BlueCol, z, L);
+                    U11(root, x0, 4, 2, BlockKind.Stone, MarbleCol, z, L);
+                    U11(root, x0 + 2, 4, 2, BlockKind.Stone, MarbleCol, z, L);
+                    B11(root, x0, 6, 3, BlockKind.Cube, BlueCol, z, L);
+                }
+                // 틈을 잇는 줄: 큐브 + 3칸 부재(양끝이 이웃 부재 위) + 가운데 큐브
+                U11(root, 0, 7, 1, BlockKind.Cube, BlueCol, z, L);
+                B11(root, 2, 7, 3, BlockKind.Cube, BlueCol, z, L);
+                U11(root, 5, 7, 1, BlockKind.Cube, BlueCol, z, L);
+                B11(root, 6, 7, 3, BlockKind.Cube, BlueCol, z, L);
+                U11(root, 10, 7, 1, BlockKind.Cube, BlueCol, z, L);
+                foreach (int x0 in new[] { 0, 4, 8 }) B11(root, x0, 8, 3, BlockKind.Cube, BlueCol, z, L);
+                for (int x = 4; x <= 6; x++) U11(root, x, 9, 1, BlockKind.Cube, BlueCol, z, L);
+                U11(root, 1, 9, 1, BlockKind.Cube, BlueCol, z, L);
+                U11(root, 9, 9, 1, BlockKind.Cube, BlueCol, z, L);
+            }
         }
 
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------
