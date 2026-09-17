@@ -1596,14 +1596,18 @@ namespace SmashGame
         static void BuildCylinderPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             int N = Balance.Grow(info.level, 8, 20, 12);     // 바닥 줄 원통 수 = 줄 수
+            const float CH = 0.40f;                           // 원통 높이: 레퍼런스는 지름(0.45)보다 살짝 납작(높이/지름 ≈ 0.9)
             float r = 1.0f, cz = -0.44f;                      // 앞 호 반지름 · 호 중심(카메라 쪽)
             Pedestal(root, Vector3.zero, 1.45f, p, false, 1, 0f, 2.9f);
             keepPlateShape = true;
             Color dark = new Color(0.2f, 0.32f, 0.72f);
+            System.Action<Vector3, Color> can = (pos, c) =>
+                MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Cylinder, pos + Vector3.up * CH * 0.5f, new Vector3(DU - 0.01f, CH * 0.5f, DU - 0.01f),
+                    Quaternion.identity, c, MassFor(BlockKind.Cylinder) * UnitMass(DU) * CH / DU, info.blocks);
             for (int j = 0; j < N; j++)
             {
                 int n = N - j;
-                float y = PedestalTop + j * DU;
+                float y = PedestalTop + j * CH;
                 // 앞 호: 줄 가장자리부터 하늘색 · 보라 · 진파랑
                 float dTh = DS / r;
                 for (int i = 0; i < n; i++)
@@ -1612,7 +1616,7 @@ namespace SmashGame
                     int d = Mathf.Min(i, n - 1 - i);
                     Color c = d == 0 ? IceCol : d == 1 ? PurpleCol : dark;
                     float th = a * dTh;
-                    MakeUnit(root, BlockKind.Cylinder, new Vector3(r * Mathf.Sin(th), y, cz + r * Mathf.Cos(th)), 1, c, info.blocks, DU);
+                    can(new Vector3(r * Mathf.Sin(th), y, cz + r * Mathf.Cos(th)), c);
                 }
                 // 뒷 호(한 칸 큰 반지름): 안쪽 칸 뒤를 채우는 진파랑
                 int n2 = n - 2;
@@ -1621,7 +1625,7 @@ namespace SmashGame
                 for (int i = 0; i < n2; i++)
                 {
                     float a = i - (n2 - 1) * 0.5f, th = a * dTh2;
-                    MakeUnit(root, BlockKind.Cylinder, new Vector3(r2 * Mathf.Sin(th), y, cz + r2 * Mathf.Cos(th)), 1, dark, info.blocks, DU);
+                    can(new Vector3(r2 * Mathf.Sin(th), y, cz + r2 * Mathf.Cos(th)), dark);
                 }
             }
         }
