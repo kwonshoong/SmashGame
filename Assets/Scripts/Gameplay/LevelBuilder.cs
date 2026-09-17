@@ -493,7 +493,18 @@ namespace SmashGame
                 case 18: BuildRoundCylinderTower(root, rng, p, info); break;
                 case 19: BuildFrame8(root, rng, p, info); break;
                 case 20: BuildDiamondTower(root, rng, p, info); break;
-                default: BuildCrateWallWithSide(root, rng, p, info); break;
+                case 21: BuildCrateWallWithSide(root, rng, p, info); break;
+                case 22: BuildWindowWall(root, rng, p, info); break;
+                case 23: BuildArchGate(root, rng, p, info); break;
+                case 24: BuildMushroom(root, rng, p, info); break;
+                case 25: BuildEaveWall(root, rng, p, info); break;
+                case 26: BuildStepCastle(root, rng, p, info); break;
+                case 27: BuildTwinCastle(root, rng, p, info); break;
+                case 28: BuildColumnHall(root, rng, p, info); break;
+                case 29: BuildWindowTower(root, rng, p, info); break;
+                case 30: BuildDoubleArch(root, rng, p, info); break;
+                case 31: BuildPatternWall(root, rng, p, info); break;
+                default: BuildHWall(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
             FitPlatesToBlocks(info.blocks);
@@ -582,7 +593,8 @@ namespace SmashGame
                 0 => "원통 다발", 1 => "큐브 격자", 2 => "원통 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",
                 6 => "피라미드", 7 => "요새", 8 => "성문", 9 => "쌍둥이 탑", 10 => "계단", 11 => "돌기둥 원진",
                 12 => "얼음 성문", 13 => "통나무 벽", 14 => "얼음 격자 탑",
-                15 => "쌍둥이 원통 탑", 16 => "가운데 높은 피라미드", 17 => "신전", 18 => "둥근 원통 탑", 19 => "세 탑", 20 => "마름모 무늬 벽", _ => "상자 벽과 곁탑"
+                15 => "쌍둥이 원통 탑", 16 => "가운데 높은 피라미드", 17 => "신전", 18 => "둥근 원통 탑", 19 => "세 탑", 20 => "마름모 무늬 벽", 21 => "상자 벽과 곁탑",
+                22 => "창문 벽", 23 => "아치 문", 24 => "버섯 탑", 25 => "처마 벽", 26 => "계단 성", 27 => "쌍탑 성", 28 => "기둥 홀", 29 => "창문 탑", 30 => "이중 아치", 31 => "무늬 벽", _ => "H자 벽"
             };
             return info;
         }
@@ -999,6 +1011,246 @@ namespace SmashGame
             Pedestal(root, new Vector3(1.65f, 0, 0), 0.7f, p);
             Grid(root, rng, 1.65f, 0f, 3, 2, 4, 0.5f, (i, d, j, cells) => (BlockKind.Candy, p.c), info.blocks);
         }
+
+        // ---------------- 실루엣 × 무늬 × 소재 생성기 (레퍼런스처럼 "매 판 다른 모양") ----------------
+        // 마스크 문자: '.' 빈칸 / 소문자 = 규격 블록 열(a 벽, b 기둥, c 지붕·성가퀴, d 바닥 줄) / 대문자 = 눕힌 부재(같은 대문자가 가로로 이어진 칸이 한 개의 1×1×n 블록, n≤3).
+        // 눕힌 부재는 창문·문 위 상인방과 처마(1칸 돌출)에 쓴다. 규칙: 모든 블록은 단면 1칸, 길이 1~3칸 — 세우든 눕히든 같은 블록.
+        // 행은 위→아래 순서. 상판은 발자국보다 살짝 좁게(양끝 블록이 0.18 걸침) 두어 끝을 치면 통째로 기운다.
+
+        /// <summary>구조물에 쓸 색 2벌·소재 세트를 레벨 시드로 고른다</summary>
+        struct MaterialSet
+        {
+            public BlockKind wall; public Color wall1, wall2;     // 벽 소재와 무늬 색 2가지
+            public BlockKind pillar; public Color pillarCol;      // 기둥
+            public BlockKind roof; public Color roofCol;          // 지붕·성가퀴
+            public BlockKind bar; public Color barCol;            // 눕힌 부재
+            public int pattern;                                   // 무늬: 0 체크 1 가로 띠 2 세로 줄 3 액자 4 십자 5 마름모 6 단색
+        }
+        static readonly Color[] PatternCols = { PurpleCol, BlueCol, PinkCol, GoldCol, RedCol, GreenCol };
+
+        static MaterialSet PickMaterials(System.Random rng, Palette p, LevelInfo info)
+        {
+            var m = new MaterialSet();
+            int c1 = rng.Next(PatternCols.Length), c2 = (c1 + 1 + rng.Next(PatternCols.Length - 1)) % PatternCols.Length;
+            m.wall1 = PatternCols[c1]; m.wall2 = PatternCols[c2];
+            int w = rng.Next(10);
+            m.wall = w < 6 ? BlockKind.Cube : w < 8 ? BlockKind.Ice : BlockKind.Crate;
+            if (m.wall == BlockKind.Ice) { m.wall1 = IceCol; m.wall2 = PatternCols[c2]; }
+            if (m.wall == BlockKind.Crate) { m.wall1 = CrateCol; m.wall2 = PatternCols[c1]; }
+            int pk = rng.Next(4);
+            m.pillar = pk == 0 ? BlockKind.Log : pk == 1 ? BlockKind.Stone : pk == 2 ? BlockKind.Cylinder : BlockKind.Cube;
+            m.pillarCol = m.pillar == BlockKind.Log ? WoodCol : m.pillar == BlockKind.Stone ? MarbleCol : m.wall2;
+            int rk = rng.Next(3);
+            m.roof = rk == 0 ? BlockKind.Candy : rk == 1 ? BlockKind.Cylinder : BlockKind.Cube;
+            m.roofCol = m.roof == BlockKind.Candy ? p.c : m.wall2;
+            // 눕힌 부재 위에는 항상 블록이 얹히므로 둥근 통나무는 쓰지 않는다 (얹힌 블록이 기운다 — 실측 4~9°)
+            int bk = rng.Next(3);
+            m.bar = bk == 0 ? BlockKind.Plank : BlockKind.Cube;
+            m.barCol = m.bar == BlockKind.Plank ? WoodCol : (m.wall == BlockKind.Cube ? GoldCol : m.wall2);
+            m.pattern = rng.Next(7);
+            return m;
+        }
+
+        /// <summary>벽 칸(x, y)의 무늬 색. W·H는 마스크 크기.</summary>
+        static Color WallColor(MaterialSet m, int x, int y, int W, int H)
+        {
+            bool alt;
+            switch (m.pattern)
+            {
+                case 0: alt = (x + y) % 2 == 1; break;
+                case 1: alt = (y / 2) % 2 == 1; break;
+                case 2: alt = (x / 2) % 2 == 1; break;
+                case 3: alt = x == 0 || y == 0 || x == W - 1 || y == H - 1 || (x >= 2 && x <= W - 3 && y >= 2 && y <= H - 3 && (x + y) % 2 == 0); break;
+                case 4: alt = x == W / 2 || x == (W - 1) / 2 || y == H / 2 || y == (H - 1) / 2; break;
+                case 5: alt = Mathf.Abs(x - (W - 1) * 0.5f) + Mathf.Abs(y - (H - 1) * 0.5f) <= Mathf.Min(W, H) * 0.5f - 0.5f; break;
+                default: alt = false; break;
+            }
+            return alt ? m.wall2 : m.wall1;
+        }
+
+        static (BlockKind, Color) MaskMaterial(char z, int x, int y, int W, int H, MaterialSet m, LevelInfo info)
+        {
+            switch (z)
+            {
+                case 'a': return (m.wall, WallColor(m, x, y, W, H));
+                case 'b': return (m.pillar, m.pillarCol);
+                case 'c': return (m.roof, m.roofCol);
+                case 'd': return Base(info);
+                default: return (BlockKind.Cube, m.wall1);
+            }
+        }
+
+        /// <summary>마스크대로 구조물을 짓는다. 상판은 발자국(가장 넓은 행)보다 0.18 좁게.</summary>
+        static void BuildMask(Transform root, System.Random rng, Palette p, LevelInfo info, string[] mask, int depth, float tallChance = 0.4f)
+        {
+            int H = mask.Length, W = 0;
+            foreach (var r in mask) W = Mathf.Max(W, r.Length);
+            char Cell(int x, int y) { string r = mask[H - 1 - y]; return x < r.Length ? r[x] : '.'; }   // y: 0 = 바닥
+            int minX = W, maxX = -1;
+            for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) if (Cell(x, y) != '.') { minX = Mathf.Min(minX, x); maxX = Mathf.Max(maxX, x); }
+            float ox = -(W - 1) * 0.5f * DS;   // x 칸 → 월드
+            float extent = Mathf.Max(Mathf.Abs(ox + minX * DS), Mathf.Abs(ox + maxX * DS)) + DU * 0.5f;
+            var m = PickMaterials(rng, p, info);
+            Pedestal(root, Vector3.zero, Mathf.Max(0.6f, extent - 0.18f), p, true, Balance.PedestalLegs(info.level), 0f, depth * DS + 0.5f);
+
+            for (int d = 0; d < depth; d++)
+            {
+                float z = (d - (depth - 1) * 0.5f) * DS;
+                // 세로 열: 같은 소문자가 이어진 구간마다 1~3칸 블록으로 채운다
+                for (int x = 0; x < W; x++)
+                {
+                    int y = 0;
+                    while (y < H)
+                    {
+                        char c = Cell(x, y);
+                        if (!char.IsLower(c)) { y++; continue; }
+                        int y0 = y; while (y < H && Cell(x, y) == c) y++;
+                        int len = y - y0, xx = x, yy = y0; char zc = c;
+                        FillColumn(root, rng, new Vector3(ox + x * DS, PedestalTop + y0 * DU, z), len, c == 'a' ? tallChance : 0.6f,
+                            (j, cells) => MaskMaterial(zc, xx, yy + j, W, H, m, info), info.blocks, DU);
+                    }
+                }
+                // 눕힌 부재: 같은 대문자가 가로로 이어진 구간을 길이 3 이하로 잘라 만든다
+                for (int y = 0; y < H; y++)
+                {
+                    int x = 0;
+                    while (x < W)
+                    {
+                        char c = Cell(x, y);
+                        if (!char.IsUpper(c)) { x++; continue; }
+                        int x0 = x; while (x < W && Cell(x, y) == c) x++;
+                        int run = x - x0, at = x0;
+                        while (run > 0)
+                        {
+                            int n = run >= 3 ? 3 : run; if (run == 4) n = 2;
+                            MakeBar(root, new Vector3(ox + (at + (n - 1) * 0.5f) * DS, PedestalTop + y * DU, z), n, m.bar, m.barCol, info.blocks);
+                            at += n; run -= n;
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>x 방향으로 눕힌 1×1×n 블록. basePos는 바닥 중심. 통나무면 진짜 원통(구름 저항).</summary>
+        static Block MakeBar(Transform root, Vector3 basePos, int n, BlockKind kind, Color color, List<Block> list)
+        {
+            float len = n * DS - 0.01f;
+            float mass = MassFor(kind) * n * UnitMass(DU);
+            if (kind == BlockKind.Log)
+            {
+                var log = MakeBlock(root, PrimitiveType.Cylinder, kind, basePos + Vector3.up * DU * 0.5f, new Vector3(DU - 0.01f, len * 0.5f, DU - 0.01f), Quaternion.Euler(0, 0, 90), color, mass, list);
+                log.SetRollingLog();
+                return log;
+            }
+            return MakeBlock(root, PrimitiveType.Cube, kind, basePos + Vector3.up * DU * 0.5f, new Vector3(len, DU - 0.01f, DU - 0.01f), Quaternion.identity, color, mass, list);
+        }
+
+        // ---- 템플릿 (행: 위→아래) ----
+        static readonly string[] MaskWindowWall = {
+            "aaaaaaaaa",
+            "aaaaaaaaa",
+            "aAAAaBBBa",
+            "aa.aaa.aa",
+            "aa.aaa.aa",
+            "aaaaaaaaa",
+            "ddddddddd" };
+        static readonly string[] MaskArchGate = {
+            "c.c.c.c",
+            "aaaaaaa",
+            "aaAAAaa",
+            "bbb.bbb",
+            "bbb.bbb",
+            "bbb.bbb",
+            "ddddddd" };
+        static readonly string[] MaskMushroom = {
+            "cccccc",
+            "aaaaaa",
+            "aaaaaa",
+            "AAABBB",
+            ".bbbb.",
+            ".bbbb.",
+            ".bbbb.",
+            ".dddd." };
+        static readonly string[] MaskEaveWall = {
+            "AAAcccBBB",
+            ".aaaaaaa.",
+            ".aaaaaaa.",
+            ".aaaaaaa.",
+            ".aaaaaaa.",
+            ".aaaaaaa.",
+            ".ddddddd." };
+        static readonly string[] MaskStepCastle = {
+            "...ccc...",
+            "..aaaaa..",
+            "..aaaaa..",
+            ".aaaaaaa.",
+            ".aaaaaaa.",
+            "aaaaaaaaa",
+            "aaaaaaaaa",
+            "ddddddddd" };
+        static readonly string[] MaskTwinCastle = {
+            "c.c...c.c",
+            "bbb...bbb",
+            "bbb...bbb",
+            "bbbAAAbbb",
+            "aaaaaaaaa",
+            "aaaaaaaaa",
+            "aaaaaaaaa",
+            "ddddddddd" };
+        static readonly string[] MaskColumnHall = {
+            "aaaaaaaa",
+            "aaaaaaaa",
+            "aAAABBBa",
+            "bb.bb.bb",
+            "bb.bb.bb",
+            "bb.bb.bb",
+            "dddddddd" };
+        static readonly string[] MaskWindowTower = {
+            "cccc",
+            "aaaa",
+            "AAAa",
+            "a.aa",
+            "aaaa",
+            "AAAa",
+            "a.aa",
+            "aaaa",
+            "dddd" };
+        static readonly string[] MaskDoubleArch = {
+            "c.c.c.c.c",
+            "aaaaaaaaa",
+            "aAAAaBBBa",
+            "bb.bbb.bb",
+            "bb.bbb.bb",
+            "bb.bbb.bb",
+            "ddddddddd" };
+        static readonly string[] MaskPatternWall = {
+            "aaaaaaaa",
+            "aaaaaaaa",
+            "aaaaaaaa",
+            "aaaaaaaa",
+            "aaaaaaaa",
+            "aaaaaaaa",
+            "aaaaaaaa",
+            "dddddddd" };
+        static readonly string[] MaskHWall = {
+            "bbbb.bbbb",
+            "bbbb.bbbb",
+            "aaaAAAaaa",
+            "aaaa.aaaa",
+            "aaaa.aaaa",
+            "dddd.dddd" };
+
+        static void BuildWindowWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskWindowWall, Mathf.Min(2, Depth(info)));
+        static void BuildArchGate(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskArchGate, Depth(info));
+        static void BuildMushroom(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskMushroom, Depth(info));
+        static void BuildEaveWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskEaveWall, Mathf.Min(2, Depth(info)));
+        static void BuildStepCastle(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskStepCastle, Mathf.Min(2, Depth(info)));
+        static void BuildTwinCastle(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskTwinCastle, Mathf.Min(2, Depth(info)));
+        static void BuildColumnHall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskColumnHall, Depth(info));
+        static void BuildWindowTower(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskWindowTower, Depth(info));
+        static void BuildDoubleArch(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskDoubleArch, Depth(info));
+        static void BuildPatternWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskPatternWall, Mathf.Min(2, Depth(info)));
+        static void BuildHWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskHWall, Mathf.Min(2, Depth(info)));
 
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------
 
