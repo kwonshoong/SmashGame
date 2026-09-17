@@ -527,6 +527,7 @@ namespace SmashGame
                 case 43: BuildCastle3D(root, rng, p, info); break;
                 case 44: BuildCylinderPyramid(root, rng, p, info); break;
                 case 45: BuildTripleGate(root, rng, p, info); break;
+                case 47: BuildTerraceGate(root, rng, p, info); break;
                 default: BuildColumnLattice(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -620,7 +621,7 @@ namespace SmashGame
                 22 => "창문 벽", 23 => "아치 문", 24 => "버섯 탑", 25 => "처마 벽", 26 => "계단 성", 27 => "쌍탑 성", 28 => "기둥 홀", 29 => "창문 탑", 30 => "이중 아치", 31 => "무늬 벽", 32 => "H자 벽",
                 33 => "벽돌 벽", 34 => "벽돌 탑", 35 => "벽돌 피라미드", 36 => "쌍둥이 벽돌 탑", 37 => "지그재그 벽", 38 => "대각 젠가 탑",
                 39 => "다리", 40 => "부메랑 벽", 41 => "둥근 성", 42 => "나선 계단", 43 => "입체 성",
-                44 => "원통 피라미드", 45 => "삼중 성문", _ => "기둥 격자"
+                44 => "원통 피라미드", 45 => "삼중 성문", 47 => "계단식 성문", _ => "기둥 격자"
             };
             return info;
         }
@@ -1694,6 +1695,46 @@ namespace SmashGame
             U11(root, 6, 9, 1, BlockKind.Cube, BlueCol, 0f, L);
             B11(root, 2, 10, 3, BlockKind.Cube, BlueCol, 0f, L);   // 틈을 잇는 부재 (바깥 부재 y9 위 · 가운데 큐브 위)
             B11(root, 6, 10, 3, BlockKind.Cube, BlueCol, 0f, L);
+        }
+
+        /// <summary>
+        /// 계단식 성문 (레퍼런스): 넓은 상판(다리 셋) 위 쌍둥이 탑. 각 탑은 앞·가운데·뒤 세 겹이 한 칸씩 안쪽·뒤쪽으로 물러나며 한 단씩
+        /// 낮아지는 계단식이다. 겹마다 [진파랑 돌기둥 · 주황 통 더미 · 분홍 사탕 기둥] 위에 파랑 3칸 부재를 얹는다(앞 5단·가운데 4단·뒤 3단).
+        /// 가운데 뒤에는 왕관 큐브를 얹은 돌기둥 하나. 눈높이보다 위의 부재가 뒤로 갈수록 낮아져 계단이 뚜렷이 보인다.
+        /// </summary>
+        static void BuildTerraceGate(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Pedestal(root, Vector3.zero, 4.5f * DS + 0.1f, p, true, 3, 0f, 3 * DS + 0.6f);   // 9칸(격자 1~9) 폭
+            var L = info.blocks;
+            Color slate = new Color(0.27f, 0.36f, 0.62f), orange = new Color(1f, 0.55f, 0.12f);
+            // 세로 기둥: 3칸 단위로 쌓아 h칸
+            System.Action<int, int, int, BlockKind, Color, float> col = (x, y0, h, kind, c, z) =>
+            { int y = y0; while (y < y0 + h) { int n = Mathf.Min(3, y0 + h - y); U11(root, x, y, n, kind, c, z, L); y += n; } };
+            foreach (bool right in new[] { false, true })
+            {
+                System.Func<int, int> X = x => right ? 10 - x : x;
+                // 앞겹 (z -DS, 6단): 왕관 큐브+돌기둥 · 주황 통 6 · 사탕 6, 위에 3칸 부재
+                float z = -DS;
+                U11(root, X(1), 0, 1, BlockKind.Cube, BlueCol, z, L); col(X(1), 1, 5, BlockKind.Cube, slate, z);
+                for (int k = 0; k < 6; k++) U11(root, X(2), k, 1, BlockKind.Cylinder, orange, z, L);
+                col(X(3), 0, 6, BlockKind.Candy, PinkCol, z);
+                B11(root, right ? 7 : 1, 6, 3, BlockKind.Cube, BlueCol, z, L);
+                // 가운데 겹 (z 0, 5단): 주황 통 5 · 돌기둥 5 · 사탕 5, 3칸 부재
+                z = 0f;
+                for (int k = 0; k < 5; k++) U11(root, X(2), k, 1, BlockKind.Cylinder, orange, z, L);
+                col(X(3), 0, 5, BlockKind.Cube, slate, z);
+                col(X(4), 0, 5, BlockKind.Candy, PinkCol, z);
+                B11(root, right ? 6 : 2, 5, 3, BlockKind.Cube, BlueCol, z, L);
+                // 뒷겹 (z +DS, 4단): 주황 통 4 · 사탕 4, 2칸 부재
+                z = DS;
+                for (int k = 0; k < 4; k++) U11(root, X(3), k, 1, BlockKind.Cylinder, orange, z, L);
+                col(X(4), 0, 4, BlockKind.Candy, PinkCol, z);
+                B11(root, right ? 6 : 3, 4, 2, BlockKind.Cube, BlueCol, z, L);
+            }
+            // 가운데 뒤: 왕관 큐브 · 돌기둥 5 · 왕관 큐브 (꼭대기 = 앞 부재 윗면 높이 7)
+            U11(root, 5, 0, 1, BlockKind.Cube, BlueCol, DS, L);
+            col(5, 1, 5, BlockKind.Cube, slate, DS);
+            U11(root, 5, 6, 1, BlockKind.Cube, BlueCol, DS, L);
         }
 
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------
