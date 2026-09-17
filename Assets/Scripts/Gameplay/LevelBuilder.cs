@@ -108,7 +108,7 @@ namespace SmashGame
         /// 받침대 하나. legs: 상판을 받치는 기둥 수(1·3·5, 레퍼런스 202·243·252처럼 넓은 판 아래 다리 여러 개).
         /// raise: 상판을 기본 높이보다 올림(가운데가 높은 3단 배치 등). 블록은 PedestalTop + raise 위에 놓아야 한다.
         /// </summary>
-        static void Pedestal(Transform parent, Vector3 center, float radius, Palette p, bool square = false, int legs = 1, float raise = 0f, float depth = 0f)
+        static void Pedestal(Transform parent, Vector3 center, float radius, Palette p, bool square = false, int legs = 1, float raise = 0f, float depth = 0f, float yaw = 0f)
         {
             // 상판 앞뒤 깊이: 지정이 없으면 반지름 비례. 구조물 발자국보다 크게 두면 쓰러진 블록이 상판에 쌓여 떨어지지 않는다
             float dz = depth > 0f ? depth : radius * (square ? PedestalDepthSquare : PedestalDepthRound);
@@ -155,6 +155,8 @@ namespace SmashGame
 
             pedestalCenters.Add(center);
             foreach (var ox in offs) PedestalColumn(root, new Vector3(center.x + ox, 0f, center.z), plateY - 0.08f, p);
+            // 상판을 y축으로 돌린다 (자식은 상판 중심을 축으로 함께 돈다). 돌린 상판은 FitPlatesToBlocks의 축 정렬 계산이 맞지 않으니 keepPlateShape와 함께 쓴다
+            if (Mathf.Abs(yaw) > 0.01f) group.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         }
 
         /// <summary>
@@ -1698,43 +1700,53 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 계단식 성문 (레퍼런스): 넓은 상판(다리 셋) 위 쌍둥이 탑. 각 탑은 앞·가운데·뒤 세 겹이 한 칸씩 안쪽·뒤쪽으로 물러나며 한 단씩
-        /// 낮아지는 계단식이다. 겹마다 [진파랑 돌기둥 · 주황 통 더미 · 분홍 사탕 기둥] 위에 파랑 3칸 부재를 얹는다(앞 5단·가운데 4단·뒤 3단).
-        /// 가운데 뒤에는 왕관 큐브를 얹은 돌기둥 하나. 눈높이보다 위의 부재가 뒤로 갈수록 낮아져 계단이 뚜렷이 보인다.
+        /// 계단식 성문 (레퍼런스): 받침대 셋 — 왼쪽·오른쪽 상판은 서로 반대로 45° 꺾여 V자(앞이 벌어짐)를 이루고, 가운데 상판은 정면을 보며 뒤에 있다.
+        /// 각 옆 상판 위에는 상판 방향(대각선)을 따라 한 줄 벽이 선다: 바깥 앞쪽 끝부터 [왕관 큐브+돌기둥 · 주황 통 6 · 사탕 6] 위 부재,
+        /// [주황 통 5 · 돌기둥 5 · 사탕 5] 위 부재. 가운데 상판에는 [사탕 · 왕관 큐브+돌기둥 · 사탕] 4단 위 부재와 왕관 큐브.
+        /// 정면에서는 대각선 벽이 뒤로 물러나며 부재가 한 단씩 낮아지는 계단으로 보인다.
         /// </summary>
         static void BuildTerraceGate(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            Pedestal(root, Vector3.zero, 4.5f * DS + 0.1f, p, true, 3, 0f, 3 * DS + 0.6f);   // 9칸(격자 1~9) 폭
             var L = info.blocks;
+            keepPlateShape = true;
             Color slate = new Color(0.27f, 0.36f, 0.62f), orange = new Color(1f, 0.55f, 0.12f);
-            // 세로 기둥: 3칸 단위로 쌓아 h칸
-            System.Action<int, int, int, BlockKind, Color, float> col = (x, y0, h, kind, c, z) =>
-            { int y = y0; while (y < y0 + h) { int n = Mathf.Min(3, y0 + h - y); U11(root, x, y, n, kind, c, z, L); y += n; } };
-            foreach (bool right in new[] { false, true })
+            // 회전한 블록 생성기 (yaw: y축 회전각)
+            System.Func<Vector3, int, BlockKind, Color, float, Block> unitR = (pos, cells, kind, c, yaw) =>
             {
-                System.Func<int, int> X = x => right ? 10 - x : x;
-                // 앞겹 (z -DS, 6단): 왕관 큐브+돌기둥 · 주황 통 6 · 사탕 6, 위에 3칸 부재
-                float z = -DS;
-                U11(root, X(1), 0, 1, BlockKind.Cube, BlueCol, z, L); col(X(1), 1, 5, BlockKind.Cube, slate, z);
-                for (int k = 0; k < 6; k++) U11(root, X(2), k, 1, BlockKind.Cylinder, orange, z, L);
-                col(X(3), 0, 6, BlockKind.Candy, PinkCol, z);
-                B11(root, right ? 7 : 1, 6, 3, BlockKind.Cube, BlueCol, z, L);
-                // 가운데 겹 (z 0, 5단): 주황 통 5 · 돌기둥 5 · 사탕 5, 3칸 부재
-                z = 0f;
-                for (int k = 0; k < 5; k++) U11(root, X(2), k, 1, BlockKind.Cylinder, orange, z, L);
-                col(X(3), 0, 5, BlockKind.Cube, slate, z);
-                col(X(4), 0, 5, BlockKind.Candy, PinkCol, z);
-                B11(root, right ? 6 : 2, 5, 3, BlockKind.Cube, BlueCol, z, L);
-                // 뒷겹 (z +DS, 4단): 주황 통 4 · 사탕 4, 2칸 부재
-                z = DS;
-                for (int k = 0; k < 4; k++) U11(root, X(3), k, 1, BlockKind.Cylinder, orange, z, L);
-                col(X(4), 0, 4, BlockKind.Candy, PinkCol, z);
-                B11(root, right ? 6 : 3, 4, 2, BlockKind.Cube, BlueCol, z, L);
+                float h = DU * cells; bool cyl = IsCylinderKind(kind);
+                var sc = cyl ? new Vector3(DU - 0.01f, h * 0.5f, DU - 0.01f) : new Vector3(DU - 0.01f, h, DU - 0.01f);
+                return MakeBlock(root, cyl ? PrimitiveType.Cylinder : PrimitiveType.Cube, kind, pos + Vector3.up * h * 0.5f, sc, Quaternion.Euler(0f, yaw, 0f), c, MassFor(kind) * cells * UnitMass(DU), L, cells > 1);
+            };
+            System.Action<Vector3, int, BlockKind, Color, float> colR = (pos, h, kind, c, yaw) =>
+            { int y = 0; while (y < h) { int n = Mathf.Min(3, h - y); unitR(pos + Vector3.up * y * DU, n, kind, c, yaw); y += n; } };
+            System.Action<Vector3, int, float> barR = (pos, n, yaw) =>
+                MakeBlock(root, PrimitiveType.Cube, BlockKind.Cube, pos + Vector3.up * DU * 0.5f, new Vector3(n * DS - 0.01f, DU - 0.01f, DU - 0.01f), Quaternion.Euler(0f, yaw, 0f), BlueCol, MassFor(BlockKind.Cube) * n * UnitMass(DU), L);
+
+            // 옆 벽 둘: 바깥 앞쪽 끝 P0에서 안쪽 뒤로 45° 대각선을 따라 5열
+            foreach (int side in new[] { -1, 1 })
+            {
+                Vector3 dir = new Vector3(-side * 0.7071f, 0f, 0.7071f);       // 왼쪽(-1): (+x,+z) 방향, 오른쪽(+1): (-x,+z)
+                float yaw = side * 45f;                                          // x축을 dir에 맞추는 회전 (왼쪽 -45°, 오른쪽 +45°)
+                Vector3 P0 = new Vector3(side * 1.85f, PedestalTop, -1.0f);
+                System.Func<float, Vector3> at = k => P0 + dir * (k * DS);
+                Pedestal(root, at(2f) - Vector3.up * PedestalTop, 2f * DS + 0.3f, p, true, 1, 0f, 0.8f, yaw);
+                unitR(at(0), 1, BlockKind.Cube, BlueCol, yaw); colR(at(0) + Vector3.up * DU, 5, BlockKind.Cube, slate, yaw);
+                for (int k = 0; k < 6; k++) unitR(at(1) + Vector3.up * k * DU, 1, BlockKind.Cylinder, orange, yaw);
+                colR(at(2), 6, BlockKind.Candy, PinkCol, yaw);
+                barR(at(1) + Vector3.up * 6 * DU, 3, yaw);
+                for (int k = 0; k < 5; k++) unitR(at(3) + Vector3.up * k * DU, 1, BlockKind.Cylinder, orange, yaw);
+                colR(at(4), 5, BlockKind.Cube, slate, yaw);
+                barR(at(3.5f) + Vector3.up * 5 * DU, 2, yaw);
             }
-            // 가운데 뒤: 왕관 큐브 · 돌기둥 5 · 왕관 큐브 (꼭대기 = 앞 부재 윗면 높이 7)
-            U11(root, 5, 0, 1, BlockKind.Cube, BlueCol, DS, L);
-            col(5, 1, 5, BlockKind.Cube, slate, DS);
-            U11(root, 5, 6, 1, BlockKind.Cube, BlueCol, DS, L);
+            // 가운데 상판 (정면, 두 벽 끝 사이 뒤): 사탕 · 왕관 큐브+돌기둥 · 사탕 (4단) 위 부재, 그 위 왕관 큐브
+            float zc = 1.0f;
+            Pedestal(root, new Vector3(0f, 0f, zc), 1.5f * DS + 0.25f, p, true, 1, 0f, DS + 0.5f);
+            var C = new Vector3(0f, PedestalTop, zc);
+            colR(C + Vector3.left * DS, 4, BlockKind.Candy, PinkCol, 0f);
+            colR(C + Vector3.right * DS, 4, BlockKind.Candy, PinkCol, 0f);
+            unitR(C, 1, BlockKind.Cube, BlueCol, 0f); colR(C + Vector3.up * DU, 3, BlockKind.Cube, slate, 0f);
+            barR(C + Vector3.up * 4 * DU, 3, 0f);
+            unitR(C + Vector3.up * 5 * DU, 1, BlockKind.Cube, BlueCol, 0f);
         }
 
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------
