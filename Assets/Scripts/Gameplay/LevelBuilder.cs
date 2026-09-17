@@ -543,6 +543,12 @@ namespace SmashGame
             root.position = new Vector3(0f, 0f, zShift);
             Physics.SyncTransforms();
             info.fitScale = fixedFront ? 1f : FitToScreen(root, levelRoot, cam, info.blocks, zShift, p);
+            // 규칙 ④ 검사: 세로 10칸 초과 블록이 있으면 경고 (구조물 설계 오류)
+            {
+                float limit = PedestalTop + MaxStackCells * DU + 0.02f, top = 0f;
+                foreach (var bl in info.blocks) { var col = bl.GetComponent<Collider>(); if (col != null) top = Mathf.Max(top, col.bounds.max.y); }
+                if (top > limit) Debug.LogWarning($"[LevelBuilder] L{level} {type}: 블록 꼭대기 {top:F2} > 세로 한계 {limit:F2} (10칸)");
+            }
             ApplyPedestalMotion(level, type, info);
 
             // 강화 블록 — 레벨 61부터, 돌·상자·판자에만, 20% 이하
@@ -1706,9 +1712,12 @@ namespace SmashGame
         // ==================== 회전 받침대 구조물 (47~60) ====================
         // 규칙: ① 상판끼리 겹치지 않는다 ② 화면 맞춤 확대·축소 없이(fitScale 1) 맨 앞 블록의 앞면을 FrontZ에 맞춰 블록 크기가 항상 같다
         //       ③ 상판마다 앞뒤 두 겹으로 블록을 최대한 채운다. 앞쪽(FrontZ)에서 보이는 반폭은 약 1.8, 뒤로 갈수록 넓어진다.
+        //       ④ 세로는 상판 위 10칸까지(1×3 셋 + 1×1 하나). 더 높으면 화면 위로 벗어난다. Build 끝에서 검사해 경고한다.
 
         /// <summary>맨 앞 블록 앞면의 z. 이 값에 맞춰 구조물 전체를 앞뒤로 옮긴다 (fixedFront 구조물)</summary>
         public const float FrontZ = -0.75f;
+        /// <summary>규칙 ④ 세로 최대 10칸: 상판 위 블록 꼭대기가 상판 + 10칸(4.5)을 넘지 않는다 (1×3 블록 셋 위에 1×1 하나까지). 넘으면 화면 위로 벗어난다.</summary>
+        public const int MaxStackCells = 10;
         /// <summary>true면 화면 맞춤 배율을 1로 고정하고 맨 앞 블록을 FrontZ에 맞춘다</summary>
         static bool fixedFront;
 
