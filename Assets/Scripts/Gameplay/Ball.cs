@@ -14,7 +14,11 @@ namespace SmashGame
 
         Rigidbody rb;
         Vector3 lastVelocity;
-        bool consumed;
+        bool consumed;      // 땅·장애물에 닿음 → 이후 타격 없음 (블록 타격은 남은 속도만큼 여러 번 가능)
+        int blockHits;      // 블록을 때린 횟수
+        Block lastHitBlock; float lastHitTime;   // 같은 블록을 튕기면서 연달아 다시 맞히는 것은 한 번으로 친다
+        /// <summary>2차 타격(첫 블록에 튕긴 뒤 다른 블록을 맞힘)이 성립하는 최소 남은 속도 비율. 그 아래는 그냥 굴러가는 공</summary>
+        public const float SecondaryHitMinEnergy = 0.25f;
         float spawnTime;
 
         static readonly System.Collections.Generic.List<Ball> alive = new();
@@ -96,7 +100,7 @@ namespace SmashGame
 
         void FixedUpdate()
         {
-            if (rb != null && !consumed) lastVelocity = rb.linearVelocity;
+            if (rb != null && !consumed) lastVelocity = rb.linearVelocity;   // 블록에 튕긴 뒤에도 갱신: 2차 타격의 방향·세기에 쓴다
         }
 
         void Update()
@@ -145,10 +149,15 @@ namespace SmashGame
                 return;
             }
 
-            consumed = true;
+            // 첫 타격은 스탯 그대로, 튕긴 뒤 다른 블록을 맞히면 남은 속도 비율만큼(예: 60% 속도 → 60% 충격). 너무 느려지면 타격 없음
+            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / Speed);
+            if (blockHits > 0 && energy < SecondaryHitMinEnergy) return;
+            if (block == lastHitBlock && Time.time - lastHitTime < 0.2f) return;
+            lastHitBlock = block; lastHitTime = Time.time;
+            blockHits++;
             Vector3 dir = lastVelocity.sqrMagnitude > 0.01f ? lastVelocity.normalized : transform.forward;
             Vector3 point = c.GetContact(0).point;
-            float impulse = BaseImpulse * stats.power * Mathf.Sqrt(stats.mass);
+            float impulse = BaseImpulse * stats.power * Mathf.Sqrt(stats.mass) * energy;
             float radius = 0.4f * stats.size;   // 튐 반경: 크기 스탯 1에서는 직접 맞은 블록 위주, 이웃은 약하게 (이웃까지 같이 밀리면 한 덩어리처럼 보인다)
             int dmg = Mathf.Max(1, Mathf.CeilToInt(stats.power - 0.01f));
 
@@ -187,6 +196,7 @@ namespace SmashGame
             // 가벼운 블록(사탕)이면 밀고 나가고, 무거운 블록(돌·격파 탑)이면 되튕기고, 원통 옆면을 비스듬히 치면 법선 방향으로 꺾여 나간다.
             rb.linearVelocity = ReboundVelocity(lastVelocity, blockVel, normal, ReboundMassBase * stats.mass, blockMass);
             PlayLog.Hit(block, point, dir, impulse, combo, lastVelocity, rb.linearVelocity);
+            lastVelocity = rb.linearVelocity;
         }
     }
 }
