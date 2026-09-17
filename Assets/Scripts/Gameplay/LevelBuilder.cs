@@ -32,7 +32,7 @@ namespace SmashGame
     {
         public const float PedestalTop = 0.98f;   // 상판 윗면 높이
         /// <summary>땅 높이. 레퍼런스 실측: 상판에서 받침대 발까지 화면 높이의 약 15% ≈ 1.3 → 상판 아래 1.28</summary>
-        public const float GroundY = -0.3f;
+        public const float GroundY = -0.45f;
         /// <summary>받침대 상판의 앞뒤 깊이 = 반지름 × 이 값 (좌우 폭은 반지름 × 2). 얕을수록 공이 상판 앞을 덜 스친다.</summary>
         public const float PedestalDepthRound = 1.5f, PedestalDepthSquare = 1.0f;
 
@@ -132,29 +132,29 @@ namespace SmashGame
             var top = GameObject.CreatePrimitive(square ? PrimitiveType.Cube : PrimitiveType.Cylinder);
             top.name = "PedestalTop";
             top.transform.SetParent(root);
-            top.transform.position = new Vector3(center.x, plateY - 0.08f, center.z);
+            top.transform.position = new Vector3(center.x, plateY - 0.04f, center.z);
             // 앞뒤 깊이는 좌우 폭보다 얕게 (원형은 타원, 사각형은 가로로 긴 판). 구조물 깊이(원진 1.43, 통나무 1.0, 원통 다발 1.2)는 다 들어간다.
-            top.transform.localScale = square ? new Vector3(radius * 2f, 0.16f, dz) : new Vector3(radius * 2f, 0.08f, dz);
+            top.transform.localScale = square ? new Vector3(radius * 2f, 0.08f, dz) : new Vector3(radius * 2f, 0.04f, dz);   // 두께 0.08 (레퍼런스처럼 얇게)
             top.GetComponent<Renderer>().material = Materials.Get(p.pedestal, true);
             if (!square) FlattenCollider(top, false);   // 사각 상판은 기본 BoxCollider가 이미 평평하다 (움직이는 받침대에선 메시보다 접촉이 안정적)
             RoundedMesh.Apply(top, 0.03f);
             PedestalColliders.Add(top.GetComponent<Collider>());
 
             // 상판 아래 금색 테두리 + 진한 보라 밑판(두께감)
-            float ringY = plateY - 0.16f - 0.03f;
+            float ringY = plateY - 0.08f - 0.015f;
             if (square)
             {
-                Deco(PrimitiveType.Cube, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.06f, dz + 0.06f), gold, 0.02f);
-                Deco(PrimitiveType.Cube, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.12f, dz - 0.1f), purpleDark, 0.03f);
+                Deco(PrimitiveType.Cube, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.03f, dz + 0.06f), gold, 0.01f);
+                Deco(PrimitiveType.Cube, root, "PedestalUnder", new Vector3(center.x, ringY - 0.045f, center.z), new Vector3(radius * 2f - 0.1f, 0.06f, dz - 0.1f), purpleDark, 0.02f);
             }
             else
             {
-                Deco(PrimitiveType.Cylinder, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.03f, dz + 0.06f), gold, 0.02f);
-                Deco(PrimitiveType.Cylinder, root, "PedestalUnder", new Vector3(center.x, ringY - 0.09f, center.z), new Vector3(radius * 2f - 0.1f, 0.06f, dz - 0.1f), purpleDark, 0.03f);
+                Deco(PrimitiveType.Cylinder, root, "PedestalRim", new Vector3(center.x, ringY, center.z), new Vector3(radius * 2f + 0.06f, 0.015f, dz + 0.06f), gold, 0.01f);
+                Deco(PrimitiveType.Cylinder, root, "PedestalUnder", new Vector3(center.x, ringY - 0.045f, center.z), new Vector3(radius * 2f - 0.1f, 0.03f, dz - 0.1f), purpleDark, 0.02f);
             }
 
             pedestalCenters.Add(center);
-            foreach (var ox in offs) PedestalColumn(root, new Vector3(center.x + ox, 0f, center.z), plateY - 0.16f, p);
+            foreach (var ox in offs) PedestalColumn(root, new Vector3(center.x + ox, 0f, center.z), plateY - 0.08f, p);
         }
 
         /// <summary>
@@ -183,24 +183,24 @@ namespace SmashGame
             col.name = "PedestalColumn";
             col.transform.SetParent(root);
             col.transform.position = new Vector3(center.x, (colTop + colBottom) * 0.5f, center.z);
-            col.transform.localScale = new Vector3(0.42f, (colTop - colBottom) * 0.5f, 0.42f) * sizeMul;
+            col.transform.localScale = new Vector3(0.30f, (colTop - colBottom) * 0.5f, 0.30f) * sizeMul;   // 가는 기둥 (굵으면 짧아 보인다)
             col.GetComponent<Renderer>().material = Materials.Get(p.pedestal, true);
             RoundedMesh.Apply(col, 0.04f);
             PedestalColliders.Add(col.GetComponent<Collider>());
-            Deco(PrimitiveType.Cylinder, root, "ColumnCap", new Vector3(center.x, colTop - 0.22f, center.z), new Vector3(0.56f, 0.06f, 0.56f) * sizeMul, gold, 0.02f);
+            Deco(PrimitiveType.Cylinder, root, "ColumnCap", new Vector3(center.x, colTop - 0.16f, center.z), new Vector3(0.42f, 0.05f, 0.42f) * sizeMul, gold, 0.02f);
             // 아래 링·발은 받침대가 오르내려도 땅에 남아 있도록 묶음 바깥(부모)에 둔다
             var ground = root.parent != null ? root.parent : root;
-            Deco(PrimitiveType.Cylinder, ground, "ColumnBase", new Vector3(center.x, GroundY + 0.45f, center.z), new Vector3(0.56f, 0.06f, 0.56f) * sizeMul, gold, 0.02f);
+            Deco(PrimitiveType.Cylinder, ground, "ColumnBase", new Vector3(center.x, GroundY + 0.22f, center.z), new Vector3(0.42f, 0.05f, 0.42f) * sizeMul, gold, 0.02f);
             // 기둥 세로 홈 느낌의 얇은 금색 줄 4개
             for (int k = 0; k < 4; k++)
             {
                 float a = k * 90f * Mathf.Deg2Rad;
-                Deco(PrimitiveType.Cube, root, "ColumnStripe", new Vector3(center.x + Mathf.Cos(a) * 0.2f, (colTop + GroundY) * 0.5f - 0.1f, center.z + Mathf.Sin(a) * 0.2f),
-                    new Vector3(0.05f, (colTop - GroundY) - 0.7f, 0.05f) * sizeMul, gold, 0.01f);
+                Deco(PrimitiveType.Cube, root, "ColumnStripe", new Vector3(center.x + Mathf.Cos(a) * 0.14f, (colTop + GroundY) * 0.5f, center.z + Mathf.Sin(a) * 0.14f),
+                    new Vector3(0.04f, (colTop - GroundY) - 0.5f, 0.04f) * sizeMul, gold, 0.01f);
             }
             // 받침 발: 넓은 둥근 판 두 장 (지름 1.2/1.6 → 0.84/1.12, 30% 축소)
-            Deco(PrimitiveType.Cylinder, ground, "PedestalFoot", new Vector3(center.x, GroundY + 0.2f, center.z), new Vector3(0.84f, 0.12f, 0.84f) * sizeMul, Materials.Get(p.pedestal, true), 0.06f);
-            Deco(PrimitiveType.Cylinder, ground, "PedestalFoot2", new Vector3(center.x, GroundY + 0.05f, center.z), new Vector3(1.12f, 0.08f, 1.12f) * sizeMul, purpleDark, 0.05f);
+            Deco(PrimitiveType.Cylinder, ground, "PedestalFoot", new Vector3(center.x, GroundY + 0.1f, center.z), new Vector3(0.7f, 0.1f, 0.7f) * sizeMul, Materials.Get(p.pedestal, true), 0.05f);
+            Deco(PrimitiveType.Cylinder, ground, "PedestalFoot2", new Vector3(center.x, GroundY + 0.03f, center.z), new Vector3(0.95f, 0.06f, 0.95f) * sizeMul, purpleDark, 0.04f);
         }
 
         /// <summary>이번 빌드에서 만든 받침대 중심들 (화면 맞춤 축소 후 기둥을 다시 세울 때 사용)</summary>
@@ -304,7 +304,7 @@ namespace SmashGame
                 var g = pedestalGroups[gi];
                 var wc = g.transform.position;   // 축소 후 상판 중심(월드)
                 foreach (var ox in pedestalLegOffsets[gi])
-                    PedestalColumn(g.transform, new Vector3(wc.x + ox * s, 0f, wc.z), wc.y - 0.16f * s, p, 1f / s);
+                    PedestalColumn(g.transform, new Vector3(wc.x + ox * s, 0f, wc.z), wc.y - 0.08f * s, p, 1f / s);
             }
             Physics.SyncTransforms();
             return s;
