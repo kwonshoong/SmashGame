@@ -78,6 +78,7 @@ namespace SmashGame
             pedestalCenters.Clear();
             pedestalGroups.Clear();
             pedestalLegOffsets.Clear();
+            keepPlateShape = false;
             independentPedestals = false;
             cam.backgroundColor = p.sky;
             cam.transform.position = GameManager.CamDefaultPos;
@@ -206,6 +207,8 @@ namespace SmashGame
         static readonly List<List<float>> pedestalLegOffsets = new();
         /// <summary>이번 구조물의 받침대들이 서로 독립된 탑인가(승강 위상을 어긋나게 해도 되는가). 빌더가 설정</summary>
         static bool independentPedestals;
+        /// <summary>true면 상판을 블록 발자국에 맞춰 줄이지 않는다 (둥근 상판 위 호 배치처럼 발자국 사각형이 상판 모양과 다를 때)</summary>
+        static bool keepPlateShape;
 
         public const float PlateMargin = 0.22f;   // 상판이 블록 발자국보다 밖으로 나오는 여유
 
@@ -217,6 +220,7 @@ namespace SmashGame
         /// </summary>
         static void FitPlatesToBlocks(List<Block> blocks)
         {
+            if (keepPlateShape) return;
             for (int gi = 0; gi < pedestalGroups.Count; gi++)
             {
                 var g = pedestalGroups[gi].transform;
@@ -1585,24 +1589,29 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 원통 피라미드 (레퍼런스): 카메라 쪽으로 열린 U자(오목한) 계단식 관람석. 세 단(앞 하늘색 · 가운데 보라 · 뒤 진파랑)이
-        /// 뒤로 갈수록 한 칸씩 물러나고, 각 단 안에서도 가운데 열이 가장자리보다 반 칸씩 뒤에 있어 앞줄에는 양 끝 두 개만 남고
-        /// 가운데는 움푹 들어간다. 높이는 뒤 단·가운데 열일수록 높아 꼭대기(진파랑)가 가장 뒤에 선다.
+        /// 원통 피라미드 (레퍼런스): 둥근 받침대 위, 카메라 쪽에 중심을 둔 동심 호(弧) 세 줄. 앞 호(하늘색, 반지름 작음)는 각도가 넓어
+        /// 양 날개가 앞으로 말려 오고, 뒤 호(보라·진파랑)는 반지름이 커지며 각도가 좁아 가운데 뒤에 모인다. 높이는 뒤 호·가운데일수록 높다.
+        /// 정면에서 보면 가운데가 움푹 들어간 반원형 관람석이고 날개 끝 두 개가 가장 앞에 온다.
         /// </summary>
         static void BuildCylinderPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            int top = Balance.Grow(info.level, 8, 30, 12);   // 뒤 단 가운데 기둥 높이
-            float zc = 1.75f * DS;                           // 배치의 앞뒤 중심 (0 ~ 3.5칸)
-            Pedestal(root, Vector3.zero, 3 * DS + 0.35f, p, true, 1, 0f, 3.5f * DS + 0.7f);
+            int top = Balance.Grow(info.level, 8, 30, 12);   // 뒤 호 가운데 기둥 높이
+            Pedestal(root, Vector3.zero, 1.9f, p, false, 1, 0f, 3.8f);   // 완전한 원 (기본은 앞뒤가 짧은 타원)
+            keepPlateShape = true;   // 날개 끝이 원 가장자리 가까이 있어 사각 발자국으로 줄이면 떨어진다
             Color dark = new Color(0.2f, 0.32f, 0.72f);
+            float cz = -0.9f;                                // 호의 중심(카메라 쪽)
+            int[] half = { 4, 3, 2 };                        // 호별 가운데 좌우 기둥 수 (9 · 7 · 5)
             for (int t = 0; t < 3; t++)
             {
+                float r = 1.55f + t * DS;
+                float dTheta = DS / r;                       // 호를 따라 한 칸 간격
                 Color c = t == 0 ? IceCol : t == 1 ? PurpleCol : dark;
-                for (int x = -3; x <= 3; x++)
+                for (int k = -half[t]; k <= half[t]; k++)
                 {
-                    float z = (t + (3 - Mathf.Abs(x)) * 0.5f) * DS - zc;   // 가장자리가 앞, 가운데가 뒤
-                    int h = Mathf.Max(1, top - (2 - t) * 2 - Mathf.Abs(x));
-                    FillColumn(root, rng, new Vector3(x * DS, PedestalTop, z), h, 0f, (j, cells) => (BlockKind.Cylinder, c), info.blocks, DU);
+                    float th = k * dTheta;
+                    var pos = new Vector3(r * Mathf.Sin(th), PedestalTop, cz + r * Mathf.Cos(th));
+                    int h = Mathf.Max(1, top - (2 - t) * 2 - Mathf.Abs(k));
+                    FillColumn(root, rng, pos, h, 0f, (j, cells) => (BlockKind.Cylinder, c), info.blocks, DU);
                 }
             }
         }
