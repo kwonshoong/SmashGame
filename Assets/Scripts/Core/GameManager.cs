@@ -42,11 +42,12 @@ namespace SmashGame
 
         // 카메라 포커스: 패널(대장간·훈련장)이 열리면 카메라를 올려 3D 뷰가 화면 위쪽에 보이게 한다
         Vector3 camTargetPos; Quaternion camTargetRot; bool camLerp;
-        // 레퍼런스처럼 가까이서 넓은 화각으로: 원근이 강해 앞줄·뒷줄 깊이가 보이고 블록이 크게 잡힌다 (세로 폰 화면 폭에 블록 약 10칸).
-        // 수평선은 화면 중앙 조금 위, 상판은 화면 높이의 약 62% 지점 (레퍼런스 프레임 실측)
+        // 레퍼런스 프레임 실측(원통 피라미드 화면): 수평선(=눈높이)이 화면 높이 41% 지점, 상판은 62% 지점(눈높이보다 12.6° 아래),
+        // 꼭대기(원통 9단)는 눈높이보다 20° 위 → 눈높이는 상판 위 약 1.7(원통 4개 높이), 구조물까지 거리 약 7.5, 세로 화각 60°.
+        // 눈높이가 낮고 가까워서 눈 아래 블록은 윗면이, 눈 위 블록은 올라갈수록 아랫면이 넓게 보인다. 화면 폭에 블록 약 9칸.
         public const float CamFov = 60f;
-        public static readonly Vector3 CamDefaultPos = new Vector3(0f, 3.2f, -10f);   // 상판(0.98)보다 2.2 위, 10 뒤 → 상판을 12.5° 내려다봄(상판이 화면 높이 65% 지점). 대포는 포신만 화면 아래에
-        public static readonly Quaternion CamDefaultRot = Quaternion.Euler(3.5f, 0f, 0f);
+        public static readonly Vector3 CamDefaultPos = new Vector3(0f, 2.7f, -7.5f);
+        public static readonly Quaternion CamDefaultRot = Quaternion.Euler(5.4f, 0f, 0f);   // 수평선이 중앙보다 9% 위
         public static readonly Vector3 CamPanelPos = new Vector3(0f, 4.7f, -18.1f);   // 뒤로 빠져 대포·받침대·구조물이 한 화면에
         public static readonly Quaternion CamPanelRot = Quaternion.Euler(8f, 0f, 0f);
 

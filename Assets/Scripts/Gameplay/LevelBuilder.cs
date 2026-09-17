@@ -304,7 +304,7 @@ namespace SmashGame
             return s;
         }
         public const float FitMargin = 0.9f;    // 화면 반폭의 90%까지 채운다 (레퍼런스: 구조물이 폭의 85~90%)
-        public const float FitTopMargin = 0.7f; // 구조물 꼭대기는 화면 세로 반높이의 70%까지 (위쪽 HUD 여유)
+        public const float FitTopMargin = 0.85f; // 구조물 꼭대기는 화면 세로 반높이의 85%까지 (레퍼런스: 피라미드 꼭대기가 화면 높이 14% 지점)
         public const float FitMaxUp = 1.2f;     // 확대는 미세 조정만: 블록 크기가 구조물마다 달라지지 않게 (폭 채우기는 구조물 설계가 맡는다)
 
 

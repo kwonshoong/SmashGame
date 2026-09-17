@@ -19,7 +19,7 @@ namespace SmashGame
         float cooldown;
         float recoil;
 
-        public static readonly Vector3 DefaultPos = new Vector3(0f, 0.3f, -5.8f); // 카메라(2.9, -10, 화각 60)가 가까워진 만큼 대포도 앞·아래로: 포신만 화면 아래 15%에 걸친다 (수레는 화면 밖)
+        public static readonly Vector3 DefaultPos = new Vector3(0f, 0.4f, -4.3f); // 카메라(2.7, -7.5, 화각 60)에서 3.2 앞: 포신만 화면 아래 20%에 걸친다 (수레는 화면 밖)
 
         public static Cannon Create(Transform parent, Camera cam, BallStats stats, LevelController controller)
         {
