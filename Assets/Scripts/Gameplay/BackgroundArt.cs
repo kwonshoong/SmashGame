@@ -64,7 +64,7 @@ namespace SmashGame
             var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Ground";
             ground.transform.SetParent(root);
-            ground.transform.position = new Vector3(0, -1.5f, 10f);
+            ground.transform.position = new Vector3(0, LevelBuilder.GroundY, 10f);
             ground.transform.localScale = new Vector3(10f, 1f, 12f);
             var gr = ground.GetComponent<Renderer>();
             gr.material = Lit(GroundTexture(theme), 0.15f);
@@ -79,14 +79,14 @@ namespace SmashGame
                 float x = side * (5.5f + (float)rng.NextDouble() * 4.5f);
                 float z = 6f + i * 3.2f + (float)rng.NextDouble() * 2f;
                 float s = 0.8f + (float)rng.NextDouble() * 0.7f;
-                if (theme == Theme.Desert) { if (i % 3 == 0) Rock(root, new Vector3(x, -1.5f, z), s, look); else Cactus(root, new Vector3(x, -1.5f, z), s, look); }
-                else Tree(root, new Vector3(x, -1.5f, z), s, look, theme == Theme.Winter);
+                if (theme == Theme.Desert) { if (i % 3 == 0) Rock(root, new Vector3(x, LevelBuilder.GroundY, z), s, look); else Cactus(root, new Vector3(x, LevelBuilder.GroundY, z), s, look); }
+                else Tree(root, new Vector3(x, LevelBuilder.GroundY, z), s, look, theme == Theme.Winter);
             }
             // 받침대 주변 작은 덤불/돌
             for (int i = 0; i < 6; i++)
             {
                 float a = i / 6f * Mathf.PI * 2f + 0.3f;
-                var pos = new Vector3(Mathf.Cos(a) * 3.2f, -1.5f, 2f + Mathf.Sin(a) * 2.2f);
+                var pos = new Vector3(Mathf.Cos(a) * 3.2f, LevelBuilder.GroundY, 2f + Mathf.Sin(a) * 2.2f);
                 if (pos.z < -1f) continue;
                 Bush(root, pos, 0.35f + (float)rng.NextDouble() * 0.25f, look, theme);
             }
