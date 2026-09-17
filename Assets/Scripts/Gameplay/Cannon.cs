@@ -196,13 +196,13 @@ namespace SmashGame
             cooldown = 0.18f;
             recoil = 1f;
             // 포신 회전축(pivot)에서 목표까지, 중력을 고려한 포물선 발사각으로 조준 (탭한 지점을 정확히 지나간다)
-            Vector3 dir = BallisticDirection(barrel.position, target, Ball.Speed);
+            Vector3 dir = BallisticDirection(barrel.position, target, Ball.SpeedFor(stats));
             barrel.rotation = Quaternion.LookRotation(dir, Vector3.up);
             // 공은 회전축이 아니라 포구에서 출발한다. 회전축 기준 해로 쏘면 포구까지 1.5 정도 앞선 만큼 포물선이 덜 꺾여
             // 목표를 2~3° 위로 지나간다(멀수록 0.5까지 벗어남). 포구 위치에서 다시 풀어 보정한다(두 번이면 충분).
             for (int i = 0; i < 2; i++)
             {
-                dir = BallisticDirection(muzzle.position, target, Ball.Speed);
+                dir = BallisticDirection(muzzle.position, target, Ball.SpeedFor(stats));
                 barrel.rotation = Quaternion.LookRotation(dir, Vector3.up);
             }
             var ball = Ball.Spawn(muzzle.position, dir, stats, controller);

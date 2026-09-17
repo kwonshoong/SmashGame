@@ -15,6 +15,18 @@ namespace SmashGame
         public const float BlockStaticFriction = 0.35f; // 블록 정지 마찰. 0.7이면 살짝 들썩인 블록이 다시 닿는 순간 죽은 듯 멈춘다(플레이 로그로 확인) — 구조물 안정은 SettleAndSleep이 맡는다
         public const float BallImpulse = 15f;     // 기본 충격량 (파괴력 100% 기준). 공 자체의 물리 충돌은 거의 0이라 이 값이 밀림의 전부
 
+        // ---------- 실제 물리 모드 ----------
+        // true면 공은 그냥 강체: 스탯이 곧 물리량(무게 = 질량, 파워 = 발사 속도, 크기 = 반지름, 탄성 = 반발계수)이고
+        // 블록을 미는 힘·이웃 밀기·되튕김을 코드로 넣지 않는다 — PhysX 운동량 보존이 전부. false면 옛 방식(스탯 임펄스).
+        public const bool RealPhysics = true;
+        public const float RealBallMassBase = 1.2f;    // 무게 스탯 100% = 1.2kg (250% → 3.0kg). 블록은 칸당 0.5~1.1kg
+        public const float RealBallRadiusBase = 0.2f;  // 크기 스탯 100% = 반지름 0.2 (180% → 0.36)
+        public const float RealBallBounce = 0.35f;     // 탄성(반발계수). 0.1 퍽 하고 죽는 공, 0.8 통통 튀는 공
+        public const float RealBallLifetime = 4f;      // 굴러다니는 공이 사라지기까지
+        public const float RealHitMinSpeedFrac = 0.3f; // 이 비율(발사 속도 대비)보다 느린 접촉은 "타격"(깨짐·콤보)으로 세지 않는다
+        /// <summary>파워 스탯 → 발사 속도. 100% 16, 200% 20.8, 300% 25.6</summary>
+        public static float RealBallSpeed(float power) => 16f * (0.7f + 0.3f * power);
+
         // ---------- 공 스탯 ----------
         public const int StatMaxLevel = 50;
 

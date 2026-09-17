@@ -33,6 +33,9 @@ namespace SmashGame
         public const float PedestalBounceKeep = 0.97f;   // 받침대에 튈 때 유지되는 속도 비율 (감소량 3%)
         static PhysicsMaterial ballPhysics; // 발사 후 공이 사라지기까지의 시간(충돌 여부와 무관)
         public static float Speed => Balance.BallSpeed;
+        /// <summary>이 스탯으로 쏘는 발사 속도 (실제 물리 모드는 파워 스탯이 곧 속도)</summary>
+        public static float SpeedFor(BallStats s) => Balance.RealPhysics ? Balance.RealBallSpeed(s.power) : Balance.BallSpeed;
+        static PhysicsMaterial realPhysics;
         static float BaseImpulse => Balance.BallImpulse;
 
         public static Ball Spawn(Vector3 from, Vector3 dir, BallStats stats, LevelController controller)
@@ -40,7 +43,7 @@ namespace SmashGame
             var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.name = "Ball";
             { int bl = LayerMask.NameToLayer("Ball"); if (bl >= 0) go.layer = bl; }   // 파편과 충돌하지 않는 레이어
-            float radius = 0.22f * stats.size;
+            float radius = (Balance.RealPhysics ? Balance.RealBallRadiusBase : 0.22f) * stats.size;
             go.transform.position = from;
             go.transform.localScale = Vector3.one * radius * 2f;
             go.GetComponent<Renderer>().material = Materials.Get(BallColor(stats.star), true);
@@ -48,15 +51,27 @@ namespace SmashGame
             var rb = go.AddComponent<Rigidbody>();
             // 공의 물리 질량은 아주 작게: 블록에 주는 충격은 전부 아래 OnCollisionEnter에서 스탯 기반으로 직접 넣는다.
             // (질량이 크면 PhysX 자체 충돌 임펄스가 스탯과 무관하게 블록을 밀어 버리고, 공이 블록을 뚫고 지나가며 뒷블록까지 밀었다)
-            rb.mass = BallPhysicsMass;
-            if (ballPhysics == null)
-                ballPhysics = new PhysicsMaterial("Ball") { bounciness = Restitution, dynamicFriction = 0.4f, staticFriction = 0.4f,
-                    bounceCombine = PhysicsMaterialCombine.Maximum, frictionCombine = PhysicsMaterialCombine.Average };
-            go.GetComponent<Collider>().material = ballPhysics; // 첫 타격 이후의 충돌(받침대·바닥·다른 블록)은 PhysX가 같은 반발계수로 처리
+            if (Balance.RealPhysics)
+            {
+                // 실제 물리: 질량·반발계수를 그대로 두고 PhysX에 맡긴다
+                rb.mass = Balance.RealBallMassBase * stats.mass;
+                if (realPhysics == null)
+                    realPhysics = new PhysicsMaterial("BallReal") { bounciness = Balance.RealBallBounce, dynamicFriction = 0.4f, staticFriction = 0.4f,
+                        bounceCombine = PhysicsMaterialCombine.Average, frictionCombine = PhysicsMaterialCombine.Average };
+                go.GetComponent<Collider>().material = realPhysics;
+            }
+            else
+            {
+                rb.mass = BallPhysicsMass;
+                if (ballPhysics == null)
+                    ballPhysics = new PhysicsMaterial("Ball") { bounciness = Restitution, dynamicFriction = 0.4f, staticFriction = 0.4f,
+                        bounceCombine = PhysicsMaterialCombine.Maximum, frictionCombine = PhysicsMaterialCombine.Average };
+                go.GetComponent<Collider>().material = ballPhysics; // 첫 타격 이후의 충돌(받침대·바닥·다른 블록)은 PhysX가 같은 반발계수로 처리
+            }
             rb.useGravity = true; // 중력 적용. 조준은 Cannon에서 포물선 보정
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
-            rb.linearVelocity = dir.normalized * Speed;
+            rb.linearVelocity = dir.normalized * SpeedFor(stats);
 
             var b = go.AddComponent<Ball>();
             // 공끼리는 충돌하지 않는다 (연사 시 앞 공에 튕겨 조준이 틀어지는 것 방지)
@@ -72,7 +87,7 @@ namespace SmashGame
             b.controller = controller;
             b.rb = rb;
             b.spawnTime = Time.time;
-            Destroy(go, Lifetime);
+            Destroy(go, Balance.RealPhysics ? Balance.RealBallLifetime : Lifetime);
             return b;
         }
 
@@ -112,8 +127,31 @@ namespace SmashGame
 
         void OnDestroy() { alive.Remove(this); }
 
+        /// <summary>
+        /// 실제 물리 모드의 충돌: 밀림·튕김은 PhysX가 이미 처리했다. 여기서는 "타격" 판정만 한다 —
+        /// 충분히 빠르게(발사 속도의 30% 이상) 블록에 부딪혔으면 내구도·깨짐(얼음·사탕)·콤보·연출을 적용한다.
+        /// </summary>
+        void RealHit(Collision c)
+        {
+            var block = c.collider.GetComponentInParent<Block>();
+            if (block == null) return;
+            float speed = c.relativeVelocity.magnitude;
+            float frac = speed / Mathf.Max(1f, SpeedFor(stats));
+            if (frac < Balance.RealHitMinSpeedFrac) return;
+            if (block == lastHitBlock && Time.time - lastHitTime < 0.2f) return;
+            lastHitBlock = block; lastHitTime = Time.time; blockHits++;
+            Vector3 point = c.GetContact(0).point;
+            Vector3 dir = lastVelocity.sqrMagnitude > 0.01f ? lastVelocity.normalized : transform.forward;
+            int dmg = Mathf.Max(1, Mathf.CeilToInt(stats.power * frac - 0.01f));
+            float combo = block.RegisterHitCombo();
+            block.Hit(dmg, dir, stats.power * frac);
+            onHit?.Invoke(point);
+            PlayLog.Hit(block, point, dir, rb.mass * speed, combo, lastVelocity, rb.linearVelocity);
+        }
+
         void OnCollisionEnter(Collision c)
         {
+            if (Balance.RealPhysics) { RealHit(c); return; }
             if (consumed) return;
             var block = c.collider.GetComponentInParent<Block>();
 #if UNITY_EDITOR
