@@ -1589,29 +1589,39 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 원통 피라미드 (레퍼런스): 둥근 받침대 위, 카메라 쪽에 중심을 둔 동심 호(弧) 세 줄. 앞 호(하늘색, 반지름 작음)는 각도가 넓어
-        /// 양 날개가 앞으로 말려 오고, 뒤 호(보라·진파랑)는 반지름이 커지며 각도가 좁아 가운데 뒤에 모인다. 높이는 뒤 호·가운데일수록 높다.
-        /// 정면에서 보면 가운데가 움푹 들어간 반원형 관람석이고 날개 끝 두 개가 가장 앞에 온다.
+        /// 원통 피라미드 (레퍼런스): 작은 둥근 받침대 위에 호(弧)를 따라 벽돌식으로 쌓은 삼각형 벽. 줄마다 원통이 하나씩 줄고 반 칸씩
+        /// 어긋나 위 원통이 아래 두 개 사이에 얹힌다. 호의 중심이 카메라 쪽에 있고 반지름이 작아 양 날개가 ±95°까지 말려 들어온다.
+        /// 색은 줄 가장자리부터 하늘색·보라·진파랑(겹친 삼각형 테두리처럼 보임). 안쪽 칸 뒤에는 한 칸 큰 호를 따라 진파랑 뒷줄이 겹쳐 두께를 준다.
         /// </summary>
         static void BuildCylinderPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            int top = Balance.Grow(info.level, 8, 30, 12);   // 뒤 호 가운데 기둥 높이
-            Pedestal(root, Vector3.zero, 1.9f, p, false, 1, 0f, 3.8f);   // 완전한 원 (기본은 앞뒤가 짧은 타원)
-            keepPlateShape = true;   // 날개 끝이 원 가장자리 가까이 있어 사각 발자국으로 줄이면 떨어진다
+            int N = Balance.Grow(info.level, 8, 20, 12);     // 바닥 줄 원통 수 = 줄 수
+            float r = 1.0f, cz = -0.44f;                      // 앞 호 반지름 · 호 중심(카메라 쪽)
+            Pedestal(root, Vector3.zero, 1.45f, p, false, 1, 0f, 2.9f);
+            keepPlateShape = true;
             Color dark = new Color(0.2f, 0.32f, 0.72f);
-            float cz = -0.9f;                                // 호의 중심(카메라 쪽)
-            int[] half = { 4, 3, 2 };                        // 호별 가운데 좌우 기둥 수 (9 · 7 · 5)
-            for (int t = 0; t < 3; t++)
+            for (int j = 0; j < N; j++)
             {
-                float r = 1.55f + t * DS;
-                float dTheta = DS / r;                       // 호를 따라 한 칸 간격
-                Color c = t == 0 ? IceCol : t == 1 ? PurpleCol : dark;
-                for (int k = -half[t]; k <= half[t]; k++)
+                int n = N - j;
+                float y = PedestalTop + j * DU;
+                // 앞 호: 줄 가장자리부터 하늘색 · 보라 · 진파랑
+                float dTh = DS / r;
+                for (int i = 0; i < n; i++)
                 {
-                    float th = k * dTheta;
-                    var pos = new Vector3(r * Mathf.Sin(th), PedestalTop, cz + r * Mathf.Cos(th));
-                    int h = Mathf.Max(1, top - (2 - t) * 2 - Mathf.Abs(k));
-                    FillColumn(root, rng, pos, h, 0f, (j, cells) => (BlockKind.Cylinder, c), info.blocks, DU);
+                    float a = i - (n - 1) * 0.5f;             // 홀수 줄 정수, 짝수 줄 반정수 → 벽돌식 어긋남
+                    int d = Mathf.Min(i, n - 1 - i);
+                    Color c = d == 0 ? IceCol : d == 1 ? PurpleCol : dark;
+                    float th = a * dTh;
+                    MakeUnit(root, BlockKind.Cylinder, new Vector3(r * Mathf.Sin(th), y, cz + r * Mathf.Cos(th)), 1, c, info.blocks, DU);
+                }
+                // 뒷 호(한 칸 큰 반지름): 안쪽 칸 뒤를 채우는 진파랑
+                int n2 = n - 2;
+                if (n2 <= 0) continue;
+                float r2 = r + DS, dTh2 = DS / r2;
+                for (int i = 0; i < n2; i++)
+                {
+                    float a = i - (n2 - 1) * 0.5f, th = a * dTh2;
+                    MakeUnit(root, BlockKind.Cylinder, new Vector3(r2 * Mathf.Sin(th), y, cz + r2 * Mathf.Cos(th)), 1, dark, info.blocks, DU);
                 }
             }
         }
