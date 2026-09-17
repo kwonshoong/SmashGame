@@ -24,8 +24,8 @@ namespace SmashGame
         public const float RealBallBounce = 0.35f;     // 탄성(반발계수). 0.1 퍽 하고 죽는 공, 0.8 통통 튀는 공
         public const float RealBallLifetime = 4f;      // 굴러다니는 공이 사라지기까지
         public const float RealHitMinSpeedFrac = 0.3f; // 이 비율(발사 속도 대비)보다 느린 접촉은 "타격"(깨짐·콤보)으로 세지 않는다
-        /// <summary>파워 스탯 → 발사 속도. 100% 16, 200% 20.8, 300% 25.6</summary>
-        public static float RealBallSpeed(float power) => 16f * (0.7f + 0.3f * power);
+        /// <summary>파워 스탯 → 발사 속도. 100% 20, 200% 26, 300% 32</summary>
+        public static float RealBallSpeed(float power) => 20f * (0.7f + 0.3f * power);
 
         // ---------- 공 스탯 ----------
         public const int StatMaxLevel = 50;
