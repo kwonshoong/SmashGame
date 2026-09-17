@@ -458,9 +458,12 @@ namespace SmashGame
             // 레벨 구간별로 나올 수 있는 구조물 목록. 원통 다발·판자 선반·통나무 탑은 한 발에 무너지는 극초반용이라 12레벨부터 제외
             var allowed = Balance.StructurePool(level);
             int T = allowed.Length;
-            // 곱수는 T와 서로소여야 모든 종류가 고르게 나온다 (T=6,9,12 → 5, T=15 → 7)
-            int mult = T % 5 == 0 ? 7 : 5;
-            int pick = info.hard ? (level / 10 + 6) % T : (level * mult + rng.Next(0, 3)) % T;
+            // T레벨마다 모든 종류가 정확히 한 번씩 나오도록 주기별로 섞은 순열에서 고른다 (곱수+흔들기 방식은 특정 종류가 200레벨 넘게 안 나왔다)
+            int cycle = level / T;
+            var perm = new int[T]; for (int i = 0; i < T; i++) perm[i] = i;
+            var prng = new System.Random(cycle * 1237 + 7);
+            for (int i = T - 1; i > 0; i--) { int k = prng.Next(i + 1); (perm[i], perm[k]) = (perm[k], perm[i]); }
+            int pick = info.hard ? (level / 10 + 6) % T : perm[level % T];
             int type = allowed[pick];
             if (level <= 3) type = new[] { 1, 0, 2 }[level - 1];   // 튜토리얼 구간은 쉬운 구조물
 
@@ -504,7 +507,11 @@ namespace SmashGame
                 case 29: BuildWindowTower(root, rng, p, info); break;
                 case 30: BuildDoubleArch(root, rng, p, info); break;
                 case 31: BuildPatternWall(root, rng, p, info); break;
-                default: BuildHWall(root, rng, p, info); break;
+                case 32: BuildHWall(root, rng, p, info); break;
+                case 33: BuildBrickWall(root, rng, p, info); break;
+                case 34: BuildBrickTower(root, rng, p, info); break;
+                case 35: BuildBrickPyramid(root, rng, p, info); break;
+                default: BuildTwinBrickTowers(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
             FitPlatesToBlocks(info.blocks);
@@ -594,7 +601,8 @@ namespace SmashGame
                 6 => "피라미드", 7 => "요새", 8 => "성문", 9 => "쌍둥이 탑", 10 => "계단", 11 => "돌기둥 원진",
                 12 => "얼음 성문", 13 => "통나무 벽", 14 => "얼음 격자 탑",
                 15 => "쌍둥이 원통 탑", 16 => "가운데 높은 피라미드", 17 => "신전", 18 => "둥근 원통 탑", 19 => "세 탑", 20 => "마름모 무늬 벽", 21 => "상자 벽과 곁탑",
-                22 => "창문 벽", 23 => "아치 문", 24 => "버섯 탑", 25 => "처마 벽", 26 => "계단 성", 27 => "쌍탑 성", 28 => "기둥 홀", 29 => "창문 탑", 30 => "이중 아치", 31 => "무늬 벽", _ => "H자 벽"
+                22 => "창문 벽", 23 => "아치 문", 24 => "버섯 탑", 25 => "처마 벽", 26 => "계단 성", 27 => "쌍탑 성", 28 => "기둥 홀", 29 => "창문 탑", 30 => "이중 아치", 31 => "무늬 벽", 32 => "H자 벽",
+                33 => "벽돌 벽", 34 => "벽돌 탑", 35 => "벽돌 피라미드", _ => "쌍둥이 벽돌 탑"
             };
             return info;
         }
@@ -1015,6 +1023,7 @@ namespace SmashGame
         // ---------------- 실루엣 × 무늬 × 소재 생성기 (레퍼런스처럼 "매 판 다른 모양") ----------------
         // 마스크 문자: '.' 빈칸 / 소문자 = 규격 블록 열(a 벽, b 기둥, c 지붕·성가퀴, d 바닥 줄) / 대문자 = 눕힌 부재(같은 대문자가 가로로 이어진 칸이 한 개의 1×1×n 블록, n≤3).
         // 눕힌 부재는 창문·문 위 상인방과 처마(1칸 돌출)에 쓴다. 규칙: 모든 블록은 단면 1칸, 길이 1~3칸 — 세우든 눕히든 같은 블록.
+        // 'E'/'O' = 벽돌 줄(눕힌 2칸 부재를 나란히). E는 줄 시작에서, O는 양끝에 기둥 한 칸을 두고 한 칸 안쪽에서 시작해 줄마다 이음매가 어긋난다(레퍼런스의 엇갈려 쌓기).
         // 행은 위→아래 순서. 상판은 발자국보다 살짝 좁게(양끝 블록이 0.18 걸침) 두어 끝을 치면 통째로 기운다.
 
         /// <summary>구조물에 쓸 색 2벌·소재 세트를 레벨 시드로 고른다</summary>
@@ -1023,7 +1032,8 @@ namespace SmashGame
             public BlockKind wall; public Color wall1, wall2;     // 벽 소재와 무늬 색 2가지
             public BlockKind pillar; public Color pillarCol;      // 기둥
             public BlockKind roof; public Color roofCol;          // 지붕·성가퀴
-            public BlockKind bar; public Color barCol;            // 눕힌 부재
+            public BlockKind bar; public Color barCol;            // 눕힌 부재(상인방·처마)
+            public BlockKind brick; public Color brickCol;        // 벽돌 줄(눕힌 2칸 부재)
             public int pattern;                                   // 무늬: 0 체크 1 가로 띠 2 세로 줄 3 액자 4 십자 5 마름모 6 단색
         }
         static readonly Color[] PatternCols = { PurpleCol, BlueCol, PinkCol, GoldCol, RedCol, GreenCol };
@@ -1048,6 +1058,9 @@ namespace SmashGame
             m.bar = bk == 0 ? BlockKind.Plank : BlockKind.Cube;
             m.barCol = m.bar == BlockKind.Plank ? WoodCol : (m.wall == BlockKind.Cube ? GoldCol : m.wall2);
             m.pattern = rng.Next(7);
+            int kk = rng.Next(3);
+            m.brick = kk == 0 ? BlockKind.Plank : BlockKind.Cube;
+            m.brickCol = m.brick == BlockKind.Plank ? WoodCol : (m.wall2 == m.wall1 ? BlueCol : m.wall2);
             return m;
         }
 
@@ -1120,6 +1133,24 @@ namespace SmashGame
                         if (!char.IsUpper(c)) { x++; continue; }
                         int x0 = x; while (x < W && Cell(x, y) == c) x++;
                         int run = x - x0, at = x0;
+                        if (c == 'E' || c == 'O')
+                        {
+                            // 벽돌 줄: O는 양끝 기둥 한 칸 + 안쪽, E는 전체를 2칸 부재로 (남는 한 칸은 마지막을 3칸으로)
+                            if (c == 'O')
+                            {
+                                var (pk, pc) = MaskMaterial('b', x0, y, W, H, m, info);
+                                MakeUnit(root, pk, new Vector3(ox + x0 * DS, PedestalTop + y * DU, z), 1, pc, info.blocks, DU);
+                                MakeUnit(root, pk, new Vector3(ox + (x - 1) * DS, PedestalTop + y * DU, z), 1, pc, info.blocks, DU);
+                                at = x0 + 1; run = run - 2;
+                            }
+                            while (run > 0)
+                            {
+                                int n = run == 3 || run == 1 ? run : 2;
+                                MakeBar(root, new Vector3(ox + (at + (n - 1) * 0.5f) * DS, PedestalTop + y * DU, z), n, m.brick, m.brickCol, info.blocks);
+                                at += n; run -= n;
+                            }
+                            continue;
+                        }
                         while (run > 0)
                         {
                             int n = run >= 3 ? 3 : run; if (run == 4) n = 2;
@@ -1240,7 +1271,52 @@ namespace SmashGame
             "aaaa.aaaa",
             "dddd.dddd" };
 
+        static readonly string[] MaskBrickWall = {
+            "ccccccc",
+            "OOOOOOO",
+            "aaaaaaa",
+            "EEEEEEE",
+            "aaaaaaa",
+            "OOOOOOO",
+            "aaaaaaa",
+            "EEEEEEE",
+            "ddddddd" };
+        static readonly string[] MaskBrickTower = {
+            "ccccc",
+            "bbbbb",
+            "EEEEE",
+            "OOOOO",
+            "EEEEE",
+            "OOOOO",
+            "EEEEE",
+            "OOOOO",
+            "bbbbb",
+            "ddddd" };
+        static readonly string[] MaskBrickPyramid = {
+            "...EEE...",
+            "..OOOOO..",
+            ".EEEEEEE.",
+            "OOOOOOOOO",
+            "bbbbbbbbb",
+            "EEEEEEEEE",
+            "bbbbbbbbb",
+            "ddddddddd" };
+        static readonly string[] MaskTwinBrickTowers = {
+            "cccc.cccc",
+            "bbbb.bbbb",
+            "EEEE.EEEE",
+            "OOOO.OOOO",
+            "bbbb.bbbb",
+            "EEEE.EEEE",
+            "OOOO.OOOO",
+            "bbbb.bbbb",
+            "dddd.dddd" };
+
         static void BuildWindowWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskWindowWall, Mathf.Min(2, Depth(info)));
+        static void BuildBrickWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskBrickWall, Mathf.Min(2, Depth(info)));
+        static void BuildBrickTower(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskBrickTower, Depth(info));
+        static void BuildBrickPyramid(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskBrickPyramid, Mathf.Min(2, Depth(info)));
+        static void BuildTwinBrickTowers(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskTwinBrickTowers, Depth(info));
         static void BuildArchGate(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskArchGate, Depth(info));
         static void BuildMushroom(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskMushroom, Depth(info));
         static void BuildEaveWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskEaveWall, Mathf.Min(2, Depth(info)));
