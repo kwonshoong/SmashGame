@@ -191,8 +191,13 @@ namespace SmashGame
             return plane;
         }
 
+        /// <summary>조준점 하한: 상판 윗면 + 공 반지름 + 여유. 이보다 낮게 겨냥하면 공이 상판 앞 모서리나 다리·땅으로 가므로 여기까지 끌어올린다.
+        /// (포물선은 두 점 사이에서 현보다 위로 지나므로 목표가 이 높이면 공이 상판을 넘어 맨 아래 블록을 맞힌다. 상판 충돌 자체는 그대로다)</summary>
+        public float MinAimY => LevelBuilder.PedestalTop + (Balance.RealPhysics ? Balance.RealBallRadiusBase : 0.22f) * stats.size + 0.06f;
+
         public void Fire(Vector3 target)
         {
+            if (target.y < MinAimY) target.y = MinAimY;
             cooldown = 0.18f;
             recoil = 1f;
             // 포신 회전축(pivot)에서 목표까지, 중력을 고려한 포물선 발사각으로 조준 (탭한 지점을 정확히 지나간다)
