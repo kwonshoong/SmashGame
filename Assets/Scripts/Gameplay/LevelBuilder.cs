@@ -1585,30 +1585,28 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 원통 피라미드 (레퍼런스): 동심 사각 링 지구라트. 바닥 7×5(앞뒤 5줄, 홀수 줄은 반 칸 어긋난 벌집 배치).
-        /// 바깥 링(하늘색) 2단, 중간 링(보라) 4단, 코어(진파랑) 가운데 줄 세 기둥이 꼭대기까지. 위에서 내려다보면 뒷줄이 화면에서
-        /// 위로 올라가 바깥 링 옆변이 기둥처럼, 링들이 겹친 아치처럼 보인다.
+        /// 원통 피라미드 (레퍼런스): 3차원 원뿔형 피라미드. 바닥 7×5(앞뒤 5줄, 홀수 줄은 반 칸 어긋난 벌집 배치),
+        /// 높이는 가운데 줄·가운데 열이 가장 높고 옆·앞뒤로 갈수록 낮아진다(줄당 2, 열당 1.5). 색은 동심 링별:
+        /// 바깥 링 하늘색, 중간 링 보라, 코어 진파랑. 위에서 내려다보면 뒷줄이 화면에서 위로 올라가 링들이 겹친 아치처럼 보인다.
         /// </summary>
         static void BuildCylinderPyramid(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            int top = Balance.Grow(info.level, 7, 40, 10);   // 코어 가운데 기둥 높이
+            int top = Balance.Grow(info.level, 8, 30, 12);   // 꼭대기 높이
             Pedestal(root, Vector3.zero, 3 * DS + 0.35f, p, true, 1, 0f, 4 * DS + 0.7f);
             Color dark = new Color(0.2f, 0.32f, 0.72f);
             for (int zi = 0; zi < 5; zi++)
             {
                 float z = (zi - 2) * DS;              // zi 0 = 앞(카메라 쪽, 작은 z)
-                int ringZ = Mathf.Min(zi, 4 - zi);    // 0 바깥 · 1 중간 · 2 코어 줄
+                int ringZ = Mathf.Min(zi, 4 - zi);    // 0 바깥 · 1 중간 · 2 가운데 줄
                 bool odd = zi % 2 == 1;
                 int n = odd ? 6 : 7;
                 for (int i = 0; i < n; i++)
                 {
                     float cx = i - (n - 1) * 0.5f;    // 짝수 줄 -3..3, 홀수 줄 -2.5..2.5
-                    float edgeX = (n - 1) * 0.5f - Mathf.Abs(cx);   // 가장자리에서 몇 칸 안쪽인가
+                    float edgeX = (n - 1) * 0.5f - Mathf.Abs(cx);
                     int ring = Mathf.Min(ringZ, Mathf.RoundToInt(edgeX), 2);
-                    int h; Color c;
-                    if (ring == 0) { h = 2; c = IceCol; }
-                    else if (ring == 1) { h = 4; c = PurpleCol; }
-                    else { h = Mathf.Abs(cx) < 0.6f ? top : top - 2; c = dark; }
+                    Color c = ring == 0 ? IceCol : ring == 1 ? PurpleCol : dark;
+                    int h = Mathf.Max(1, Mathf.FloorToInt(top - 1.5f * Mathf.Abs(cx) - 2f * (2 - ringZ) + 0.5f));
                     FillColumn(root, rng, new Vector3(cx * DS, PedestalTop, z), h, 0f, (j, cells) => (BlockKind.Cylinder, c), info.blocks, DU);
                 }
             }
