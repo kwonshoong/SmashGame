@@ -22,6 +22,7 @@ namespace SmashGame
 
         Rigidbody rb;
         Vector3 basePos;
+        Quaternion baseRot;   // 돌려 놓은 상판(yaw)의 시작 회전. 회전 운동은 여기에 더한다
         float t;
 
         public static PedestalMotion Attach(GameObject group, float spin, float bobAmp, float bobPeriod, float phase)
@@ -39,6 +40,7 @@ namespace SmashGame
         {
             rb = GetComponent<Rigidbody>();
             basePos = transform.position;
+            baseRot = transform.rotation;
         }
 
         void FixedUpdate()
@@ -69,7 +71,8 @@ namespace SmashGame
                 // 회전 속도는 2초에 걸쳐 부드럽게 올린다. 갑자기 돌기 시작하면 바닥 블록만 먼저 끌려가 높은 탑이 전단으로 무너진다(실측).
                 float w = spinDegPerSec * Mathf.SmoothStep(0f, 1f, u / SpinRampSeconds);
                 angle += w * Time.fixedDeltaTime;
-                rb.MoveRotation(Quaternion.Euler(0f, angle, 0f));
+                // 절대 회전을 쓰면 yaw로 돌려 놓은 상판이 첫 스텝에 0°로 튀어 블록만 남기고 빠져나간다(대각선 벽 L138 실측) → 시작 회전에 더한다
+                rb.MoveRotation(Quaternion.Euler(0f, angle, 0f) * baseRot);
             }
         }
     }
