@@ -18,7 +18,9 @@ namespace SmashGame
         int blockHits;      // 블록을 때린 횟수
         Block lastHitBlock; float lastHitTime;   // 같은 블록을 튕기면서 연달아 다시 맞히는 것은 한 번으로 친다
         /// <summary>2차 타격(첫 블록에 튕긴 뒤 다른 블록을 맞힘)이 성립하는 최소 남은 속도 비율. 그 아래는 그냥 굴러가는 공</summary>
-        public const float SecondaryHitMinEnergy = 0.25f;
+        public const float SecondaryHitMinEnergy = 0.35f;
+        /// <summary>2차 타격 충격 배율 (남은 속도 비율에 추가로 곱한다). 1이면 첫 타격과 같은 기준 — 너무 세서 절반으로</summary>
+        public const float SecondaryHitScale = 0.45f;
         float spawnTime;
 
         static readonly System.Collections.Generic.List<Ball> alive = new();
@@ -150,8 +152,8 @@ namespace SmashGame
             }
 
             // 첫 타격은 스탯 그대로, 튕긴 뒤 다른 블록을 맞히면 남은 속도 비율만큼(예: 60% 속도 → 60% 충격). 너무 느려지면 타격 없음
-            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / Speed);
-            if (blockHits > 0 && energy < SecondaryHitMinEnergy) return;
+            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / Speed) * SecondaryHitScale;
+            if (blockHits > 0 && energy < SecondaryHitMinEnergy * SecondaryHitScale) return;
             if (block == lastHitBlock && Time.time - lastHitTime < 0.2f) return;
             lastHitBlock = block; lastHitTime = Time.time;
             blockHits++;
