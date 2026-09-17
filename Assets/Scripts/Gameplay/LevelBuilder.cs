@@ -511,7 +511,9 @@ namespace SmashGame
                 case 33: BuildBrickWall(root, rng, p, info); break;
                 case 34: BuildBrickTower(root, rng, p, info); break;
                 case 35: BuildBrickPyramid(root, rng, p, info); break;
-                default: BuildTwinBrickTowers(root, rng, p, info); break;
+                case 36: BuildTwinBrickTowers(root, rng, p, info); break;
+                case 37: BuildStaggerWall(root, rng, p, info); break;
+                default: BuildDiagonalJenga(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
             FitPlatesToBlocks(info.blocks);
@@ -602,7 +604,7 @@ namespace SmashGame
                 12 => "얼음 성문", 13 => "통나무 벽", 14 => "얼음 격자 탑",
                 15 => "쌍둥이 원통 탑", 16 => "가운데 높은 피라미드", 17 => "신전", 18 => "둥근 원통 탑", 19 => "세 탑", 20 => "마름모 무늬 벽", 21 => "상자 벽과 곁탑",
                 22 => "창문 벽", 23 => "아치 문", 24 => "버섯 탑", 25 => "처마 벽", 26 => "계단 성", 27 => "쌍탑 성", 28 => "기둥 홀", 29 => "창문 탑", 30 => "이중 아치", 31 => "무늬 벽", 32 => "H자 벽",
-                33 => "벽돌 벽", 34 => "벽돌 탑", 35 => "벽돌 피라미드", _ => "쌍둥이 벽돌 탑"
+                33 => "벽돌 벽", 34 => "벽돌 탑", 35 => "벽돌 피라미드", 36 => "쌍둥이 벽돌 탑", 37 => "지그재그 벽", _ => "대각 젠가 탑"
             };
             return info;
         }
@@ -1327,6 +1329,69 @@ namespace SmashGame
         static void BuildDoubleArch(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskDoubleArch, Depth(info));
         static void BuildPatternWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskPatternWall, Mathf.Min(2, Depth(info)));
         static void BuildHWall(Transform root, System.Random rng, Palette p, LevelInfo info) => BuildMask(root, rng, p, info, MaskHWall, Mathf.Min(2, Depth(info)));
+
+
+        // ---------------- 3차원 엇갈림 (레퍼런스: 앞줄과 뒷줄이 반 칸씩 어긋나고, 부재가 ±45°로 놓인 맵) ----------------
+
+        /// <summary>
+        /// 지그재그 벽: 줄마다 큐브가 반 칸씩 어긋나고(홀수 줄은 한 개 적게 가운데 정렬 → 큐브마다 아래 두 개에 걸침),
+        /// 뒷겹은 앞겹보다 반 칸 옆으로 밀려 있어 정면에서 앞뒤 블록이 엇갈려 보인다. 아래·위 줄은 원통, 꼭대기 사탕.
+        /// </summary>
+        static void BuildStaggerWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var m = PickMaterials(rng, p, info);
+            int W = 7, rows = Balance.Grow(info.level, 7, 40, 8), depth = Mathf.Min(2, Depth(info));
+            float sp = DS;
+            float extent = (W - 1) * 0.5f * sp + 0.5f * sp + DU * 0.5f;   // 뒷겹 반 칸 밀림 포함
+            Pedestal(root, Vector3.zero, extent - 0.18f, p, true, Balance.PedestalLegs(info.level), 0f, depth * sp + 0.5f);
+            for (int d = 0; d < depth; d++)
+            {
+                float z = (d - (depth - 1) * 0.5f) * sp, xs = (d % 2) * 0.5f * sp;
+                for (int y = 0; y < rows; y++)
+                {
+                    int n = W - (y % 2);
+                    for (int i = 0; i < n; i++)
+                    {
+                        float x = (i - (n - 1) * 0.5f) * sp + xs;
+                        bool cyl = y == 0 || y == rows - 1;
+                        var (kind, col) = cyl ? (m.pillar == BlockKind.Cube ? BlockKind.Cylinder : m.pillar, y == 0 ? m.pillarCol : m.wall2)
+                                              : (m.wall, WallColor(m, i, y, W, rows));
+                        MakeUnit(root, kind, new Vector3(x, PedestalTop + y * DU, z), 1, col, info.blocks, DU);
+                        if (y == rows - 1 && d == 0) MakeUnit(root, BlockKind.Candy, new Vector3(x, PedestalTop + rows * DU, z), 1, i % 2 == 0 ? p.c : PinkCol, info.blocks, DU);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 대각 젠가 탑: 원통 격자 위에 눕힌 3칸 부재 3개를 +45°로 한 층, −45°로 다음 층… 젠가처럼 엇갈려 쌓는다.
+        /// 정면에서 부재가 비스듬히 보이고, 층마다 부재가 아래층 부재 2~3개에 걸쳐 안정적이다.
+        /// </summary>
+        static void BuildDiagonalJenga(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            var m = PickMaterials(rng, p, info);
+            Pedestal(root, Vector3.zero, 1.25f, p, false, 1, 0f, 2.2f);
+            // 받침: 원통 3×3, 2칸
+            Grid(root, rng, 0f, 0f, 3, 3, 2, 0f, (i, d, j, cells) => (m.pillar == BlockKind.Cube ? BlockKind.Cylinder : m.pillar, (i + d) % 2 == 0 ? m.pillarCol : m.wall2), info.blocks);
+            float y = PedestalTop + 2 * DU;
+            int layers = Balance.Grow(info.level, 6, 40, 8);
+            for (int l = 0; l < layers; l++)
+            {
+                float ang = l % 2 == 0 ? 45f : -45f;
+                float rad = ang * Mathf.Deg2Rad;
+                Vector3 perp = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad));   // 부재 방향(cos, -sin)에 수직
+                Color col = l % 2 == 0 ? m.brickCol : (m.brick == BlockKind.Plank ? WoodCol : m.wall1);
+                for (int k = -1; k <= 1; k++)
+                {
+                    Vector3 c = perp * (k * 0.62f);
+                    float len = 3 * DS - 0.01f;
+                    var kind = m.brick;
+                    MakeBlock(root, PrimitiveType.Cube, kind, new Vector3(c.x, y + DU * 0.5f, c.z), new Vector3(len, DU - 0.01f, DU - 0.01f), Quaternion.Euler(0f, ang, 0f), col, MassFor(kind) * 3f * UnitMass(DU), info.blocks);
+                }
+                y += DU;
+            }
+            MakeUnit(root, BlockKind.Candy, new Vector3(0f, y, 0f), 2, p.c, info.blocks, DU);
+        }
 
         // ---------------- 격파 도전: 초중량 거대 탑 ----------------
 
