@@ -19,13 +19,16 @@ namespace SmashGame
         float cooldown;
         float recoil;
 
-        public static readonly Vector3 DefaultPos = new Vector3(0f, 1.2f, -5.5f); // 카메라(2.7, -7.5, 화각 60)에서 2.0 앞. 공이 상판보다 0.4 위(≈1.4)에서 출발해 상판 밑면·다리에 안 걸린다. 높이만 올리면 상판을 가리므로 그만큼 뒤(카메라 쪽)로 뺐다: 포신 꼭대기 화면 77% 지점, 상판·받침대 다리 안 가림
+        public static readonly Vector3 DefaultPos = new Vector3(0f, 1.15f, -5.3f); // 카메라(2.7, -7.5, 화각 60)에서 2.2 앞. 공이 상판보다 0.3 위(≈1.3)에서 출발해 상판 밑면·다리에 안 걸린다. 포신 꼭대기 화면 82% 지점(레퍼런스처럼 화면 맨 아래 가운데)
+        /// <summary>대포 모델 배율. 레퍼런스 대포는 화면 폭의 1/3 정도라 절반으로 줄였다 (포구·포신 길이도 함께 줄어 조준·발사 계산은 그대로 맞는다)</summary>
+        public const float ModelScale = 0.5f;
 
         public static Cannon Create(Transform parent, Camera cam, BallStats stats, LevelController controller)
         {
             var root = new GameObject("Cannon");
             root.transform.SetParent(parent);
             root.transform.position = DefaultPos;
+            root.transform.localScale = Vector3.one * ModelScale;
             var c = root.AddComponent<Cannon>();
             c.cam = cam;
             c.stats = stats;
@@ -240,7 +243,7 @@ namespace SmashGame
             var f = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             DestroyImmediate(f.GetComponent<Collider>());
             f.transform.position = muzzle.position;
-            f.transform.localScale = Vector3.one * 0.6f;
+            f.transform.localScale = Vector3.one * 0.6f * ModelScale;
             f.GetComponent<Renderer>().material = Materials.Get(new Color(1f, 0.85f, 0.3f), true);
             Destroy(f, 0.08f);
         }
