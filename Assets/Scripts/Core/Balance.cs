@@ -27,27 +27,28 @@ namespace SmashGame
         /// <summary>파워 스탯 → 발사 속도. 100% 20, 200% 26, 300% 32</summary>
         public static float RealBallSpeed(float power) => 20f * (0.7f + 0.3f * power);
 
-        // ---------- 공 스탯 ----------
-        public const int StatMaxLevel = 50;
-
-        public static float PowerMult(int lv) => 1f + 2.0f * (lv - 1) / (StatMaxLevel - 1);   // 100% → 300%
-        public static float SizeMult(int lv)  => 1f + 0.2f * ((lv - 1) / 10);                  // 10레벨마다 1단계, 5단계 → 180%
-        public static float MassMult(int lv)  => 1f + 1.5f * (lv - 1) / (StatMaxLevel - 1);   // 100% → 250%
-        public static int   AmmoBonus(int lv) => Mathf.RoundToInt(12f * (lv - 1) / (StatMaxLevel - 1)); // +0 → +12
+        // ---------- 공 스탯 (상한 없음) ----------
+        // 레벨이 무한이므로 스탯도 상한이 없다. 레벨당 증가폭은 옛 Lv50 기준(파워 300%·무게 250%·탄약 +12)과 같은 기울기.
+        // 강화 비용은 40×1.085^(Lv−1): Lv50 2.2k, Lv100 130k, Lv150 7.6M. 코인 보상이 레벨에 비례해 커지므로(CoinScale) 계속 강화가 된다.
+        // 경제 시뮬(하루 100스테이지, 제일 싼 스탯부터 강화): 파워 Lv 100L 21 · 500L 43 · 1000L 55 · 2000L 70, 체감 난이도 1.2 → 500L 1.7 → 1000L 2.2 → 2000L 3.2.
+        public static float PowerMult(int lv) => 1f + 0.0408f * (lv - 1);          // Lv50 300%, Lv100 504%
+        public static float SizeMult(int lv)  => Mathf.Min(2.0f, 1f + 0.2f * ((lv - 1) / 10));   // 10레벨마다 +20%, 200%에서 고정 (공이 블록만큼 커지면 안 된다)
+        public static float MassMult(int lv)  => 1f + 0.0306f * (lv - 1);          // Lv50 250%
+        public static int   AmmoBonus(int lv) => Mathf.RoundToInt(0.245f * (lv - 1)); // Lv50 +12
         public static int   StarRank(int lv)  => Mathf.Clamp((lv - 1) / 10 + 1, 1, 5);
 
-        /// <summary>스탯 1레벨 강화 비용(코인). Lv1 40 → Lv50 약 7,000 (기획서 4.3 곡선 근사)</summary>
-        public static int StatUpgradeCost(int currentLevel)
-        {
-            if (currentLevel >= StatMaxLevel) return int.MaxValue;
-            return Mathf.RoundToInt(40f * Mathf.Pow(1.1115f, currentLevel - 1));
-        }
+        /// <summary>스탯 1레벨 강화 비용(코인). 40×1.085^(Lv−1)</summary>
+        public static int StatUpgradeCost(int currentLevel) => Mathf.RoundToInt(40f * Mathf.Pow(1.085f, currentLevel - 1));
 
         // ---------- 레벨 보상 ----------
-        public const int RefundPerBall = 2;      // 남은 공 1개당 코인
+        /// <summary>코인 보상 배율: 레벨에 비례해 커진다 (100L ×1.6, 500L ×4, 1000L ×7). 상한 없는 스탯 강화 비용을 따라가기 위한 것.</summary>
+        public static float CoinScale(int level) => 1f + 0.006f * level;
+        public const int RefundPerBall = 2;      // 남은 공 1개당 코인 (×CoinScale)
         public const int TrackLevels = 20;       // 20레벨 트랙
-        public const int TrackReward = 100;
-        public static int ClearCoin(int level) => 15 + (level * 7) % 26; // 15~40 사이, 레벨마다 고정
+        public const int TrackReward = 100;      // (×CoinScale)
+        public static int ClearCoin(int level) => Mathf.RoundToInt((15 + (level * 7) % 26) * CoinScale(level)); // 기본 15~40, 레벨 비례
+        public static int RefundCoin(int level, int remainingBalls) => Mathf.RoundToInt(remainingBalls * RefundPerBall * CoinScale(level));
+        public static int TrackCoin(int level) => Mathf.RoundToInt(TrackReward * CoinScale(level));
 
         // ---------- 온보딩 게이트 ----------
         public const int ForgeUnlockLevel = 8;
@@ -173,14 +174,11 @@ namespace SmashGame
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>
         public static bool HasObstacle(int level) => IsHardLevel(level) || (level >= 4 && level % 5 == 2);
 
-        /// <summary>챕터 권장 4스탯 합계 (기획서 6.4)</summary>
+        /// <summary>권장 4스탯 합계: 경제 시뮬(하루 100스테이지, 제일 싼 스탯부터 강화)에서 나온 값의 근사 — 100L 84, 300L 140, 500L 172, 1000L 220, 2000L 280.</summary>
         public static int RecommendedStatSum(int level)
         {
-            if (level <= 60) return 0;
-            if (level <= 90) return 24;
-            if (level <= 120) return 48;
-            if (level <= 160) return 80;
-            return 120;
+            if (level < 8) return 4;
+            return Mathf.RoundToInt(4f + 82f * Mathf.Log(1f + level / 60f));
         }
 
         // ---------- 훈련장 ----------

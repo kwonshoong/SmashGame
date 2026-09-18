@@ -329,15 +329,14 @@ namespace SmashGame
                 int lv = gm.GetStatLevel(t);
                 string val = t switch
                 {
-                    StatType.Power => $"{Balance.PowerMult(lv) * 100:0}% → {Balance.PowerMult(Mathf.Min(lv + 1, Balance.StatMaxLevel)) * 100:0}%",
-                    StatType.Size => $"{Balance.SizeMult(lv) * 100:0}% → {Balance.SizeMult(Mathf.Min(lv + 1, Balance.StatMaxLevel)) * 100:0}%",
-                    StatType.Mass => $"{Balance.MassMult(lv) * 100:0}% → {Balance.MassMult(Mathf.Min(lv + 1, Balance.StatMaxLevel)) * 100:0}%",
-                    _ => $"+{Balance.AmmoBonus(lv)}발 → +{Balance.AmmoBonus(Mathf.Min(lv + 1, Balance.StatMaxLevel))}발",
+                    StatType.Power => $"{Balance.PowerMult(lv) * 100:0}% → {Balance.PowerMult(lv + 1) * 100:0}%",
+                    StatType.Size => $"{Balance.SizeMult(lv) * 100:0}% → {Balance.SizeMult(lv + 1) * 100:0}%",
+                    StatType.Mass => $"{Balance.MassMult(lv) * 100:0}% → {Balance.MassMult(lv + 1) * 100:0}%",
+                    _ => $"+{Balance.AmmoBonus(lv)}발 → +{Balance.AmmoBonus(lv + 1)}발",
                 };
-                forgeStatLabels[i].text = $"{StatNames[i]}  Lv {lv}/{Balance.StatMaxLevel}   <size=24>{val}</size>";
+                forgeStatLabels[i].text = $"{StatNames[i]}  Lv {lv}   <size=24>{val}</size>";
                 forgeStatLabels[i].supportRichText = true;
-                bool max = lv >= Balance.StatMaxLevel;
-                UIKit.SetButtonLabel(forgeStatBtns[i], max ? "MAX" : $"강화\n{gm.GetUpgradeCost(t):N0}");
+                UIKit.SetButtonLabel(forgeStatBtns[i], $"강화\n{gm.GetUpgradeCost(t):N0}");
                 forgeStatBtns[i].interactable = gm.CanUpgrade(t);
             }
         }

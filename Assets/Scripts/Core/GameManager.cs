@@ -339,13 +339,13 @@ namespace SmashGame
             int lvl = Data.currentLevel;
             var r = new ResultInfo { won = true, level = lvl, remainingBalls = remainingBalls };
             r.clearCoin = Balance.ClearCoin(lvl);
-            r.refundCoin = lvl >= Balance.RefundUnlockLevel ? remainingBalls * Balance.RefundPerBall : 0;
+            r.refundCoin = lvl >= Balance.RefundUnlockLevel ? Balance.RefundCoin(lvl, remainingBalls) : 0;
 
             Data.trackProgress++;
             if (Data.trackProgress >= Balance.TrackLevels)
             {
                 Data.trackProgress = 0;
-                r.trackCoin = Balance.TrackReward;
+                r.trackCoin = Balance.TrackCoin(lvl);
                 r.trackCompleted = true;
             }
             r.total = r.clearCoin + r.refundCoin + r.trackCoin;
@@ -412,7 +412,7 @@ namespace SmashGame
         public bool CanUpgrade(StatType t)
         {
             int lv = GetStatLevel(t);
-            return lv < Balance.StatMaxLevel && Data.coins >= Balance.StatUpgradeCost(lv);
+            return Data.coins >= Balance.StatUpgradeCost(lv);   // 상한 없음
         }
 
         public bool UpgradeStat(StatType t)
