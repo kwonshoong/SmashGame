@@ -64,8 +64,10 @@ namespace SmashGame
         // 하드 레벨이 10·20·30이므로 보너스는 5·15·25…에 놓여 "빡센 판 → 몇 판 → 시원한 판" 리듬이 된다.
         public const int   BonusEveryLevels = 10;          // 5, 15, 25, … (하드 레벨 사이 중간)
         public const float BonusSeconds = 20f;             // 제한 시간, 공 무제한
-        public const int   BonusCoinPerBlock = 3;          // 떨어뜨린/부순 블록 1개당 코인 (×CoinScale)
-        public const int   BonusAllClearCoin = 80;         // 전부 부수면 추가 (×CoinScale)
+        // 보상은 "부순 블록 수"가 아니라 "부순 비율"로 준다. 블록 수가 레벨마다 74~250개로 달라지므로
+        // 개수 비례로 주면 레벨이 오를수록 보상이 저절로 불어난다(실측: 일반 레벨 1판의 5~18배). 비율 기준이면 어느 레벨에서든 일정하다.
+        public const int   BonusClearCoin = 90;            // 전부 부쉈을 때 기준 (×CoinScale). 일반 레벨 1판 수입의 약 2.5배가 되도록 잡았다
+        public const int   BonusAllClearCoin = 40;         // 하나도 안 남기면 추가 (×CoinScale)
         public const bool  BonusEnabled = true;
         public static bool IsBonusLevel(int level) => BonusEnabled && level >= 5 && level % BonusEveryLevels == 5;
         /// <summary>보너스 블록은 가볍다 — 한 발에 우수수 날아가는 맛이 이 판의 전부다 (일반 레벨은 0.7~1.0)</summary>
@@ -75,8 +77,8 @@ namespace SmashGame
         public static int BonusRows(int level) => Mathf.Min(9, 6 + level / 40);
         /// <summary>보너스 판 종류: 사탕 산 · 사탕 벽 · 자동차 순환</summary>
         public static int BonusVariant(int level) => (level / BonusEveryLevels) % 3;
-        public static int BonusCoin(int level, int destroyed, bool allClear)
-            => Mathf.RoundToInt((destroyed * BonusCoinPerBlock + (allClear ? BonusAllClearCoin : 0)) * CoinScale(level));
+        public static int BonusCoin(int level, int destroyed, int total, bool allClear)
+            => Mathf.RoundToInt((BonusClearCoin * destroyed / (float)Mathf.Max(1, total) + (allClear ? BonusAllClearCoin : 0)) * CoinScale(level));
 
         // ---------- 격파 도전 (별도 모드: 20초 무제한 발사로 거대·초중량 탑 무너뜨리기) ----------
         public const int   TowerUnlockLevel = 20;          // 레벨 20 클리어 후 해금
