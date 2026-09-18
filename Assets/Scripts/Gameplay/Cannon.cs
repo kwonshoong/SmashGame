@@ -19,7 +19,7 @@ namespace SmashGame
         float cooldown;
         float recoil;
 
-        public static readonly Vector3 DefaultPos = new Vector3(0f, 0.7f, -4.3f); // 카메라(2.7, -7.5, 화각 60)에서 3.2 앞. 0.4→0.7: 포구가 상판 높이(≈0.95~1.1)에서 출발해 상판 밑면·다리에 덜 맞는다. 포신 꼭대기가 화면 79% 지점, 수레 바퀴 윗부분만 살짝 보인다
+        public static readonly Vector3 DefaultPos = new Vector3(0f, 1.2f, -5.5f); // 카메라(2.7, -7.5, 화각 60)에서 2.0 앞. 공이 상판보다 0.4 위(≈1.4)에서 출발해 상판 밑면·다리에 안 걸린다. 높이만 올리면 상판을 가리므로 그만큼 뒤(카메라 쪽)로 뺐다: 포신 꼭대기 화면 77% 지점, 상판·받침대 다리 안 가림
 
         public static Cannon Create(Transform parent, Camera cam, BallStats stats, LevelController controller)
         {
