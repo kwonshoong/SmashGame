@@ -80,18 +80,28 @@ namespace SmashGame
         public static int  TowerRecommendedPower(int stage) => Mathf.RoundToInt(Mathf.Clamp(TowerMassMult(stage) * 55f, 100f, 300f) / 10f) * 10;
 
         // ---------- 난이도 ----------
-        public const float ReinforcedRatioCap = 0.20f;
+        /// <summary>강화 블록 비율 상한: 200레벨까지 20%, 그 뒤 400레벨에 35%까지 완만히.</summary>
+        public static float ReinforcedRatioCap(int level) => Mathf.Min(0.35f, 0.20f + Mathf.Max(0, level - 200) * 0.00075f);
+        /// <summary>접착 블록 쌍 수: 91레벨 1쌍 → 150에서 2쌍 → 300에서 3쌍 → 450에서 4쌍.</summary>
+        public static int StickyPairs(int level) => level < StickyFromLevel ? 0 : level >= 450 ? 4 : level >= 300 ? 3 : level >= 150 ? 2 : 1;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
         public const int StructureTypes = 76;
-        /// <summary>시작 공 개수 = 기본(일반 12~16, 하드 8, 초반 5레벨 +5) + 블록 수의 40%. 블록이 많을수록 공도 비례해서 늘되, 비율은 조금씩 빡빡하게.</summary>
-        public const float StartBallsPerBlock = 0.2f;    // 블록 수 비례분 (레퍼런스: 블록 70~150개에 공 18~33)
-        public const int MaxStartBalls = 35;
-        public static int StartBalls(int level, bool hard, int blockCount = 20)
+
+        // ---------- 시작 공 = 구조물 전체 질량 ÷ 목표 "공 1개당 질량" ----------
+        // 난이도 곡선의 핵심. 하루 2시간·100스테이지 기준: 100레벨(하루)마다 난이도 지수 약 +1 (1레벨 1.0 → 100레벨 2.2 → 300레벨 4.1 → 500레벨 6.1).
+        // 블록 "수"가 아니라 "질량" 기준이라 무거운 돌 구조물엔 공이 더, 가벼운 얼음엔 덜 나와 같은 구간 안의 편차가 1/3로 준다.
+        // 파워·무게 스탯이 최대 3배(50레벨)까지 오르므로 6배 곡선을 체감으로는 2배 남짓으로 따라잡는다.
+        public const float TargetMassPerBallBase = 1.0f;     // 1레벨: 공 1개당 1.0kg
+        public const float TargetMassPerBallGrowth = 0.008f; // 레벨당 +0.8% → 100레벨 1.8kg, 500레벨 5.0kg
+        public const float HardLevelMassMult = 1.35f;        // 하드 레벨은 공 1개당 35% 더 밀어야 한다
+        public const int StartBallsBase = 4;                 // 질량 비례분에 더하는 여유
+        public const int MinStartBalls = 8, MaxStartBalls = 40;
+        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * (1f + level * TargetMassPerBallGrowth) * (hard ? HardLevelMassMult : 1f);
+        public static int StartBalls(int level, bool hard, float totalMass)
         {
-            int n = hard ? 8 : 12 + (level * 5) % 5;
-            if (!hard && level <= 5) n += 5;
-            n += Mathf.RoundToInt(blockCount * StartBallsPerBlock);
-            return Mathf.Min(n, MaxStartBalls);
+            int n = StartBallsBase + Mathf.RoundToInt(totalMass / TargetMassPerBall(level, hard));
+            if (!hard && level <= 5) n += 5;   // 튜토리얼 구간 여유
+            return Mathf.Clamp(n, MinStartBalls, MaxStartBalls);
         }
         /// <summary>구조물 크기 성장: base에서 시작해 perLevels 레벨마다 +1, cap까지</summary>
         // ---------- 움직이는 받침대 ----------

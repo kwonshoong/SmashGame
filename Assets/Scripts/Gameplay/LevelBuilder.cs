@@ -593,7 +593,7 @@ namespace SmashGame
                 var cand = info.blocks.FindAll(b =>
                     (b.kind == BlockKind.Stone || b.kind == BlockKind.Crate || b.kind == BlockKind.Cube)
                     && b.GetComponent<Renderer>().bounds.min.y < PedestalTop + 0.12f);
-                int max = Mathf.FloorToInt(info.blocks.Count * Balance.ReinforcedRatioCap);
+                int max = Mathf.FloorToInt(info.blocks.Count * Balance.ReinforcedRatioCap(level));
                 int n = Mathf.Min(max, 1 + (level - Balance.ReinforcedFromLevel) / 20);
                 for (int i = 0; i < n && cand.Count > 0; i++)
                 {
@@ -607,7 +607,7 @@ namespace SmashGame
             // 접착 블록 — 레벨 91부터, 인접 블록 1~2쌍을 FixedJoint로
             if (level >= Balance.StickyFromLevel)
             {
-                int pairs = level >= 150 ? 2 : 1;
+                int pairs = Balance.StickyPairs(level);
                 var pool = new List<Block>(info.blocks);
                 for (int i = 0; i < pairs && pool.Count > 1; i++)
                 {
@@ -659,7 +659,8 @@ namespace SmashGame
             PreSettle(info.blocks);
 
             // 시작 공
-            info.startBalls = Balance.StartBalls(level, info.hard, info.blocks.Count) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
+            float totalMass = 0f; foreach (var b in info.blocks) { var rb = b != null ? b.GetComponent<Rigidbody>() : null; if (rb != null) totalMass += rb.mass; }
+            info.startBalls = Balance.StartBalls(level, info.hard, totalMass) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
             info.structureName = type switch
             {
                 0 => "벽돌 담", 1 => "원통 다발", 2 => "상자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",
