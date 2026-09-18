@@ -80,10 +80,10 @@ namespace SmashGame
         public static int  TowerRecommendedPower(int stage) => Mathf.RoundToInt(Mathf.Clamp(TowerMassMult(stage) * 55f, 100f, 300f) / 10f) * 10;
 
         // ---------- 난이도 ----------
-        /// <summary>강화 블록 비율 상한: 200레벨까지 20%, 그 뒤 400레벨에 35%까지 완만히.</summary>
-        public static float ReinforcedRatioCap(int level) => Mathf.Min(0.35f, 0.20f + Mathf.Max(0, level - 200) * 0.00075f);
-        /// <summary>접착 블록 쌍 수: 91레벨 1쌍 → 150에서 2쌍 → 300에서 3쌍 → 450에서 4쌍.</summary>
-        public static int StickyPairs(int level) => level < StickyFromLevel ? 0 : level >= 450 ? 4 : level >= 300 ? 3 : level >= 150 ? 2 : 1;
+        /// <summary>강화 블록 비율 상한: 200레벨까지 20%, 그 뒤 레벨당 +0.075%p로 계속(600L 50%). 강화는 바닥 줄에만 두므로 실제로는 바닥 블록 수가 자연 상한.</summary>
+        public static float ReinforcedRatioCap(int level) => 0.20f + Mathf.Max(0, level - 200) * 0.00075f;
+        /// <summary>접착 블록 쌍 수: 91레벨 1쌍, 150레벨 2쌍, 그 뒤 150레벨마다 +1 (300L 3, 450L 4, 600L 5 …). 상한 없음(블록 수가 자연 상한).</summary>
+        public static int StickyPairs(int level) => level < StickyFromLevel ? 0 : level < 150 ? 1 : 2 + (level - 150) / 150;
         public static bool IsHardLevel(int level) => level >= 10 && level % 10 == 0;
         public const int StructureTypes = 76;
 
@@ -96,7 +96,7 @@ namespace SmashGame
         public const float TargetMassPerBallGrowth = 0.008f; // 레벨당 +0.8% (기준 질량 기준). 여기에 블록 질량 배율 성장(BlockMassGrowth)이 곱해져 실제 곡선이 된다
         public const float HardLevelMassMult = 1.35f;        // 하드 레벨은 공 1개당 35% 더 밀어야 한다
         public const int StartBallsBase = 4;                 // 질량 비례분에 더하는 여유
-        public const int MinStartBalls = 8, MaxStartBalls = 40;
+        public const int MinStartBalls = 8, MaxStartBalls = 40;   // 하한 8: 아주 높은 레벨에선 공이 8개로 고정되고 그 뒤 난이도는 블록 질량 배율이 계속 올린다
         public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * (1f + level * TargetMassPerBallGrowth) * (hard ? HardLevelMassMult : 1f);
         public static int StartBalls(int level, bool hard, float totalMass)
         {
@@ -163,11 +163,11 @@ namespace SmashGame
         public const int DeepStructuresFromLevel = 60;   // 세 겹이 되는 레벨 (두 겹은 1레벨부터 기본)
         /// <summary>새 구조물의 바닥·기둥이 돌(무거움)로 바뀌는 레벨. 그 전엔 상자·원통.</summary>
         public const int HeavyStructuresFromLevel = 30;
-        /// <summary>블록 전체 질량 배율. 기본 0.7(이전 0.6)에서 레벨당 +0.15%로 계속 무거워져 400레벨쯤 1.6배(1.12)에서 멈춘다.
-        /// 시작 공은 이 배율을 뺀 "기준 질량"(BallRefMassScale 기준)으로 세므로, 무거워진 만큼이 그대로 난이도가 된다.</summary>
+        /// <summary>블록 전체 질량 배율. 기본 0.7(이전 0.6)에서 레벨당 +0.15%로 상한 없이 계속 무거워진다 (500L 1.75배, 1000L 2.5배, 2000L 4배).
+        /// 시작 공은 이 배율을 뺀 "기준 질량"(BallRefMassScale 기준)으로 세므로, 무거워진 만큼이 그대로 난이도가 된다. 레벨은 무한이므로 상한을 두지 않는다.</summary>
         public const float BlockMassBase = 0.7f;
-        public const float BlockMassGrowth = 0.0015f, BlockMassCap = 1.6f;
-        public static float BlockMassScale(int level) => BlockMassBase * Mathf.Min(BlockMassCap, 1f + Mathf.Max(0, level - 1) * BlockMassGrowth);
+        public const float BlockMassGrowth = 0.0015f;
+        public static float BlockMassScale(int level) => BlockMassBase * (1f + Mathf.Max(0, level - 1) * BlockMassGrowth);
         /// <summary>시작 공 계산의 기준 질량 배율 (TargetMassPerBall이 이 배율에서 튜닝됨). 실제 배율/기준 배율만큼 블록이 더 무겁고, 그만큼 어렵다.</summary>
         public const float BallRefMassScale = 0.6f;
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>
