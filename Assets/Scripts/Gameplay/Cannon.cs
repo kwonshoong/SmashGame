@@ -195,9 +195,49 @@ namespace SmashGame
         /// (포물선은 두 점 사이에서 현보다 위로 지나므로 목표가 이 높이면 공이 상판을 넘어 맨 아래 블록을 맞힌다. 상판 충돌 자체는 그대로다)</summary>
         public float MinAimY => LevelBuilder.PedestalTop + (Balance.RealPhysics ? Balance.RealBallRadiusBase : 0.22f) * stats.size + 0.06f;
 
+        /// <summary>상판들 중 맨 앞 모서리의 z. 공은 이 z를 지날 때 MinAimY 이상이어야 상판 앞 모서리에 걸리지 않는다.</summary>
+        static float PlateFrontZ()
+        {
+            float z = float.MaxValue;
+            foreach (var c in LevelBuilder.PedestalColliders) if (c != null && c.gameObject.activeInHierarchy) z = Mathf.Min(z, c.bounds.min.z);
+            return z < float.MaxValue ? z : LevelBuilder.FrontZ;
+        }
+
+        /// <summary>
+        /// 목표가 상판 앞 모서리보다 뒤(둥근 상판 뒤쪽 기둥, 깊은 상판의 뒷줄 등)이고 낮으면, 낮은 포물선이 앞 모서리를 지날 때 상판 높이 아래라
+        /// 카메라에서 안 보이는 상판 앞 모서리·밑면에 맞고 튕긴다. 그때는 겨냥한 x·z는 두고 목표 높이만 올려, 앞 모서리를 MinAimY 이상으로
+        /// 지나는 가장 낮은 포물선으로 쏜다 (겨냥한 기둥의 조금 위를 맞힌다).
+        /// </summary>
+        Vector3 ClearPlateFront(Vector3 from, Vector3 target)
+        {
+            float fz = PlateFrontZ();
+            if (target.z <= fz + 0.01f) return target;
+            float speed = Ball.SpeedFor(stats);
+            if (HeightAtZ(from, target, speed, fz) >= MinAimY) return target;
+            // 목표 높이를 올려서(방향은 그대로) 앞 모서리를 MinAimY 이상으로 지나는 가장 낮은 포물선을 이분 탐색
+            float lo = target.y, hi = target.y + 4f;
+            for (int i = 0; i < 24; i++)
+            {
+                float mid = (lo + hi) * 0.5f;
+                if (HeightAtZ(from, new Vector3(target.x, mid, target.z), speed, fz) >= MinAimY) hi = mid; else lo = mid;
+            }
+            return new Vector3(target.x, hi, target.z);
+        }
+
+        /// <summary>from에서 to로 쏜 낮은 포물선이 z = zAt를 지날 때의 높이. 그 z에 못 미치면 +∞.</summary>
+        static float HeightAtZ(Vector3 from, Vector3 to, float speed, float zAt)
+        {
+            Vector3 v = BallisticDirection(from, to, speed) * speed;
+            if (v.z <= 0.01f) return float.MaxValue;
+            float t = (zAt - from.z) / v.z;
+            if (t <= 0f) return float.MaxValue;
+            return from.y + v.y * t + 0.5f * Physics.gravity.y * t * t;
+        }
+
         public void Fire(Vector3 target)
         {
             if (target.y < MinAimY) target.y = MinAimY;
+            target = ClearPlateFront(muzzle.position, target);
             cooldown = 0.18f;
             recoil = 1f;
             // 포신 회전축(pivot)에서 목표까지, 중력을 고려한 포물선 발사각으로 조준 (탭한 지점을 정확히 지나간다)
