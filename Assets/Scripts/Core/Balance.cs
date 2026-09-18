@@ -20,7 +20,7 @@ namespace SmashGame
         // 블록을 미는 힘·이웃 밀기·되튕김을 코드로 넣지 않는다 — PhysX 운동량 보존이 전부. false면 옛 방식(스탯 임펄스).
         public const bool RealPhysics = true;
         public const float RealBallMassBase = 1.2f;    // 무게 스탯 100% = 1.2kg (250% → 3.0kg). 블록은 칸당 0.5~1.1kg
-        public const float RealBallRadiusBase = 0.2f;  // 크기 스탯 100% = 반지름 0.2 (180% → 0.36)
+        public const float RealBallRadiusBase = 0.15f;  // 크기 스탯 100% = 반지름 0.15 (180% → 0.27). 0.2에서 줄임
         public const float RealBallBounce = 0.35f;     // 탄성(반발계수). 0.1 퍽 하고 죽는 공, 0.8 통통 튀는 공
         public const float RealBallLifetime = 4f;      // 굴러다니는 공이 사라지기까지
         public const float RealHitMinSpeedFrac = 0.3f; // 이 비율(발사 속도 대비)보다 느린 접촉은 "타격"(깨짐·콤보)으로 세지 않는다
