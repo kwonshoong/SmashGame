@@ -23,6 +23,7 @@ namespace SmashGame
         static int level, attempt, blocks0, startBalls, ballsGiven, shots, blocksLeftAtLastShot;
         static float totalMass, tStart, tLastShot, rawIndex;
         static string structure;
+        static int structureType; static float ballFactor;
         static bool active, hard;
         static string motion; static int obstacle, reinforced, sticky, plates;
         static readonly List<string> pendingShots = new();   // 이 발로 떨어뜨린 수는 다음 발에서 확정되므로 잠시 보관
@@ -37,7 +38,7 @@ namespace SmashGame
             dir = System.IO.Path.Combine(root, "balance");
             System.IO.Directory.CreateDirectory(dir);
             session = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            Header("levels.csv", "session,time,level,attempt,structure,blocks,totalMass,massScale,startBalls,ballsGiven,ballsUsed,ballsLeft,shots,result,durationSec,blocksLeft,blocksFallen,coinsEarned,coinsAfter,powerLv,sizeLv,massLv,ammoLv,hard,motion,obstacle,reinforced,sticky,plates,rawIndex");
+            Header("levels.csv", "session,time,level,attempt,structure,structureType,ballFactor,blocks,totalMass,massScale,startBalls,ballsGiven,ballsUsed,ballsLeft,shots,result,durationSec,blocksLeft,blocksFallen,coinsEarned,coinsAfter,powerLv,sizeLv,massLv,ammoLv,hard,motion,obstacle,reinforced,sticky,plates,rawIndex");
             Header("shots.csv", "session,level,attempt,shot,tSinceStart,sinceLastShot,targetX,targetY,targetZ,blocksLeftBefore,fallenByThisShot,ballsLeftAfter");
             Header("upgrades.csv", "session,time,level,stat,fromLv,toLv,cost,coinsAfter");
         }
@@ -64,6 +65,7 @@ namespace SmashGame
             if (info == null || info.tower || info.bonus) { active = false; return; }
             FlushPendingShots(-1);
             active = true; level = lv; structure = info.structureName; blocks0 = info.blocks.Count;
+            structureType = info.structureType; ballFactor = info.ballFactor;
             attempts.TryGetValue(lv, out attempt); attempt++; attempts[lv] = attempt;
             totalMass = 0f; foreach (var b in info.blocks) { var rb = b != null ? b.GetComponent<Rigidbody>() : null; if (rb != null) totalMass += rb.mass; }
             startBalls = info.startBalls; ballsGiven = ballsGivenTotal; shots = 0; tStart = Time.time; tLastShot = -1f; lastShotBlocksLeft = -1;
@@ -106,7 +108,7 @@ namespace SmashGame
             FlushPendingShots(blocksLeft);
             float dur = Time.time - tStart;
             Append("levels.csv", string.Join(",", new[] {
-                session, System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), level.ToString(), attempt.ToString(), Q(structure), blocks0.ToString(), F(totalMass), F(Balance.BlockMassScale(level)),
+                session, System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), level.ToString(), attempt.ToString(), Q(structure), structureType.ToString(), F(ballFactor), blocks0.ToString(), F(totalMass), F(Balance.BlockMassScale(level)),
                 startBalls.ToString(), ballsGiven.ToString(), (ballsGiven - ballsLeft).ToString(), ballsLeft.ToString(), shots.ToString(), result, F(dur), blocksLeft.ToString(), (blocks0 - blocksLeft).ToString(),
                 coinsEarned.ToString(), d.coins.ToString(), d.powerLv.ToString(), d.sizeLv.ToString(), d.massLv.ToString(), d.ammoLv.ToString(),
                 hard ? "1" : "0", motion, obstacle.ToString(), reinforced.ToString(), sticky.ToString(), plates.ToString(), F(rawIndex) }));

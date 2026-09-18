@@ -23,6 +23,8 @@ namespace SmashGame
         public float rangeZ;    // 구조물이 뒤로 밀린 거리(월드 z)
         public float fitScale = 1f;   // 화면 맞춤으로 축소된 배율 (1 = 그대로)
         public Balance.MotionKind motion; // 받침대 움직임
+        public int structureType = -1;    // 구조물 종류 번호 (0~75, 보너스·격파 도전은 -1)
+        public float ballFactor = 1f;     // 이 구조물에 적용된 난이도 계수
     }
 
     /// <summary>
@@ -667,7 +669,9 @@ namespace SmashGame
             // 시작 공은 레벨 질량 배율을 뺀 "기준 질량"으로 센다 — 배율로 무거워진 만큼은 그대로 난이도
             float totalMass = 0f; foreach (var b in info.blocks) { var rb = b != null ? b.GetComponent<Rigidbody>() : null; if (rb != null) totalMass += rb.mass; }
             float refMass = totalMass * Balance.BallRefMassScale / Balance.BlockMassScale(level);
-            info.startBalls = Balance.StartBalls(level, info.hard, refMass) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
+            // 구조물별 난이도 계수(실플레이 로그 기반): 링·둥근 상판 계열은 공을 더, 갈라진 쉬운 배치는 덜 준다
+            info.structureType = type; info.ballFactor = Balance.BallFactor(type);
+            info.startBalls = Balance.StartBalls(level, info.hard, refMass, info.ballFactor) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
             info.structureName = type switch
             {
                 0 => "벽돌 담", 1 => "원통 다발", 2 => "상자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",

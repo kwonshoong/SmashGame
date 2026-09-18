@@ -46,7 +46,8 @@ namespace SmashGame
         public const int RefundPerBall = 2;      // 남은 공 1개당 코인 (×CoinScale)
         public const int TrackLevels = 20;       // 20레벨 트랙
         public const int TrackReward = 100;      // (×CoinScale)
-        public static int ClearCoin(int level) => Mathf.RoundToInt((15 + (level * 7) % 26) * CoinScale(level)); // 기본 15~40, 레벨 비례
+        public const float HardLevelCoinMult = 1.6f;   // 하드 레벨 난이도를 1.6배로 올린 만큼 보상도 같이 올린다
+        public static int ClearCoin(int level) => Mathf.RoundToInt((15 + (level * 7) % 26) * CoinScale(level) * (IsHardLevel(level) ? HardLevelCoinMult : 1f)); // 기본 15~40, 레벨 비례
         public static int RefundCoin(int level, int remainingBalls) => Mathf.RoundToInt(remainingBalls * RefundPerBall * CoinScale(level));
         public static int TrackCoin(int level) => Mathf.RoundToInt(TrackReward * CoinScale(level));
 
@@ -93,18 +94,47 @@ namespace SmashGame
         // 대장간 경제 시뮬(클리어 코인 + 남은 공 환급 + 트랙 보상으로 제일 싼 스탯부터 강화)로 체감 곡선을 확인한다 (프로젝트 문서 '난이도 곡선 설계').
         // 블록 "수"가 아니라 "질량" 기준이라 무거운 돌 구조물엔 공이 더, 가벼운 얼음엔 덜 나와 같은 구간 안의 편차가 1/3로 준다.
         // 파워·무게 스탯이 최대 3배(50레벨)까지 오르므로 6배 곡선을 체감으로는 2배 남짓으로 따라잡는다.
-        public const float TargetMassPerBallBase = 1.0f;     // 1레벨: 공 1개당 1.0kg
-        public const float TargetMassPerBallGrowth = 0.008f; // 레벨당 +0.8% (기준 질량 기준). 여기에 블록 질량 배율 성장(BlockMassGrowth)이 곱해져 실제 곡선이 된다
-        public const float HardLevelMassMult = 1.35f;        // 하드 레벨은 공 1개당 35% 더 밀어야 한다
-        public const int StartBallsBase = 4;                 // 질량 비례분에 더하는 여유
-        public const int MinStartBalls = 8, MaxStartBalls = 40;   // 하한 8: 아주 높은 레벨에선 공이 8개로 고정되고 그 뒤 난이도는 블록 질량 배율이 계속 올린다
+        // 2026-09-18 실플레이 로그(1~177레벨, 181시도) 반영: 강화 없이 176레벨이 뚫렸고 공 사용률이 1~25레벨 0.43,
+        // 100레벨 0.54, 150레벨 0.70에 그쳤다. 목표 사용률을 초반 0.65 · 150레벨 0.85로 올리기 위해
+        // 기준 질량을 1.0 → 1.9로 올리고 성장률은 0.8% → 0.4%로 낮췄다 (초반을 더 조이고 후반 기울기는 완만하게).
+        // 로그 재시뮬(같은 플레이·무강화 가정) 결과 구간별 사용률 0.60 / 0.64 / 0.65 / 0.75 / 0.81 / 0.86 / 0.87, 무강화 실패율 약 10%
+        // — 즉 이제 대장간 강화 없이는 100레벨 이후가 막힌다.
+        public const float TargetMassPerBallBase = 1.9f;     // 1레벨: 공 1개당 1.9kg
+        public const float TargetMassPerBallGrowth = 0.004f; // 레벨당 +0.4% (기준 질량 기준). 여기에 블록 질량 배율 성장(BlockMassGrowth)이 곱해져 실제 곡선이 된다
+        public const float HardLevelMassMult = 1.6f;         // 하드 레벨은 공 1개당 60% 더 밀어야 한다 (로그상 1.35는 체감되지 않았다)
+        public const int StartBallsBase = 2;                 // 질량 비례분에 더하는 여유
+        public const int MinStartBalls = 8, MaxStartBalls = 34;   // 하한 8: 아주 높은 레벨에선 공이 8개로 고정되고 그 뒤 난이도는 블록 질량 배율이 계속 올린다. 상한 40 → 34: 저레벨이 상한에 걸려 공이 남아돌았다
         public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * (1f + level * TargetMassPerBallGrowth) * (hard ? HardLevelMassMult : 1f);
-        public static int StartBalls(int level, bool hard, float totalMass)
+        public static int StartBalls(int level, bool hard, float totalMass, float structureFactor = 1f)
         {
-            int n = StartBallsBase + Mathf.RoundToInt(totalMass / TargetMassPerBall(level, hard));
+            int n = StartBallsBase + Mathf.RoundToInt(totalMass * Mathf.Clamp(structureFactor, 0.5f, 1.6f) / TargetMassPerBall(level, hard));
             if (!hard && level <= 5) n += 5;   // 튜토리얼 구간 여유
             return Mathf.Clamp(n, MinStartBalls, MaxStartBalls);
         }
+
+        // ---------- 구조물별 난이도 계수 ----------
+        /// <summary>
+        /// 같은 레벨·같은 질량이라도 구조물 형태에 따라 실제 난이도가 0.18~0.97(공 사용률)까지 벌어졌다.
+        /// 링·둥근 상판 계열(통나무 원진·돌기둥 원진·이중 링·다이아몬드 십자·십자 성·육각 성)은 바깥 블록이 안쪽을 받쳐
+        /// 한 발에 1.8개밖에 안 떨어지고, 쌍둥이 탑·세 기둥·세 잎 같은 갈라진 배치는 한 발에 7~12개가 쓸려 나간다.
+        /// 값 > 1 = 어려운 구조물이라 공을 더 준다, 값 &lt; 1 = 쉬운 구조물이라 공을 덜 준다.
+        /// 산출: 실플레이 로그의 구조물별 공 사용률 ÷ 레벨 추세선(0.00217·L + 0.372), 표본 수로 1.0쪽으로 축소(n/(n+2)), 0.70~1.40 범위.
+        /// 0~5번(튜토리얼 구간 6종)과 표본이 없는 40·71번은 1.0으로 둔다.
+        /// </summary>
+        public static readonly float[] StructureBallFactor =
+        {
+            1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.10f, 1.01f,   // 0 벽돌 담, 1 원통 다발, 2 상자 선반, 3 통나무 탑, 4 얼음 벽, 5 삼중 받침대, 6 피라미드, 7 성문
+            0.89f, 1.00f, 0.93f, 1.15f, 1.10f, 0.88f, 0.97f, 0.96f,   // 8 쌍둥이 탑, 9 계단, 10 요새, 11 돌기둥 원진, 12 창문 벽, 13 아치 문, 14 신전, 15 세 탑
+            1.14f, 1.14f, 1.13f, 1.26f, 0.97f, 0.89f, 0.98f, 0.99f,   // 16 벽돌 탑, 17 H자 벽, 18 엇갈린 겹 벽, 19 둥근 성, 20 다리, 21 계단 성, 22 격자 탑, 23 버섯 탑
+            1.10f, 0.94f, 0.89f, 0.74f, 0.97f, 0.98f, 0.91f, 0.88f,   // 24 처마 벽, 25 무늬 벽, 26 창문 탑, 27 세 기둥, 28 상자 벽과 곁탑, 29 통나무 벽, 30 계단식 성문, 31 병풍 벽
+            0.92f, 0.88f, 0.94f, 1.17f, 0.89f, 0.90f, 0.78f, 1.08f,   // 32 부채꼴 성벽, 33 뱃머리 탑, 34 쌍날개, 35 십자 성, 36 풍차, 37 삼각 요새, 38 세 잎, 39 엇갈린 두 벽
+            1.00f, 0.89f, 1.17f, 0.92f, 1.06f, 0.89f, 0.84f, 1.09f,   // 40 꺾인 벽, 41 화살촉 성, 42 다이아몬드 십자, 43 대각선 벽, 44 원통 벌집, 45 얼음 성, 46 사탕 숲, 47 통나무 오두막
+            0.81f, 1.16f, 0.70f, 1.09f, 0.91f, 1.29f, 0.98f, 1.01f,   // 48 돌 아치, 49 계단 피라미드, 50 쌍둥이 원통 탑, 51 상자 성벽, 52 X자 벽, 53 통나무 원진, 54 종탑, 55 세 줄 벽
+            1.07f, 0.86f, 1.13f, 0.95f, 1.02f, 0.87f, 0.92f, 1.00f,   // 56 볼록 성벽, 57 쐐기 벽, 58 T자 벽, 59 원통 벽, 60 얼음 피라미드, 61 상자 탑 셋, 62 판자 격자, 63 성벽과 망루
+            1.02f, 0.99f, 1.31f, 1.14f, 1.29f, 0.89f, 1.12f, 1.00f,   // 64 무지개 담, 65 통나무 다리, 66 이중 링, 67 지붕 집, 68 육각 성, 69 계단 탑, 70 창 셋 벽, 71 원통 아치
+            1.27f, 0.98f, 0.70f, 0.85f,                               // 72 겹 피라미드, 73 대리석 홀, 74 쌍둥이 얼음 탑, 75 성채
+        };
+        public static float BallFactor(int type) => type >= 0 && type < StructureBallFactor.Length ? StructureBallFactor[type] : 1f;
         /// <summary>구조물 크기 성장: base에서 시작해 perLevels 레벨마다 +1, cap까지</summary>
         // ---------- 움직이는 받침대 ----------
         public enum MotionKind { None, Spin, Bob, SpinBob }
