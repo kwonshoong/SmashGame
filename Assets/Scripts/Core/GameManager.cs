@@ -350,6 +350,7 @@ namespace SmashGame
             }
             r.total = r.clearCoin + r.refundCoin + r.trackCoin;
             Data.coins += r.total;
+            BalanceLog.LevelEnd("won", remainingBalls, 0, r.total, Data);
             Data.winStreak++;
             Data.RefreshDay();
             Data.clearedToday++;
@@ -418,7 +419,9 @@ namespace SmashGame
         public bool UpgradeStat(StatType t)
         {
             if (!CanUpgrade(t)) return false;
-            Data.coins -= GetUpgradeCost(t);
+            int fromLv = GetStatLevel(t), cost = GetUpgradeCost(t);
+            Data.coins -= cost;
+            BalanceLog.Upgrade(Data.currentLevel, t.ToString(), fromLv, fromLv + 1, cost, Data.coins);
             switch (t)
             {
                 case StatType.Power: Data.powerLv++; break;

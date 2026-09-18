@@ -59,6 +59,7 @@ namespace SmashGame
             BallsLeft = Info.startBalls + stats.ammoBonus + streakBonus;
             cannon = Cannon.Create(gm.levelRoot, gm.mainCamera, stats, this);
             startTime = Time.time;
+            BalanceLog.LevelStart(Info, Level, BallsLeft, gm.Data);
             OnHudChanged?.Invoke();
         }
 
@@ -119,12 +120,14 @@ namespace SmashGame
                 Ended = true;
                 cannon.inputEnabled = false;
                 Time.timeScale = 1f;
+                BalanceLog.LevelEnd("lost", 0, BlocksLeft, 0, gm.Data);
                 gm.OnLevelLost();
             }
         }
 
         public void Abort()
         {
+            if (!Ended) BalanceLog.LevelEnd("quit", BallsLeft, BlocksLeft, 0, gm.Data);
             Ended = true;
             Time.timeScale = 1f;
         }

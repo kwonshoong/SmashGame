@@ -214,7 +214,9 @@ namespace SmashGame
             if (controller != null)
             {
                 ball.onHit = controller.OnBallHit;
+                int blocksBefore = controller.BlocksLeft;
                 controller.OnFired();
+                BalanceLog.Shot(target, blocksBefore, controller.BallsLeft);
             }
             MuzzleFlash();
         }

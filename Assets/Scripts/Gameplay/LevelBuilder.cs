@@ -1824,8 +1824,8 @@ namespace SmashGame
             Debug.Log($"[LevelBuilder] {info.level}: 블록 {MinBlocks}개 미만이라 뒷겹 {back.Count}개를 한 겹 더 복제 (세 겹)");
         }
 
-        /// <summary>규칙 ⑤ 상판 사이 최소 간격 1.2칸(0.55). 더 좁으면 떨어지는 블록이 상판 틈에 끼인다 (L224 풍차에서 확인).</summary>
-        public const float MinPlateGap = 1.2f * DS;
+        /// <summary>규칙 ⑤ 상판 사이 최소 간격 0.70 (블록 대각선 0.62보다 넓게 — 돌아 떨어지는 블록도 끼지 않는다. 1.2칸=0.55에선 L23·224에서 끼었다).</summary>
+        public const float MinPlateGap = 0.70f;
 
         /// <summary>
         /// 규칙 ⑤: 상판끼리 MinPlateGap보다 가까우면 두 받침대(상판 묶음 + 그 위 블록)를 중심 연결선 방향으로 밀어 벌린다.
@@ -2101,7 +2101,7 @@ namespace SmashGame
             }
         }
 
-        /// <summary>52 십자 성 (상판 5: 앞 0°·양옆 90°·뒤 0° + 안뜰 가운데 작은 탑): 상자 요새.</summary>
+        /// <summary>52 십자 성 (상판 4: 앞 0°·양옆 90°·뒤 0°, 안뜰은 비움): 상자 요새.</summary>
         static void BuildCrossFort(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             var L = info.blocks; keepPlateShape = true; fixedFront = true;
@@ -2133,12 +2133,10 @@ namespace SmashGame
                 RUnitAt(root, bb, 0f, -1, 6, 1, BlockKind.Cube, RedCol, L, j); RUnitAt(root, bb, 0f, 1, 6, 1, BlockKind.Cube, RedCol, L, j);
                 RUnitAt(root, bb, 0f, 0, 6, 2, BlockKind.Cube, GoldCol, L, j);
             }
-            var mid = new Vector3(0f, 0f, 0.3f); RPlate(root, p, mid, 0f, 1f * DS + 0.1f, 1.1f); var bm = Top(mid);
-            RCluster(root, bm, 0f, 0f, 0f, 6, BlockKind.Cylinder, BlueCol, L, true);
-            foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RUnitAt(root, bm, 0f, dk, 6, 1, BlockKind.Cylinder, GoldCol, L, dj);
+            // 안뜰 가운데 탑은 두지 않는다 (둘러싸인 상판은 떨어진 블록 받이가 된다)
         }
 
-        /// <summary>53 풍차 (상판 4가 접선 방향으로 사각 링 + 가운데 탑): 원통·사탕 기둥 벽 넷.</summary>
+        /// <summary>53 풍차 (상판 4가 접선 방향으로 사각 링, 가운데는 비움): 원통·사탕 기둥 벽 넷.</summary>
         static void BuildPinwheel(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             var L = info.blocks; keepPlateShape = true; fixedFront = true;
@@ -2155,12 +2153,10 @@ namespace SmashGame
                     RUnitAt(root, b, yaw, 0, 5, 1, BlockKind.Cube, GoldCol, L, j);
                 }
             }
-            RPlate(root, p, Vector3.zero, 45f, 1f * DS + 0.1f, 1.1f); var bm = Top(Vector3.zero);
-            RCluster(root, bm, 45f, 0f, 0f, 6, BlockKind.Stone, MarbleCol, L);
-            foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RUnitAt(root, bm, 45f, dk, 6, 1, BlockKind.Cube, GoldCol, L, dj);
+            // 가운데 탑은 두지 않는다 (둘러싸인 상판은 떨어진 블록 받이가 된다)
         }
 
-        /// <summary>54 삼각 요새 (상판 4: 세 변 두 겹 벽 + 안뜰 2×2 대리석 탑).</summary>
+        /// <summary>54 삼각 요새 (상판 3: 세 변 두 겹 벽, 안뜰은 비움).</summary>
         static void BuildTriangleFort(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             var L = info.blocks; keepPlateShape = true; fixedFront = true;
@@ -2174,10 +2170,7 @@ namespace SmashGame
                 RBrickWall(root, b, yaw, 3, 5, 2, BlockKind.Ice, IceCol, BlueCol, L);
                 foreach (float j in new[] { -0.5f, 0.5f }) { RBarAt(root, b, yaw, 0, 5, 3, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, yaw, 0, 6, 1, BlockKind.Cube, GoldCol, L, j); }
             }
-            // 가운데 안뜰에 2×2 대리석 탑 (꼭짓점 기둥은 폭을 넘겨서 제거)
-            Vector3 G = (A + B + C) / 3f; RPlate(root, p, G, 0f, 1f * DS + 0.1f, 1.1f); var bg = Top(G);
-            RCluster(root, bg, 0f, 0f, 0f, 6, BlockKind.Stone, MarbleCol, L);
-            foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RUnitAt(root, bg, 0f, dk, 6, 1, BlockKind.Cube, RedCol, L, dj);
+            // 안뜰은 비워 둔다: 상판에 둘러싸인 작은 상판은 떨어진 블록을 받아 두는 받이가 되어 클리어가 안 된다 (L23)
         }
 
         /// <summary>55 세 잎 (2×2 상판 3이 오목한 호 위 36° 간격): 상판마다 2×2 기둥 6단(원통·대리석·상자), 위 빨강 큐브. 상판 간격은 SeparatePlates가 0.55로 맞춘다. 규칙 ⑦.</summary>
@@ -2685,7 +2678,7 @@ namespace SmashGame
             // 규칙 ⑦: 기둥은 2×2. 셋이면 폭 3×1.12 + 간격 2×0.55 = 4.46 (±2.23)
             for (int i = 0; i < 3; i++)
             {
-                var b = FrontPlate(root, p, (i - 1) * 1.67f, 0f, 1f * DS + 0.1f, 1.1f);
+                var b = FrontPlate(root, p, (i - 1) * 1.67f, i == 1 ? -0.2f : 0.6f, 1f * DS + 0.1f, 1.1f);   // 옆 기둥은 뒤(z 0.6)에 두어 벌어진 폭이 화면 안에 든다
                 bool cyl = i % 2 == 0;
                 RCluster(root, b, 0f, 0f, 0f, 6, cyl ? BlockKind.Cylinder : BlockKind.Candy, cyl ? BlueCol : PinkCol, L, cyl);
                 foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RUnitAt(root, b, 0f, dk, 6, 1, BlockKind.Cube, RedCol, L, dj);
@@ -2740,7 +2733,7 @@ namespace SmashGame
             Begin(info); var L = info.blocks; independentPedestals = true;
             foreach (int side in new[] { -1, 1 })
             {
-                var b = FrontPlate(root, p, side * 1.62f, 0f, 1f * DS + 0.1f);
+                var b = FrontPlate(root, p, side * 1.62f, 0.3f, 1f * DS + 0.1f);   // 옆 탑은 살짝 뒤(z 0.3): 벌어진 폭이 화면 안에 든다
                 RBrickWall(root, b, 0f, 2, 7, 2, BlockKind.Ice, IceCol, BlueCol, L);
                 foreach (float j in new[] { -0.5f, 0.5f }) { RUnitAt(root, b, 0f, -0.5f, 7, 1, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, 0.5f, 7, 1, BlockKind.Cube, RedCol, L, j); }
             }
@@ -3171,12 +3164,12 @@ namespace SmashGame
         {
             Begin(info); var L = info.blocks; independentPedestals = true;
             // 규칙 ⑦: 옆 탑 2×2. 가운데는 2열 8단으로 좁혀 폭 ±2.23 안
-            var c = FrontPlate(root, p, 0f, 0.2f, 1f * DS + 0.1f);
+            var c = FrontPlate(root, p, 0f, -0.2f, 1f * DS + 0.1f);
             RBrickWall(root, c, 0f, 2, 8, 2, BlockKind.Cube, SlateCol, RedCol, L);
             foreach (float j in new[] { -0.5f, 0.5f }) { RBarAt(root, c, 0f, 0f, 8, 2, BlockKind.Cube, RedCol, L, j); RUnitAt(root, c, 0f, -0.5f, 9, 1, BlockKind.Cube, GoldCol, L, j); }
             foreach (int side in new[] { -1, 1 })
             {
-                var b = FrontPlate(root, p, side * 1.67f, -0.3f, 1f * DS + 0.1f);
+                var b = FrontPlate(root, p, side * 1.67f, 0.1f, 1f * DS + 0.1f);
                 RCluster(root, b, 0f, 0f, 0f, 5, BlockKind.Cube, side < 0 ? BlueCol : PurpleCol, L, true);
                 foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RUnitAt(root, b, 0f, dk, 5, 1, BlockKind.Cube, RedCol, L, dj);
             }
