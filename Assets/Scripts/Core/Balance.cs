@@ -88,11 +88,12 @@ namespace SmashGame
         public const int StructureTypes = 76;
 
         // ---------- 시작 공 = 구조물 전체 질량 ÷ 목표 "공 1개당 질량" ----------
-        // 난이도 곡선의 핵심. 하루 2시간·100스테이지 기준: 100레벨(하루)마다 난이도 지수 약 +1 (1레벨 1.0 → 100레벨 2.2 → 300레벨 4.1 → 500레벨 6.1).
+        // 난이도 곡선의 핵심. 하루 2시간·100스테이지 기준: 원시 지수 1레벨 1.0 → 100레벨 2.5 → 300레벨 4.9 → 500레벨 7.0.
+        // 대장간 경제 시뮬(클리어 코인 + 남은 공 환급 + 트랙 보상으로 제일 싼 스탯부터 강화)을 넣으면 체감 지수는 1.0 → 100L 1.3 → 300L 1.65 → 500L 1.9로 완만히 오른다.
         // 블록 "수"가 아니라 "질량" 기준이라 무거운 돌 구조물엔 공이 더, 가벼운 얼음엔 덜 나와 같은 구간 안의 편차가 1/3로 준다.
         // 파워·무게 스탯이 최대 3배(50레벨)까지 오르므로 6배 곡선을 체감으로는 2배 남짓으로 따라잡는다.
         public const float TargetMassPerBallBase = 1.0f;     // 1레벨: 공 1개당 1.0kg
-        public const float TargetMassPerBallGrowth = 0.008f; // 레벨당 +0.8% → 100레벨 1.8kg, 500레벨 5.0kg
+        public const float TargetMassPerBallGrowth = 0.012f; // 레벨당 +1.2% → 100레벨 2.2kg, 500레벨 7.0kg. 대장간 강화(파워·무게·탄약)를 다 하는 유저 기준 체감 난이도 1.0 → 500레벨 1.9 (강화 안 하면 7.0)
         public const float HardLevelMassMult = 1.35f;        // 하드 레벨은 공 1개당 35% 더 밀어야 한다
         public const int StartBallsBase = 4;                 // 질량 비례분에 더하는 여유
         public const int MinStartBalls = 8, MaxStartBalls = 40;
