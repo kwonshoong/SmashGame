@@ -568,6 +568,7 @@ namespace SmashGame
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
+            EnsureMinBlocks(root, info, rng);
             SeparatePlates(root, info, level, type);
             FitPlatesToBlocks(info.blocks);
             float zShift = info.rangeZ;
@@ -1766,6 +1767,63 @@ namespace SmashGame
         /// <summary>true면 화면 맞춤 배율을 1로 고정하고 맨 앞 블록을 FrontZ에 맞춘다</summary>
         static bool fixedFront;
 
+        /// <summary>규칙 ⑥ 블록 최소 개수. 모자라면 세로로 긴 조각(2~3칸)을 1칸 블록으로 쪼개 채운다 (모양·질량은 그대로, 조각 수만 는다).</summary>
+        public const int MinBlocks = 60;
+
+        static void EnsureMinBlocks(Transform root, LevelInfo info, System.Random rng)
+        {
+            if (info.blocks.Count >= MinBlocks) return;
+            // 쪼갤 후보: 세로로 선 2~3칸 조각 (눕힌 부재는 폭이 넓으니 제외). 위쪽 조각부터 쪼개면 아래가 통짜라 안정에 유리하다
+            var cand = new List<(Block b, int cells)>();
+            foreach (var b in info.blocks)
+            {
+                if (b == null) continue;
+                var col = b.GetComponent<Collider>(); if (col == null) continue;
+                var sz = col.bounds.size; float h = sz.y;
+                int cells = Mathf.RoundToInt(h / DU);
+                if (cells >= 2 && cells <= 3 && Mathf.Abs(h - cells * DU) < 0.06f && sz.x < DU * 1.3f && sz.z < DU * 1.3f) cand.Add((b, cells));
+            }
+            cand.Sort((x, y) => y.b.transform.position.y.CompareTo(x.b.transform.position.y));
+            foreach (var (b, cells) in cand)
+            {
+                if (info.blocks.Count >= MinBlocks) break;
+                var t = b.transform; float yaw = t.eulerAngles.y; var kind = b.kind; var color = b.BaseColor;
+                Vector3 basePos = new Vector3(t.position.x, b.GetComponent<Collider>().bounds.min.y, t.position.z);
+                info.blocks.Remove(b); Object.DestroyImmediate(b.gameObject);
+                for (int k = 0; k < cells; k++) RUnit(root, basePos + Vector3.up * k * DU, 1, kind, color, yaw, info.blocks);
+            }
+            Physics.SyncTransforms();
+            if (info.blocks.Count >= MinBlocks) return;
+
+            // 그래도 모자라면(이미 다 1칸 조각인 구조물) 뒷겹을 한 겹 더 복제해 세 겹으로 만들고 상판을 그만큼 깊게 한다.
+            // 정면(yaw 0) 상판·블록으로만 된 구조물에서만 — 돌린 배치는 빌더에서 직접 채운다.
+            var groups = pedestalGroups.Where(g => g != null && g.transform.IsChildOf(root)).ToList();
+            bool frontal = groups.All(g => Mathf.Abs(Mathf.DeltaAngle(g.transform.eulerAngles.y, 0f)) < 0.5f)
+                        && info.blocks.All(b => b == null || Mathf.Abs(Mathf.DeltaAngle(b.transform.eulerAngles.y, 0f)) < 0.5f || Mathf.Abs(Mathf.DeltaAngle(b.transform.eulerAngles.y, 180f)) < 0.5f);
+            if (!frontal) return;
+            float meanZ = 0; int nb = 0; foreach (var b in info.blocks) if (b != null) { meanZ += b.transform.position.z; nb++; }
+            if (nb == 0) return; meanZ /= nb;
+            var back = info.blocks.Where(b => b != null && b.transform.position.z > meanZ + 0.1f).ToList();
+            if (back.Count == 0) return;
+            foreach (var b in back)
+            {
+                var col = b.GetComponent<Collider>(); if (col == null) continue;
+                var sz = col.bounds.size; var t = b.transform; float yaw = t.eulerAngles.y;
+                Vector3 basePos = new Vector3(t.position.x, col.bounds.min.y, t.position.z + DS);
+                if (sz.x > DU * 1.3f) RBar(root, basePos, Mathf.RoundToInt(sz.x / DS), b.kind, b.BaseColor, yaw, info.blocks);
+                else RUnit(root, basePos, Mathf.Max(1, Mathf.RoundToInt(sz.y / DU)), b.kind, b.BaseColor, yaw, info.blocks);
+            }
+            foreach (var g in groups)
+                foreach (var name in new[] { "PedestalTop", "PedestalRim", "PedestalUnder" })
+                {
+                    var c = g.transform.Find(name); if (c == null) continue;
+                    var ls = c.localScale; ls.z += DS; c.localScale = ls;
+                    var lp = c.localPosition; lp.z += DS * 0.5f; c.localPosition = lp;
+                }
+            Physics.SyncTransforms();
+            Debug.Log($"[LevelBuilder] {info.level}: 블록 {MinBlocks}개 미만이라 뒷겹 {back.Count}개를 한 겹 더 복제 (세 겹)");
+        }
+
         /// <summary>규칙 ⑤ 상판 사이 최소 간격 1.2칸(0.55). 더 좁으면 떨어지는 블록이 상판 틈에 끼인다 (L224 풍차에서 확인).</summary>
         public const float MinPlateGap = 1.2f * DS;
 
@@ -2103,27 +2161,30 @@ namespace SmashGame
             }
         }
 
-        /// <summary>55 다섯 잎 (작은 상판 5가 오목한 호 위 25° 간격, 상판마다 기둥 하나 6단): 기둥 0-1·2-3 꼭대기를 잇는 3칸 부재와 금색 큐브. 상판 사이 간격 0.55 (규칙 ⑤).</summary>
+        /// <summary>55 다섯 잎 (작은 상판 5가 오목한 호 위 25° 간격, 상판마다 기둥 하나 6단 두 겹): 기둥 0-1·2-3 꼭대기를 잇는 3칸 부재와 금색 큐브. 상판 사이 간격 0.55 (규칙 ⑤).</summary>
         static void BuildFiveLeaves(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             var L = info.blocks; keepPlateShape = true; fixedFront = true;
-            Vector3 O = new Vector3(0f, 0f, -1.0f); float r = 2.1f; const float step = 25f;   // 25° 간격, 반지름 2.1: 폭 2.1 안, 상판 간격은 SeparatePlates가 0.55로 맞춘다
+            Vector3 O = new Vector3(0f, 0f, -1.0f); float r = 1.7f; const float step = 22f;   // 22° 간격, 반지름 1.7 (두 겹 깊이 1.0 상판이 벌려진 뒤 폭 2.2 안), 상판 간격은 SeparatePlates가 0.55로 맞춘다
             var kinds = new[] { (BlockKind.Cylinder, BlueCol), (BlockKind.Crate, CrateCol), (BlockKind.Stone, MarbleCol), (BlockKind.Crate, CrateCol), (BlockKind.Cylinder, BlueCol) };
             System.Func<float, float, Vector3> arc = (ang, rad) => O + new Vector3(Mathf.Sin(ang * Mathf.Deg2Rad), 0f, Mathf.Cos(ang * Mathf.Deg2Rad)) * rad;
             for (int i = 0; i < 5; i++)
             {
                 float a = -2f * step + step * i; Vector3 c = arc(a, r);
-                RPlate(root, p, c, a, 0.5f * DS + 0.05f, 0.56f); var b = Top(c);
-                RColAt(root, b, a, 0f, 0f, 6, kinds[i].Item1, kinds[i].Item2, L, true);   // 한 칸씩 6개 (블록 수 35)
-                if (i < 4 && i % 2 == 0)
+                RPlate(root, p, c, a, 0.5f * DS + 0.05f, 1.0f); var b = Top(c);   // 앞뒤 두 겹이 서도록 깊이 1.0
+                foreach (float j in new[] { -0.5f, 0.5f })
                 {
-                    // 이웃 기둥(0-1, 2-3) 꼭대기를 잇는 3칸 부재(현의 중점, 상판 사이 틈 위에 걸침) + 그 위 금색 큐브.
-                    // 3칸 부재는 기둥 중심 너머까지 닿아 이웃 부재와 겹치므로 한 칸 건너 하나씩만 놓는다
-                    float am = a + step * 0.5f; Vector3 m = arc(am, r * Mathf.Cos(step * 0.5f * Mathf.Deg2Rad));
-                    RBar(root, m + Vector3.up * (PedestalTop + 6 * DU), 3, BlockKind.Cube, RedCol, am, L);
-                    RUnit(root, m + Vector3.up * (PedestalTop + 7 * DU), 1, BlockKind.Cube, GoldCol, am, L);
+                    RColAt(root, b, a, 0f, j, 6, kinds[i].Item1, kinds[i].Item2, L, true);   // 한 칸씩 6개 × 두 겹 (블록 65)
+                    if (i < 4 && i % 2 == 0)
+                    {
+                        // 이웃 기둥(0-1, 2-3) 꼭대기를 잇는 3칸 부재(현의 중점, 상판 사이 틈 위에 걸침) + 그 위 금색 큐브. 겹마다 하나.
+                        // 3칸 부재는 기둥 중심 너머까지 닿아 이웃 부재와 겹치므로 한 칸 건너 하나씩만 놓는다
+                        float am = a + step * 0.5f; Vector3 m = arc(am, r * Mathf.Cos(step * 0.5f * Mathf.Deg2Rad)) + YawBack(am) * (j * DS);
+                        RBar(root, m + Vector3.up * (PedestalTop + 6 * DU), 3, BlockKind.Cube, RedCol, am, L);
+                        RUnit(root, m + Vector3.up * (PedestalTop + 7 * DU), 1, BlockKind.Cube, GoldCol, am, L);
+                    }
+                    else if (i == 4) RUnitAt(root, b, a, 0f, 6, 1, BlockKind.Cube, GoldCol, L, j);   // 마지막 기둥 꼭대기 금색
                 }
-                else if (i == 4) RUnitAt(root, b, a, 0f, 6, 1, BlockKind.Cube, GoldCol, L);   // 마지막 기둥 꼭대기 금색
             }
         }
 
@@ -2202,9 +2263,9 @@ namespace SmashGame
             }
             foreach (int a in new[] { -1, 1 }) foreach (int d in new[] { -1, 1 })
             {
-                RCol(root, b + u * (a * DS) + v * (d * DS), 2, BlockKind.Ice, IceCol, 45f, L, true);
-                RCol(root, b + u * (2 * a * DS) + v * (d * DS), 1, BlockKind.Ice, IceCol, 45f, L, true);
-                RCol(root, b + u * (a * DS) + v * (2 * d * DS), 1, BlockKind.Ice, IceCol, 45f, L, true);
+                RCol(root, b + u * (a * DS) + v * (d * DS), 3, BlockKind.Ice, IceCol, 45f, L, true);          // 사분면 얼음 3·2·2단 (블록 63개)
+                RCol(root, b + u * (2 * a * DS) + v * (d * DS), 2, BlockKind.Ice, IceCol, 45f, L, true);
+                RCol(root, b + u * (a * DS) + v * (2 * d * DS), 2, BlockKind.Ice, IceCol, 45f, L, true);
             }
         }
 
@@ -2539,7 +2600,7 @@ namespace SmashGame
         /// <summary>22 격자 탑: 큐브 기둥 셋(k −2.5·0·2.5)과 그 사이를 잇는 3칸 부재가 줄마다 번갈아 격자를 이룬다. 두 겹.</summary>
         static void BuildN_Lattice(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            Begin(info); var L = info.blocks; int rows = Rows(info, 7, 8);
+            Begin(info); var L = info.blocks; int rows = Rows(info, 8, 9);   // 8단: 세 겹으로 복제되면 60개
             var b = FrontPlate(root, p, 0f, 0f, 3.5f * DS + 0.15f);
             foreach (float j in new[] { -0.5f, 0.5f })
                 for (int row = 0; row < rows; row++)
@@ -2993,7 +3054,7 @@ namespace SmashGame
             }
         }
 
-        /// <summary>68 팔각 성: 둥근 상판 위 큐브 기둥 8개(4단)가 팔각으로 서고 이웃끼리 2칸 부재로 엮인다(4·5단 번갈아). 가운데 원통 탑.</summary>
+        /// <summary>68 팔각 성: 둥근 상판 위 큐브 기둥 8개(5단)가 팔각으로 서고 이웃끼리 2칸 부재로 엮인다(5·6단 번갈아). 안쪽 사탕 링, 가운데 원통 탑.</summary>
         static void BuildN_Octagon(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
@@ -3002,12 +3063,14 @@ namespace SmashGame
             for (int i = 0; i < 8; i++)
             {
                 float a = i * 45f; float ar = a * Mathf.Deg2Rad;
-                RCol(root, b + new Vector3(Mathf.Sin(ar), 0f, Mathf.Cos(ar)) * r, 4, BlockKind.Cube, i % 2 == 0 ? BlueCol : PurpleCol, a, L, true);
+                RCol(root, b + new Vector3(Mathf.Sin(ar), 0f, Mathf.Cos(ar)) * r, 5, BlockKind.Cube, i % 2 == 0 ? BlueCol : PurpleCol, a, L, true);
                 // 이웃 기둥 사이 변의 부재: 2칸 부재(0.91)가 변(0.84)보다 길어 끝이 기둥 중심에서 만나므로, 짝수 변은 4단·홀수 변은 5단에 엮는다 (통나무집처럼)
                 float am = a + 22.5f; float amr = am * Mathf.Deg2Rad; Vector3 m = b + new Vector3(Mathf.Sin(amr), 0f, Mathf.Cos(amr)) * (r * Mathf.Cos(22.5f * Mathf.Deg2Rad));
-                RBar(root, m + Vector3.up * (i % 2 == 0 ? 4 : 5) * DU, 2, BlockKind.Cube, RedCol, am, L);
+                RBar(root, m + Vector3.up * (i % 2 == 0 ? 5 : 6) * DU, 2, BlockKind.Cube, RedCol, am, L);
             }
-            RCol(root, b, 6, BlockKind.Cylinder, BlueCol, 0f, L, true); RUnit(root, b + Vector3.up * 6 * DU, 1, BlockKind.Cylinder, GoldCol, 0f, L);
+            // 안쪽 사탕 링(반지름 0.55, 2단씩 한 칸) — 바깥 기둥(1.1)·가운데 원통과 0.11 간격. 블록 65개
+            for (int i = 0; i < 4; i++) { float a = (45f + 90f * i) * Mathf.Deg2Rad; RCol(root, b + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * 0.55f, 2, BlockKind.Candy, PinkCol, 0f, L, true); }
+            RCol(root, b, 7, BlockKind.Cylinder, BlueCol, 0f, L, true); RUnit(root, b + Vector3.up * 7 * DU, 1, BlockKind.Cylinder, GoldCol, 0f, L);
         }
 
         /// <summary>69 계단 탑: 4열 벽돌 탑 두 겹인데 열마다 8·7·6·5단으로 낮아진다.</summary>
