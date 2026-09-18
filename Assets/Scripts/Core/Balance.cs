@@ -88,12 +88,12 @@ namespace SmashGame
         public const int StructureTypes = 76;
 
         // ---------- 시작 공 = 구조물 전체 질량 ÷ 목표 "공 1개당 질량" ----------
-        // 난이도 곡선의 핵심. 하루 2시간·100스테이지 기준: 원시 지수 1레벨 1.0 → 100레벨 2.5 → 300레벨 4.9 → 500레벨 7.0.
-        // 대장간 경제 시뮬(클리어 코인 + 남은 공 환급 + 트랙 보상으로 제일 싼 스탯부터 강화)을 넣으면 체감 지수는 1.0 → 100L 1.3 → 300L 1.65 → 500L 1.9로 완만히 오른다.
+        // 난이도 곡선의 핵심. 하루 2시간·100스테이지 기준. 두 축이 곱해진다: ① 공 1개당 기준 질량(레벨당 +0.8%) ② 블록 질량 배율(레벨당 +0.15%, 400L 1.6배).
+        // 대장간 경제 시뮬(클리어 코인 + 남은 공 환급 + 트랙 보상으로 제일 싼 스탯부터 강화)로 체감 곡선을 확인한다 (프로젝트 문서 '난이도 곡선 설계').
         // 블록 "수"가 아니라 "질량" 기준이라 무거운 돌 구조물엔 공이 더, 가벼운 얼음엔 덜 나와 같은 구간 안의 편차가 1/3로 준다.
         // 파워·무게 스탯이 최대 3배(50레벨)까지 오르므로 6배 곡선을 체감으로는 2배 남짓으로 따라잡는다.
         public const float TargetMassPerBallBase = 1.0f;     // 1레벨: 공 1개당 1.0kg
-        public const float TargetMassPerBallGrowth = 0.012f; // 레벨당 +1.2% → 100레벨 2.2kg, 500레벨 7.0kg. 대장간 강화(파워·무게·탄약)를 다 하는 유저 기준 체감 난이도 1.0 → 500레벨 1.9 (강화 안 하면 7.0)
+        public const float TargetMassPerBallGrowth = 0.008f; // 레벨당 +0.8% (기준 질량 기준). 여기에 블록 질량 배율 성장(BlockMassGrowth)이 곱해져 실제 곡선이 된다
         public const float HardLevelMassMult = 1.35f;        // 하드 레벨은 공 1개당 35% 더 밀어야 한다
         public const int StartBallsBase = 4;                 // 질량 비례분에 더하는 여유
         public const int MinStartBalls = 8, MaxStartBalls = 40;
@@ -163,9 +163,13 @@ namespace SmashGame
         public const int DeepStructuresFromLevel = 60;   // 세 겹이 되는 레벨 (두 겹은 1레벨부터 기본)
         /// <summary>새 구조물의 바닥·기둥이 돌(무거움)로 바뀌는 레벨. 그 전엔 상자·원통.</summary>
         public const int HeavyStructuresFromLevel = 30;
-        /// <summary>블록 전체 질량 배율. 난이도는 "무거움"보다 "개수"로 잡는다: 전체적으로 가볍게(0.6) 하고 레벨에 따라 아주 완만히(최대 0.75).</summary>
-        public const float BlockMassBase = 0.6f;
-        public static float BlockMassScale(int level) => BlockMassBase * Mathf.Min(1.25f, 1f + Mathf.Max(0, level - 1) * 0.004f);
+        /// <summary>블록 전체 질량 배율. 기본 0.7(이전 0.6)에서 레벨당 +0.15%로 계속 무거워져 400레벨쯤 1.6배(1.12)에서 멈춘다.
+        /// 시작 공은 이 배율을 뺀 "기준 질량"(BallRefMassScale 기준)으로 세므로, 무거워진 만큼이 그대로 난이도가 된다.</summary>
+        public const float BlockMassBase = 0.7f;
+        public const float BlockMassGrowth = 0.0015f, BlockMassCap = 1.6f;
+        public static float BlockMassScale(int level) => BlockMassBase * Mathf.Min(BlockMassCap, 1f + Mathf.Max(0, level - 1) * BlockMassGrowth);
+        /// <summary>시작 공 계산의 기준 질량 배율 (TargetMassPerBall이 이 배율에서 튜닝됨). 실제 배율/기준 배율만큼 블록이 더 무겁고, 그만큼 어렵다.</summary>
+        public const float BallRefMassScale = 0.6f;
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>
         public static bool HasObstacle(int level) => IsHardLevel(level) || (level >= 4 && level % 5 == 2);
 

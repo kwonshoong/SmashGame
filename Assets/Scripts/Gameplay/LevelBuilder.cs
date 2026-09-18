@@ -78,6 +78,7 @@ namespace SmashGame
         {
             var p = GetPalette(theme);
             PedestalColliders.Clear();
+            groundDecos.Clear();
             pedestalCenters.Clear();
             pedestalGroups.Clear();
             pedestalLegOffsets.Clear();
@@ -194,7 +195,8 @@ namespace SmashGame
             Deco(PrimitiveType.Cylinder, root, "ColumnCap", new Vector3(center.x, colTop - 0.16f, center.z), new Vector3(0.42f, 0.05f, 0.42f) * sizeMul, gold, 0.02f);
             // 아래 링·발은 받침대가 오르내려도 땅에 남아 있도록 묶음 바깥(부모)에 둔다
             var ground = root.parent != null ? root.parent : root;
-            Deco(PrimitiveType.Cylinder, ground, "ColumnBase", new Vector3(center.x, GroundY + 0.22f, center.z), new Vector3(0.42f, 0.05f, 0.42f) * sizeMul, gold, 0.02f);
+            if (!groundDecos.TryGetValue(root.gameObject, out var gl)) groundDecos[root.gameObject] = gl = new List<Transform>();
+            gl.Add(Deco(PrimitiveType.Cylinder, ground, "ColumnBase", new Vector3(center.x, GroundY + 0.22f, center.z), new Vector3(0.42f, 0.05f, 0.42f) * sizeMul, gold, 0.02f).transform);
             // 기둥 세로 홈 느낌의 얇은 금색 줄 4개
             for (int k = 0; k < 4; k++)
             {
@@ -203,9 +205,11 @@ namespace SmashGame
                     new Vector3(0.04f, (colTop - GroundY) - 0.5f, 0.04f) * sizeMul, gold, 0.01f);
             }
             // 받침 발: 넓은 둥근 판 두 장 (지름 1.2/1.6 → 0.84/1.12, 30% 축소)
-            Deco(PrimitiveType.Cylinder, ground, "PedestalFoot", new Vector3(center.x, GroundY + 0.1f, center.z), new Vector3(0.7f, 0.1f, 0.7f) * sizeMul, Materials.Get(p.pedestal, true), 0.05f);
-            Deco(PrimitiveType.Cylinder, ground, "PedestalFoot2", new Vector3(center.x, GroundY + 0.03f, center.z), new Vector3(0.95f, 0.06f, 0.95f) * sizeMul, purpleDark, 0.04f);
+            gl.Add(Deco(PrimitiveType.Cylinder, ground, "PedestalFoot", new Vector3(center.x, GroundY + 0.1f, center.z), new Vector3(0.7f, 0.1f, 0.7f) * sizeMul, Materials.Get(p.pedestal, true), 0.05f).transform);
+            gl.Add(Deco(PrimitiveType.Cylinder, ground, "PedestalFoot2", new Vector3(center.x, GroundY + 0.03f, center.z), new Vector3(0.95f, 0.06f, 0.95f) * sizeMul, purpleDark, 0.04f).transform);
         }
+        /// <summary>받침대 묶음 바깥(땅)에 둔 발·링 — 받침대를 옮길 때(SeparatePlates) 같이 옮겨야 한다</summary>
+        static readonly Dictionary<GameObject, List<Transform>> groundDecos = new();
 
         /// <summary>이번 빌드에서 만든 받침대 중심들 (화면 맞춤 축소 후 기둥을 다시 세울 때 사용)</summary>
         static readonly List<Vector3> pedestalCenters = new();
@@ -659,8 +663,10 @@ namespace SmashGame
             PreSettle(info.blocks);
 
             // 시작 공
+            // 시작 공은 레벨 질량 배율을 뺀 "기준 질량"으로 센다 — 배율로 무거워진 만큼은 그대로 난이도
             float totalMass = 0f; foreach (var b in info.blocks) { var rb = b != null ? b.GetComponent<Rigidbody>() : null; if (rb != null) totalMass += rb.mass; }
-            info.startBalls = Balance.StartBalls(level, info.hard, totalMass) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
+            float refMass = totalMass * Balance.BallRefMassScale / Balance.BlockMassScale(level);
+            info.startBalls = Balance.StartBalls(level, info.hard, refMass) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
             info.structureName = type switch
             {
                 0 => "벽돌 담", 1 => "원통 다발", 2 => "상자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",
@@ -1820,6 +1826,7 @@ namespace SmashGame
         static void ShiftPedestal(List<GameObject> groups, int i, Vector3 delta, LevelInfo info, List<int> owner)
         {
             groups[i].transform.position += delta;
+            if (groundDecos.TryGetValue(groups[i], out var gl)) foreach (var t in gl) if (t != null) t.position += delta;   // 땅에 둔 발·링도 함께
             for (int b = 0; b < info.blocks.Count; b++) if (owner[b] == i && info.blocks[b] != null) info.blocks[b].transform.position += delta;
         }
 
