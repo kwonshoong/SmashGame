@@ -375,8 +375,8 @@ namespace SmashGame
             State = GameState.Result;
             int lvl = Data.currentLevel;
             var r = new ResultInfo { won = true, bonus = true, level = lvl, destroyed = destroyed, totalBlocks = total };
-            r.clearCoin = destroyed * Balance.BonusCoinPerBlock;
-            r.trackCoin = destroyed >= total ? Balance.BonusAllClearCoin : 0;
+            r.clearCoin = Balance.BonusCoin(lvl, destroyed, false);
+            r.trackCoin = destroyed >= total ? Balance.BonusCoin(lvl, 0, true) : 0;
             r.total = r.clearCoin + r.trackCoin;
             Data.coins += r.total;
             Data.currentLevel++;

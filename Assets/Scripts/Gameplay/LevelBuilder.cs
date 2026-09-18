@@ -463,11 +463,15 @@ namespace SmashGame
             if (Balance.IsBonusLevel(level))
             {
                 info.bonus = true;
-                BuildCarStage(root, rng, p, info);
+                massScale = Balance.BonusMassScale;   // 보너스 블록은 가볍다 — 한 발에 우수수 날아가야 시원하다
+                var bonusRoot = new GameObject("Structure").transform;
+                bonusRoot.SetParent(root);
+                info.structureName = "보너스: " + BuildSmashStage(bonusRoot, rng, p, info, level);
+                Physics.SyncTransforms();
+                info.fitScale = FitToScreen(bonusRoot, root, cam, info.blocks, 0f, p);
                 PreSettle(info.blocks);
                 info.startBalls = 9999;
                 info.timeLimit = Balance.BonusSeconds;
-                info.structureName = "보너스: 자동차 부수기";
                 return info;
             }
 
@@ -3248,6 +3252,85 @@ namespace SmashGame
             return info;
         }
 
+        // ---------------- 보너스 스테이지: 시원하게 부수기 ----------------
+
+        /// <summary>
+        /// 10레벨마다(5·15·25…) 나오는 공 무제한 20초 판. 목적은 난이도가 아니라 타격감이므로 일반 레벨과 규칙이 다르다:
+        /// 블록이 120~260개로 훨씬 많고(일반 60~100), 질량은 1/3이라 한 발에 우수수 날아가며, 최소 간격·2×2 규칙을 따르지 않는다.
+        /// 종류는 레벨에 따라 사탕 산 → 사탕 벽 → 자동차로 순환한다. 반환값은 판 이름.
+        /// </summary>
+        static string BuildSmashStage(Transform root, System.Random rng, Palette p, LevelInfo info, int level)
+        {
+            int cols = Balance.BonusCols(level), rows = Balance.BonusRows(level);
+            switch (Balance.BonusVariant(level))
+            {
+                case 0: return BuildCandyMountain(root, rng, p, info, cols, rows);
+                case 1: return BuildCandyWall(root, rng, p, info, cols, rows);
+                default: BuildCarStage(root, rng, p, info); BuildCarCrates(root, rng, info, rows); return "자동차 부수기";
+            }
+        }
+
+        /// <summary>보너스 소재: 사탕·얼음·원통만 쓴다 (가볍고 색이 밝아 무너질 때 화면이 화려하다)</summary>
+        static (BlockKind, Color) BonusPick(System.Random rng, int seed)
+        {
+            var cols = new[] { PinkCol, IceCol, GoldCol, GreenCol, BlueCol, PurpleCol };
+            int r = rng.Next(10);
+            var kind = r < 5 ? BlockKind.Candy : r < 8 ? BlockKind.Ice : BlockKind.Cylinder;
+            return (kind, cols[Mathf.Abs(seed) % cols.Length]);
+        }
+
+        /// <summary>보너스 A: 사탕 산 — 가운데가 제일 높은 계단식 더미. 꼭대기를 치면 한쪽 사면이 통째로 쏟아진다.</summary>
+        static string BuildCandyMountain(Transform root, System.Random rng, Palette p, LevelInfo info, int cols, int rows)
+        {
+            int depth = 3;
+            // 상판을 발자국보다 아주 조금만 크게 둔다 — 넓으면 옆으로 밀린 블록이 상판에 쌓여 안 떨어진다(시원함이 죽는다)
+            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.12f, p, true, 1, 0f, depth * DS + 0.18f);
+            float half = (cols - 1) * 0.5f;
+            for (int i = 0; i < cols; i++)
+            {
+                int h = Mathf.Max(2, rows - Mathf.Abs(Mathf.RoundToInt(i - half)));   // 가운데 rows칸, 양옆으로 한 칸씩 낮아지는 완만한 산
+                for (int d = 0; d < depth; d++)
+                    for (int j = 0; j < h; j++)
+                    {
+                        var (kind, col) = BonusPick(rng, i + d * 3 + j * 7);
+                        MakeUnit(root, kind, new Vector3((i - half) * DS, PedestalTop + j * DU, (d - (depth - 1) * 0.5f) * DS), 1, col, info.blocks, DU);
+                    }
+            }
+            return "사탕 산";
+        }
+
+        /// <summary>보너스 B: 사탕 벽 — 꽉 찬 격자 벽. 아래를 파면 위가 통째로 주저앉는다.</summary>
+        static string BuildCandyWall(Transform root, System.Random rng, Palette p, LevelInfo info, int cols, int rows)
+        {
+            int depth = 3;
+            // 상판을 발자국보다 아주 조금만 크게 둔다 — 넓으면 옆으로 밀린 블록이 상판에 쌓여 안 떨어진다(시원함이 죽는다)
+            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.12f, p, true, 1, 0f, depth * DS + 0.18f);
+            float half = (cols - 1) * 0.5f;
+            for (int i = 0; i < cols; i++)
+                for (int d = 0; d < depth; d++)
+                    for (int j = 0; j < rows; j++)
+                    {
+                        // 창문처럼 군데군데 비워 두면 무너질 때 모양이 더 살고, 아래를 파기도 쉽다
+                        if (j > 0 && j < rows - 1 && (i + j) % 4 == 0 && d == 1) continue;
+                        var (kind, col) = BonusPick(rng, i * 3 + j + d);
+                        MakeUnit(root, kind, new Vector3((i - half) * DS, PedestalTop + j * DU, (d - (depth - 1) * 0.5f) * DS), 1, col, info.blocks, DU);
+                    }
+            return "사탕 벽";
+        }
+
+        /// <summary>보너스 C 보조: 자동차 양옆에 쌓는 사탕 더미 (차 한 대만으론 부술 게 부족하다)</summary>
+        static void BuildCarCrates(Transform root, System.Random rng, LevelInfo info, int rows)
+        {
+            // 차 바로 옆에 붙여 쌓는다 — 옆으로 벌리면 화면 맞춤에 걸려 블록이 반 토막 크기가 된다
+            foreach (float sx in new[] { -1f, 1f })
+                for (int d = 0; d < 2; d++)
+                    for (int j = 0; j < rows + 2; j++)
+                    {
+                        var (kind, col) = BonusPick(rng, j * 5 + (sx > 0 ? 1 : 0) + d);
+                        MakeUnit(root, kind, new Vector3(sx * 2.05f, PedestalTop + j * DU, (d - 0.5f) * DS), 1, col, info.blocks, DU);
+                    }
+        }
+
         // ---------------- 보너스 스테이지: 자동차 ----------------
 
         /// <summary>
@@ -3256,7 +3339,7 @@ namespace SmashGame
         /// </summary>
         static void BuildCarStage(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            Pedestal(root, Vector3.zero, 2.3f, p, true);
+            Pedestal(root, Vector3.zero, 2.4f, p, true, 1, 0f, 1.6f);
             float y0 = PedestalTop;
             var body = new Color(0.9f, 0.15f, 0.2f);      // 차체 빨강
             var bodyDark = new Color(0.65f, 0.1f, 0.15f);

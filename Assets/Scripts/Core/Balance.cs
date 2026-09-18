@@ -59,13 +59,24 @@ namespace SmashGame
         public const int ReinforcedFromLevel = 61;
         public const int StickyFromLevel = 91;
 
-        // ---------- 보너스 스테이지 (자동차 부수기) ----------
+        // ---------- 보너스 스테이지 (시원하게 부수기) ----------
+        // 공을 조이면서 한 발 한 발이 신중해진 만큼, 10레벨마다 한 번은 공 무제한으로 마음껏 부수는 판을 끼워 넣는다.
+        // 하드 레벨이 10·20·30이므로 보너스는 5·15·25…에 놓여 "빡센 판 → 몇 판 → 시원한 판" 리듬이 된다.
         public const int   BonusEveryLevels = 10;          // 5, 15, 25, … (하드 레벨 사이 중간)
         public const float BonusSeconds = 20f;             // 제한 시간, 공 무제한
-        public const int   BonusCoinPerBlock = 3;          // 떨어뜨린/부순 블록 1개당 코인
-        public const int   BonusAllClearCoin = 80;         // 전부 부수면 추가
-        public const bool  CarBonusEnabled = false;        // 자동차 보너스는 레벨 흐름에서 잠시 뺀다 (격파 도전으로 대체)
-        public static bool IsBonusLevel(int level) => CarBonusEnabled && level >= 5 && level % BonusEveryLevels == 5;
+        public const int   BonusCoinPerBlock = 3;          // 떨어뜨린/부순 블록 1개당 코인 (×CoinScale)
+        public const int   BonusAllClearCoin = 80;         // 전부 부수면 추가 (×CoinScale)
+        public const bool  BonusEnabled = true;
+        public static bool IsBonusLevel(int level) => BonusEnabled && level >= 5 && level % BonusEveryLevels == 5;
+        /// <summary>보너스 블록은 가볍다 — 한 발에 우수수 날아가는 맛이 이 판의 전부다 (일반 레벨은 0.7~1.0)</summary>
+        public const float BonusMassScale = 0.32f;
+        /// <summary>보너스 구조물 크기: 5레벨 7칸에서 시작해 20레벨마다 한 칸씩 넓어져 11칸까지 (블록 120~260개)</summary>
+        public static int BonusCols(int level) => Mathf.Min(11, 7 + level / 20);
+        public static int BonusRows(int level) => Mathf.Min(9, 6 + level / 40);
+        /// <summary>보너스 판 종류: 사탕 산 · 사탕 벽 · 자동차 순환</summary>
+        public static int BonusVariant(int level) => (level / BonusEveryLevels) % 3;
+        public static int BonusCoin(int level, int destroyed, bool allClear)
+            => Mathf.RoundToInt((destroyed * BonusCoinPerBlock + (allClear ? BonusAllClearCoin : 0)) * CoinScale(level));
 
         // ---------- 격파 도전 (별도 모드: 20초 무제한 발사로 거대·초중량 탑 무너뜨리기) ----------
         public const int   TowerUnlockLevel = 20;          // 레벨 20 클리어 후 해금
