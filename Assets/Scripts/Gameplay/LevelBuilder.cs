@@ -3279,19 +3279,13 @@ namespace SmashGame
                     {
                         // 창문처럼 군데군데 비워 두면 무너지는 모양이 살고, 아래를 파기도 쉽다 (속 겹만)
                         if (d == 1 && j > 0 && j < h - 1 && (i + j) % 5 == 0) continue;
-                        // 장갑(돌): 앞면 겹의 한 칸 걸러 한 줄 + 바닥 두 줄의 앞쪽 두 겹. 사탕 벽에 회색 돌기둥이 박힌 모양이라 어디가 단단한지 한눈에 보인다.
-                        // 돌은 소재부터 무겁고(사탕의 3배) 여기에 BonusArmorMassMult가 더 곱해진다 — 공 한 발로는 꿈쩍도 안 하고,
-                        // 내구도가 다 닳아야 비로소 밀린다. 이 장갑이 "도전하는 느낌"을 만드는 부분이고, 나머지 사탕은 그대로 우수수 날아간다.
-                        bool armor = d == 0 && i % 2 == 0;   // 세로 줄무늬로 — 돌이 돌 위에 얹혀 기둥이 된다(체크무늬면 무거운 돌이 가벼운 사탕을 눌러 주저앉는다)
-                        bool footing = j < 2 && d < 2 && !armor;   // 바닥이 한 번에 빠지면 더미가 통째로 상판 밖으로 미끄러진다
-                        bool heavy = armor || footing;
-                        var (kind, col) = heavy ? (BlockKind.Stone, StoneCol) : BonusPick(rng, i * 3 + d * 7 + j);
+                        // 돌 장갑: 맨 뒷줄에만, 두 층에 한 줄씩. 사탕이 앞에서부터 날아가면 뒤에 회색 돌 띠가 드러나고,
+                        // 이 띠는 소재부터 무거운 데다(사탕의 3배) BonusArmorMassMult가 더 곱해져 공 한 발로는 꿈쩍도 하지 않는다.
+                        // 내구도가 다 닳아야 비로소 밀린다 — 앞쪽 사탕은 그대로 우수수 날아가고, 마무리가 어려워진다.
+                        bool armor = d == Balance.BonusDepth - 1 && j % 2 == 0;
+                        var (kind, col) = armor ? (BlockKind.Stone, StoneCol) : BonusPick(rng, i * 3 + d * 7 + j);
                         var b = MakeUnit(root, kind, new Vector3((i - half) * DS, PedestalTop + j * DU, (d - (Balance.BonusDepth - 1) * 0.5f) * DS), 1, col, info.blocks, DU);
-                        if (heavy)
-                        {
-                            int bhp = armor ? hp : Balance.BonusFloorHp(level);
-                            b.Setup(b.kind, b.BaseColor, b.GetComponent<Rigidbody>().mass * Balance.BonusArmorMassMult, bhp);
-                        }
+                        if (armor) b.Setup(b.kind, b.BaseColor, b.GetComponent<Rigidbody>().mass * Balance.BonusArmorMassMult, hp);
                     }
             }
             return variant == 0 ? "사탕 산" : variant == 1 ? "사탕 벽" : "사탕 요새";

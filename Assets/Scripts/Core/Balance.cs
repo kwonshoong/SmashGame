@@ -88,12 +88,7 @@ namespace SmashGame
         /// </summary>
         public static int BonusShellHp(int level) => level < 100 ? 2 : 3;
         /// <summary>
-        /// 맨 아랫줄은 네 겹 모두 내구도를 준다. 바닥이 한 방에 빠지면 더미 전체가 상판 밖으로 미끄러져
-        /// 몇 발 만에 판이 끝난다(35레벨 실측) — 바닥을 먼저 깎아야 무너지게 해서 붕괴를 단계적으로 만든다.
-        /// </summary>
-        public static int BonusFloorHp(int level) => 2;
-        /// <summary>
-        /// 장갑 블록(겉면에 박힌 돌)에 추가로 곱하는 질량. 돌 소재 자체가 사탕의 3배이므로 최종 질량은 사탕의 약 9배가 된다.
+        /// 장갑 블록(맨 뒷줄의 돌 띠)에 추가로 곱하는 질량. 돌 소재 자체가 사탕의 3배이므로 최종 질량은 사탕의 약 9배가 된다.
         /// 내구도가 남아 있는 동안은 여기에 다시 2배(Block.ReinforcedMassMult)가 걸려 공 한 발로는 꿈쩍도 하지 않는다.
         /// 이 값이 보너스 판의 "도전하는 느낌"을 쥐고 있다 — 너무 올리면 끝까지 안 부서져 답답해진다.
         /// </summary>
