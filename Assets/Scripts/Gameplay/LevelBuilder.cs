@@ -573,6 +573,7 @@ namespace SmashGame
                 case 72: BuildN_DoublePyramid(root, rng, p, info); break;
                 case 73: BuildN_FiveColumnHall(root, rng, p, info); break;
                 case 74: BuildN_TwinIceTowers(root, rng, p, info); break;
+                case 76: BuildN_Watchtower(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -689,7 +690,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", _ => "성채"
             };
             return info;
         }
@@ -2250,6 +2251,41 @@ namespace SmashGame
                 }
             }
         }
+
+        /// <summary>
+        /// 속 빈 사각 고리 한 줄. n×n 칸의 테두리만 채우고 가운데는 비운다.
+        /// stagger면 네 모서리만 1칸 블록이고 각 변은 2칸 부재로 깔려, 아래윗줄의 이음매가 서로 엇갈린다
+        /// (참고 사진의 망루처럼 벽돌이 엇물리는 느낌). 좌우 변은 yaw+90으로 돌려 변을 따라 눕힌다.
+        /// </summary>
+        static void RBrickRing(Transform root, Vector3 b, float yaw, int n, int row,
+                               BlockKind cubeKind, Color cubeCol, Color barCol, List<Block> L, bool stagger)
+        {
+            float h = (n - 1) * 0.5f;
+            if (n <= 2 || !stagger)
+            {
+                for (int i = 0; i < n; i++)
+                    for (int t = 0; t < n; t++)
+                    {
+                        float k = -h + i, j = -h + t;
+                        if (Mathf.Abs(k) < h - 0.01f && Mathf.Abs(j) < h - 0.01f) continue;   // 속은 비운다
+                        RUnitAt(root, b, yaw, k, row, 1, cubeKind, cubeCol, L, j);
+                    }
+                return;
+            }
+            foreach (float k in new[] { -h, h })
+                foreach (float j in new[] { -h, h })
+                    RUnitAt(root, b, yaw, k, row, 1, cubeKind, cubeCol, L, j);   // 네 모서리
+            int inner = n - 2;
+            foreach (float edge in new[] { -h, h })
+            {
+                int c = 0;
+                while (c + 1 < inner) { RBarAt(root, b, yaw, -h + 1 + c + 0.5f, row, 2, BlockKind.Cube, barCol, L, edge); c += 2; }
+                if (c < inner) RUnitAt(root, b, yaw, -h + 1 + c, row, 1, cubeKind, cubeCol, L, edge);
+                c = 0;
+                while (c + 1 < inner) { RBarAt(root, b, yaw + 90f, -h + 1 + c + 0.5f, row, 2, BlockKind.Cube, barCol, L, -edge); c += 2; }
+                if (c < inner) RUnitAt(root, b, yaw + 90f, -h + 1 + c, row, 1, cubeKind, cubeCol, L, -edge);
+            }
+        }
         static readonly Color SlateCol = new Color(0.27f, 0.36f, 0.62f), OrangeCol = new Color(1f, 0.55f, 0.12f), SkyCol = new Color(0.75f, 0.93f, 1f);
 
         /// <summary>
@@ -2553,6 +2589,28 @@ namespace SmashGame
         { var c = new Vector3(x, 0f, z); RPlate(root, p, c, 0f, halfLen, depth); return Top(c); }
         static void Begin(LevelInfo info) { keepPlateShape = true; fixedFront = true; }
         static int Rows(LevelInfo info, int baseRows, int cap) => Balance.Grow(info.level, baseRows, 40, cap);
+
+        /// <summary>
+        /// 76 망루: 위로 갈수록 좁아지는 속 빈 사각 탑. 줄마다 벽돌 이음매가 엇갈리게 쌓이고,
+        /// 꼭대기에는 한 칸 넓은 전망대가 반 칸씩 내밀어 얹힌다 (참고: 중세 망루 모형).
+        /// 속이 비어 있어 겉을 한 겹씩 깎아내야 하고, 고리 구조라 한쪽을 뚫어도 나머지 세 변이 버틴다.
+        /// </summary>
+        static void BuildN_Watchtower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 5f * DS + 0.28f);
+            // 소재는 반드시 큐브 계열로. Stone·Cylinder·Candy·Log는 원기둥으로 그려져서 통을 쌓은 것처럼 보인다
+            // (참고 사진은 각진 벽돌이다). 색만 돌 느낌으로 맞춘다.
+            var kind = Heavy(info) ? BlockKind.Cube : BlockKind.Crate;
+            var col = Heavy(info) ? StoneCol : CrateCol;
+            // 아래 5칸 → 4칸 → 3칸으로 좁아진다. 줄마다 엇쌓기를 번갈아 넣어 이음매가 어긋난다
+            int[] size = { 5, 5, 5, 5, 4, 4, 4, 3, 3 };
+            for (int row = 0; row < size.Length; row++)
+                RBrickRing(root, b, 0f, size[row], row, kind, row % 2 == 0 ? col : SlateCol, col, L, row % 2 == 1);
+            // 꼭대기 전망대. 참고 사진처럼 내밀게 하려면 반 칸을 튀어나와야 하는데, 이 격자에서는 받침이 25%밖에 안 걸려
+            // 물리가 깨어나는 순간 테두리가 통째로 떨어진다(실측 11개). 그래서 아래 줄과 같은 3칸으로 두고 금색으로만 구분한다.
+            RBrickRing(root, b, 0f, 3, 9, kind, GoldCol, GoldCol, L, false);
+        }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
         static void BuildN_BrickFence(Transform root, System.Random rng, Palette p, LevelInfo info)
