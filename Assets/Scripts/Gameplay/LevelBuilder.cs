@@ -2630,8 +2630,8 @@ namespace SmashGame
         /// 판을 통째로 돌리면 격자는 그대로 유지된 채 방향만 바뀐다. 받침도 각도 차이만큼만 깎인다 —
         /// 3도면 바깥 모서리 블록이 0.07칸 움직여 아래 블록을 8할 이상 밟는다.
         /// </summary>
-        public const float TwistPerRow = 3f;   // 도
-        public const int TwistRows = 8;
+        public static float TwistPerRow = 3f;   // 도
+        public static int TwistRows = 8;
         static void BuildN_ColorWall(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
