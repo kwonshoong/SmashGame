@@ -22,7 +22,7 @@ namespace SmashGame
         public const float RealBallMassBase = 1.2f;    // 무게 스탯 100% = 1.2kg (250% → 3.0kg). 블록은 칸당 0.5~1.1kg
         public const float RealBallRadiusBase = 0.15f;  // 크기 스탯 100% = 반지름 0.15 (180% → 0.27). 0.2에서 줄임
         public const float RealBallBounce = 0.35f;     // 탄성(반발계수). 0.1 퍽 하고 죽는 공, 0.8 통통 튀는 공
-        public const float RealBallLifetime = 4f;      // 굴러다니는 공이 사라지기까지
+        public const float RealBallLifetime = 1.5f;    // 발사 후 이 시간이 지나면 공이 사라진다. 4초에서는 굴러다니는 공이 너무 오래 남아 화면이 지저분했다
         public const float RealHitMinSpeedFrac = 0.3f; // 이 비율(발사 속도 대비)보다 느린 접촉은 "타격"(깨짐·콤보)으로 세지 않는다
         /// <summary>파워 스탯 → 발사 속도. 100% 20, 200% 26, 300% 32</summary>
         public static float RealBallSpeed(float power) => 20f * (0.7f + 0.3f * power);
