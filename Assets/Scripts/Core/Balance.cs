@@ -63,26 +63,35 @@ namespace SmashGame
         // 공을 조이면서 한 발 한 발이 신중해진 만큼, 10레벨마다 한 번은 공 무제한으로 마음껏 부수는 판을 끼워 넣는다.
         // 하드 레벨이 10·20·30이므로 보너스는 5·15·25…에 놓여 "빡센 판 → 몇 판 → 시원한 판" 리듬이 된다.
         public const int   BonusEveryLevels = 10;          // 5, 15, 25, … (하드 레벨 사이 중간)
-        public const float BonusSeconds = 25f;             // 제한 시간, 공 무제한. 블록이 230~400개라 20초로는 겉만 긁다 끝난다
+        public const float BonusSeconds = 25f;             // 제한 시간, 공 무제한. 블록이 340~400개라 20초로는 겉만 긁다 끝난다
         // 보상은 "부순 블록 수"가 아니라 "부순 비율"로 준다. 블록 수가 레벨마다 74~250개로 달라지므로
         // 개수 비례로 주면 레벨이 오를수록 보상이 저절로 불어난다(실측: 일반 레벨 1판의 5~18배). 비율 기준이면 어느 레벨에서든 일정하다.
         public const int   BonusClearCoin = 90;            // 전부 부쉈을 때 기준 (×CoinScale). 일반 레벨 1판 수입의 약 2.5배가 되도록 잡았다
         public const int   BonusAllClearCoin = 40;         // 하나도 안 남기면 추가 (×CoinScale)
         public const bool  BonusEnabled = true;
         public static bool IsBonusLevel(int level) => BonusEnabled && level >= 5 && level % BonusEveryLevels == 5;
-        /// <summary>보너스 블록은 가볍다 — 껍질을 깬 뒤엔 우수수 날아가야 한다 (일반 레벨은 0.7~1.0)</summary>
-        public const float BonusMassScale = 0.55f;
-        /// <summary>보너스 구조물 크기: 블록 230~400개 (일반 레벨 60~100개). 앞뒤로 네 겹이라 깎아도 깎아도 속이 나온다.</summary>
-        public static int BonusCols(int level) => Mathf.Min(11, 10 + level / 80);
-        public static int BonusRows(int level) => Mathf.Min(9, 7 + level / 50);
+        /// <summary>보너스 블록 질량. 0.55에서는 한 발에 열 개씩 쓸려 나가 20초를 못 채우고 끝났다(35레벨 실측). 일반 레벨(0.7~1.0)과 비슷하게 둔다.</summary>
+        public const float BonusMassScale = 0.85f;
+        /// <summary>
+        /// 보너스 구조물 크기: 화면 폭 상한(11칸)까지 꽉 채우고 앞뒤 네 겹, 높이 9~10층 → 블록 340~400개.
+        /// 오래 버티게 만드는 주된 수단은 "단단함"이 아니라 "양"이다 — 25초 내내 부술 게 남아 있어야 한다.
+        /// </summary>
+        public static int BonusCols(int level) => 11;
+        public static int BonusRows(int level) => Mathf.Min(10, 9 + level / 200);
         public const int BonusDepth = 4;
         /// <summary>보너스 판 종류: 사탕 산 · 사탕 벽 · 사탕 요새 순환 (자동차는 뺐다 — 부술 게 적었다)</summary>
         public static int BonusVariant(int level) => (level / BonusEveryLevels) % 3;
         /// <summary>
         /// 겉껍질 블록의 내구도. 앞면 겹은 한 방에 안 깨지고 금이 갔다가(색 변화) 부서진다 — "여러 번 때려야 점점 무너지는" 느낌의 핵심.
         /// 속(뒤쪽 세 겹)은 1이라 껍질이 뚫리는 순간 우르르 쏟아진다. 100레벨부터는 껍질이 3이 되어 더 오래 버틴다.
+        /// 내구도를 더 올리면 금방 지루해진다 — 25초에 던질 수 있는 공이 140발뿐이고 한 발은 맞은 블록 하나만 깎기 때문이다.
         /// </summary>
         public static int BonusShellHp(int level) => level < 100 ? 2 : 3;
+        /// <summary>
+        /// 맨 아랫줄은 네 겹 모두 내구도를 준다. 바닥이 한 방에 빠지면 더미 전체가 상판 밖으로 미끄러져
+        /// 몇 발 만에 판이 끝난다(35레벨 실측) — 바닥을 먼저 깎아야 무너지게 해서 붕괴를 단계적으로 만든다.
+        /// </summary>
+        public static int BonusFloorHp(int level) => 2;
         public static int BonusCoin(int level, int destroyed, int total, bool allClear)
             => Mathf.RoundToInt((BonusClearCoin * destroyed / (float)Mathf.Max(1, total) + (allClear ? BonusAllClearCoin : 0)) * CoinScale(level));
 

@@ -3267,8 +3267,9 @@ namespace SmashGame
         {
             int cols = Balance.BonusCols(level), rows = Balance.BonusRows(level), hp = Balance.BonusShellHp(level);
             int variant = Balance.BonusVariant(level);
-            // 상판을 발자국보다 아주 조금만 크게 둔다 — 넓으면 옆으로 밀린 블록이 상판에 쌓여 안 떨어진다(시원함이 죽는다)
-            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.12f, p, true, 1, 0f, Balance.BonusDepth * DS + 0.18f);
+            // 상판은 발자국보다 조금만 크게. 너무 넓으면 밀린 블록이 상판에 쌓여 안 떨어지고,
+            // 너무 좁으면(0.12) 살짝 밀린 것까지 전부 떨어져 몇 발에 판이 비어 버린다(35레벨 실측)
+            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.30f, p, true, 1, 0f, Balance.BonusDepth * DS + 0.36f);
             float half = (cols - 1) * 0.5f;
             for (int i = 0; i < cols; i++)
             {
@@ -3279,9 +3280,11 @@ namespace SmashGame
                         // 창문처럼 군데군데 비워 두면 무너지는 모양이 살고, 아래를 파기도 쉽다 (속 겹만)
                         if (d == 1 && j > 0 && j < h - 1 && (i + j) % 5 == 0) continue;
                         bool shell = d == 0 && (i + j) % 3 != 0;   // 앞면 겹의 3분의 2. 체크무늬로 섞어야 한 겹씩 균일하게 벗겨지지 않고 울퉁불퉁 파인다
-                        var (kind, col) = BonusPick(rng, i * 3 + d * 7 + j, shell);
+                        bool floor = j == 0;                        // 맨 아랫줄은 네 겹 모두 — 바닥이 한 번에 빠지면 더미가 통째로 미끄러진다
+                        var (kind, col) = BonusPick(rng, i * 3 + d * 7 + j, shell || floor);
                         var b = MakeUnit(root, kind, new Vector3((i - half) * DS, PedestalTop + j * DU, (d - (Balance.BonusDepth - 1) * 0.5f) * DS), 1, col, info.blocks, DU);
-                        if (shell) b.Setup(b.kind, b.BaseColor, b.GetComponent<Rigidbody>().mass, hp);
+                        int bhp = floor ? Mathf.Max(hp, Balance.BonusFloorHp(level)) : shell ? hp : 1;
+                        if (bhp > 1) b.Setup(b.kind, b.BaseColor, b.GetComponent<Rigidbody>().mass, bhp);
                     }
             }
             return variant == 0 ? "사탕 산" : variant == 1 ? "사탕 벽" : "사탕 요새";
@@ -3290,9 +3293,9 @@ namespace SmashGame
         /// <summary>보너스 판별 기둥 높이: 0 가운데가 높은 산 · 1 평평한 벽 · 2 양끝 망루가 솟은 요새</summary>
         static int ColumnHeight(int variant, int i, int cols, int rows, float half)
         {
-            if (variant == 0) return rows - Mathf.Min(2, Mathf.Abs(Mathf.RoundToInt(i - half)));   // 가운데가 두 칸 높은 완만한 산
-            if (variant == 1) return rows;                                                          // 평평한 벽
-            return (i < 2 || i >= cols - 2) ? rows : rows - 2;                                      // 양끝 망루가 두 칸 솟은 요새
+            if (variant == 0) return rows - Mathf.Min(2, Mathf.Abs(Mathf.RoundToInt(i - half)) / 2);   // 가운데가 두 칸 높은 완만한 산
+            if (variant == 1) return rows;                                                             // 평평한 벽
+            return (i < 3 || i >= cols - 3) ? rows : rows - 2;                                         // 양끝 망루가 두 칸 솟은 요새
         }
 
         /// <summary>
