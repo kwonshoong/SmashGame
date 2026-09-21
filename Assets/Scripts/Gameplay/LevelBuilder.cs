@@ -3269,7 +3269,7 @@ namespace SmashGame
             int variant = Balance.BonusVariant(level);
             // 상판은 발자국보다 조금만 크게. 너무 넓으면 밀린 블록이 상판에 쌓여 안 떨어지고,
             // 너무 좁으면(0.12) 살짝 밀린 것까지 전부 떨어져 몇 발에 판이 비어 버린다(35레벨 실측)
-            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.30f, p, true, 1, 0f, Balance.BonusDepth * DS + 0.36f);
+            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.25f, p, true, 1, 0f, Balance.BonusDepth * DS + 0.36f);
             float half = (cols - 1) * 0.5f;
             for (int i = 0; i < cols; i++)
             {
