@@ -574,6 +574,7 @@ namespace SmashGame
                 case 73: BuildN_FiveColumnHall(root, rng, p, info); break;
                 case 74: BuildN_TwinIceTowers(root, rng, p, info); break;
                 case 76: BuildN_Watchtower(root, rng, p, info); break;
+                case 77: BuildN_ColorWall(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -690,7 +691,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "색동 벽", _ => "성채"
             };
             return info;
         }
@@ -2619,6 +2620,22 @@ namespace SmashGame
             // 꼭대기 전망대. 참고 사진처럼 내밀게 하려면 반 칸을 튀어나와야 하는데 받침이 25%뿐이라 물리가 깨어나는
             // 순간 테두리가 통째로 떨어진다(실측 11개). 아래 줄과 같은 3칸으로 두고 금색으로만 구분한다.
             RBrickRing(root, b, 0f, 3, 9, kind, GoldCol, GoldCol, L, false);
+        }
+
+        /// <summary>
+        /// 77 색동 벽 (레퍼런스): 정면 가로 5칸 × 세로 5단, 깊이 5겹의 꽉 찬 덩어리.
+        /// 벽돌 엇쌓기와 정반대로 격자를 하나도 어긋내지 않는다 — 칸이 정확히 맞물려 있어
+        /// 공이 파고든 자리만 뚫리고 옆줄은 그대로 서 있다. 색은 세로줄로 서서 어느 줄을 노릴지 바로 읽힌다.
+        /// </summary>
+        static void BuildN_ColorWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 5f * DS + 0.28f);
+            var colCol = new[] { RedCol, BlueCol, PinkCol, PurpleCol, RedCol };
+            for (int row = 0; row < 5; row++)
+                for (int i = 0; i < 5; i++)
+                    for (int d = 0; d < 5; d++)
+                        RUnitAt(root, b, 0f, i - 2f, row, 1, BlockKind.Cube, colCol[i], L, d - 2f);
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
