@@ -3256,135 +3256,56 @@ namespace SmashGame
 
         /// <summary>
         /// 10레벨마다(5·15·25…) 나오는 공 무제한 20초 판. 목적은 난이도가 아니라 타격감이므로 일반 레벨과 규칙이 다르다:
-        /// 블록이 120~260개로 훨씬 많고(일반 60~100), 질량은 1/3이라 한 발에 우수수 날아가며, 최소 간격·2×2 규칙을 따르지 않는다.
-        /// 종류는 레벨에 따라 사탕 산 → 사탕 벽 → 자동차로 순환한다. 반환값은 판 이름.
+        ///  · 블록 216~352개 (일반 60~100개) — 20초 내내 부술 게 남아 있어야 한다
+        ///  · 앞뒤 네 겹 — 앞을 깎아도 속이 계속 나온다
+        ///  · 앞면 겹은 내구도 2(100레벨부터 3) — 한 방에 안 깨지고 금이 갔다가 부서진다. 속은 1이라 껍질이 뚫리면 우르르 쏟아진다
+        ///  · 질량 0.45 — 껍질만 벗기면 가볍게 날아간다
+        ///  · 일반 레벨의 최소 간격·2×2 규칙은 적용하지 않는다
+        /// 종류는 사탕 산 → 사탕 벽 → 사탕 요새로 순환한다. 반환값은 판 이름.
         /// </summary>
         static string BuildSmashStage(Transform root, System.Random rng, Palette p, LevelInfo info, int level)
         {
-            int cols = Balance.BonusCols(level), rows = Balance.BonusRows(level);
-            switch (Balance.BonusVariant(level))
+            int cols = Balance.BonusCols(level), rows = Balance.BonusRows(level), hp = Balance.BonusShellHp(level);
+            int variant = Balance.BonusVariant(level);
+            // 상판을 발자국보다 아주 조금만 크게 둔다 — 넓으면 옆으로 밀린 블록이 상판에 쌓여 안 떨어진다(시원함이 죽는다)
+            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.12f, p, true, 1, 0f, Balance.BonusDepth * DS + 0.18f);
+            float half = (cols - 1) * 0.5f;
+            for (int i = 0; i < cols; i++)
             {
-                case 0: return BuildCandyMountain(root, rng, p, info, cols, rows);
-                case 1: return BuildCandyWall(root, rng, p, info, cols, rows);
-                default: BuildCarStage(root, rng, p, info); BuildCarCrates(root, rng, info, rows); return "자동차 부수기";
+                int h = ColumnHeight(variant, i, cols, rows, half);
+                for (int d = 0; d < Balance.BonusDepth; d++)
+                    for (int j = 0; j < h; j++)
+                    {
+                        // 창문처럼 군데군데 비워 두면 무너지는 모양이 살고, 아래를 파기도 쉽다 (속 겹만)
+                        if (d == 1 && j > 0 && j < h - 1 && (i + j) % 5 == 0) continue;
+                        bool shell = d == 0 && (i + j) % 3 != 0;   // 앞면 겹의 3분의 2. 체크무늬로 섞어야 한 겹씩 균일하게 벗겨지지 않고 울퉁불퉁 파인다
+                        var (kind, col) = BonusPick(rng, i * 3 + d * 7 + j, shell);
+                        var b = MakeUnit(root, kind, new Vector3((i - half) * DS, PedestalTop + j * DU, (d - (Balance.BonusDepth - 1) * 0.5f) * DS), 1, col, info.blocks, DU);
+                        if (shell) b.Setup(b.kind, b.BaseColor, b.GetComponent<Rigidbody>().mass, hp);
+                    }
             }
+            return variant == 0 ? "사탕 산" : variant == 1 ? "사탕 벽" : "사탕 요새";
         }
 
-        /// <summary>보너스 소재: 사탕·얼음·원통만 쓴다 (가볍고 색이 밝아 무너질 때 화면이 화려하다)</summary>
-        static (BlockKind, Color) BonusPick(System.Random rng, int seed)
+        /// <summary>보너스 판별 기둥 높이: 0 가운데가 높은 산 · 1 평평한 벽 · 2 양끝 망루가 솟은 요새</summary>
+        static int ColumnHeight(int variant, int i, int cols, int rows, float half)
+        {
+            if (variant == 0) return rows - Mathf.Min(2, Mathf.Abs(Mathf.RoundToInt(i - half)));   // 가운데가 두 칸 높은 완만한 산
+            if (variant == 1) return rows;                                                          // 평평한 벽
+            return (i < 2 || i >= cols - 2) ? rows : rows - 2;                                      // 양끝 망루가 두 칸 솟은 요새
+        }
+
+        /// <summary>
+        /// 보너스 소재: 사탕·얼음·원통만 쓴다 (가볍고 색이 밝아 무너질 때 화면이 화려하다).
+        /// 껍질에는 얼음을 쓰지 않는다 — 얼음은 맞는 즉시 깨지므로 내구도를 줘도 한 방에 사라져 "여러 번 때리는" 맛이 안 난다.
+        /// </summary>
+        static (BlockKind, Color) BonusPick(System.Random rng, int seed, bool shell = false)
         {
             var cols = new[] { PinkCol, IceCol, GoldCol, GreenCol, BlueCol, PurpleCol };
             int r = rng.Next(10);
-            var kind = r < 5 ? BlockKind.Candy : r < 8 ? BlockKind.Ice : BlockKind.Cylinder;
+            var kind = shell ? (r < 6 ? BlockKind.Candy : BlockKind.Cylinder)
+                             : (r < 5 ? BlockKind.Candy : r < 8 ? BlockKind.Ice : BlockKind.Cylinder);
             return (kind, cols[Mathf.Abs(seed) % cols.Length]);
-        }
-
-        /// <summary>보너스 A: 사탕 산 — 가운데가 제일 높은 계단식 더미. 꼭대기를 치면 한쪽 사면이 통째로 쏟아진다.</summary>
-        static string BuildCandyMountain(Transform root, System.Random rng, Palette p, LevelInfo info, int cols, int rows)
-        {
-            int depth = 3;
-            // 상판을 발자국보다 아주 조금만 크게 둔다 — 넓으면 옆으로 밀린 블록이 상판에 쌓여 안 떨어진다(시원함이 죽는다)
-            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.12f, p, true, 1, 0f, depth * DS + 0.18f);
-            float half = (cols - 1) * 0.5f;
-            for (int i = 0; i < cols; i++)
-            {
-                int h = Mathf.Max(2, rows - Mathf.Abs(Mathf.RoundToInt(i - half)));   // 가운데 rows칸, 양옆으로 한 칸씩 낮아지는 완만한 산
-                for (int d = 0; d < depth; d++)
-                    for (int j = 0; j < h; j++)
-                    {
-                        var (kind, col) = BonusPick(rng, i + d * 3 + j * 7);
-                        MakeUnit(root, kind, new Vector3((i - half) * DS, PedestalTop + j * DU, (d - (depth - 1) * 0.5f) * DS), 1, col, info.blocks, DU);
-                    }
-            }
-            return "사탕 산";
-        }
-
-        /// <summary>보너스 B: 사탕 벽 — 꽉 찬 격자 벽. 아래를 파면 위가 통째로 주저앉는다.</summary>
-        static string BuildCandyWall(Transform root, System.Random rng, Palette p, LevelInfo info, int cols, int rows)
-        {
-            int depth = 3;
-            // 상판을 발자국보다 아주 조금만 크게 둔다 — 넓으면 옆으로 밀린 블록이 상판에 쌓여 안 떨어진다(시원함이 죽는다)
-            Pedestal(root, Vector3.zero, cols * DS * 0.5f + 0.12f, p, true, 1, 0f, depth * DS + 0.18f);
-            float half = (cols - 1) * 0.5f;
-            for (int i = 0; i < cols; i++)
-                for (int d = 0; d < depth; d++)
-                    for (int j = 0; j < rows; j++)
-                    {
-                        // 창문처럼 군데군데 비워 두면 무너질 때 모양이 더 살고, 아래를 파기도 쉽다
-                        if (j > 0 && j < rows - 1 && (i + j) % 4 == 0 && d == 1) continue;
-                        var (kind, col) = BonusPick(rng, i * 3 + j + d);
-                        MakeUnit(root, kind, new Vector3((i - half) * DS, PedestalTop + j * DU, (d - (depth - 1) * 0.5f) * DS), 1, col, info.blocks, DU);
-                    }
-            return "사탕 벽";
-        }
-
-        /// <summary>보너스 C 보조: 자동차 양옆에 쌓는 사탕 더미 (차 한 대만으론 부술 게 부족하다)</summary>
-        static void BuildCarCrates(Transform root, System.Random rng, LevelInfo info, int rows)
-        {
-            // 차 바로 옆에 붙여 쌓는다 — 옆으로 벌리면 화면 맞춤에 걸려 블록이 반 토막 크기가 된다
-            foreach (float sx in new[] { -1f, 1f })
-                for (int d = 0; d < 2; d++)
-                    for (int j = 0; j < rows + 2; j++)
-                    {
-                        var (kind, col) = BonusPick(rng, j * 5 + (sx > 0 ? 1 : 0) + d);
-                        MakeUnit(root, kind, new Vector3(sx * 2.05f, PedestalTop + j * DU, (d - 0.5f) * DS), 1, col, info.blocks, DU);
-                    }
-        }
-
-        // ---------------- 보너스 스테이지: 자동차 ----------------
-
-        /// <summary>
-        /// 스트리트 파이터 보너스 스테이지식 "차 부수기". 블록으로 조립한 자동차 한 대가 넓은 받침대 위에 놓인다.
-        /// 바퀴(원통) 위에 바닥 판, 그 위 차체(큐브), 유리창(얼음: 맞으면 깨짐), 지붕(판자), 범퍼·전조등.
-        /// </summary>
-        static void BuildCarStage(Transform root, System.Random rng, Palette p, LevelInfo info)
-        {
-            Pedestal(root, Vector3.zero, 2.4f, p, true, 1, 0f, 1.6f);
-            float y0 = PedestalTop;
-            var body = new Color(0.9f, 0.15f, 0.2f);      // 차체 빨강
-            var bodyDark = new Color(0.65f, 0.1f, 0.15f);
-            var tire = new Color(0.16f, 0.16f, 0.18f);
-            var glass = new Color(0.6f, 0.9f, 1f);
-            var chrome = new Color(0.8f, 0.82f, 0.85f);
-            var lamp = new Color(1f, 0.9f, 0.35f);
-            var seat = new Color(0.35f, 0.25f, 0.2f);
-            var L = info.blocks;
-
-            // 바퀴 4개: 옆으로 눕힌 짧은 원통 (흰 테두리 띠가 타이어 옆면처럼 보인다)
-            foreach (float x in new[] { -1.05f, 1.05f })
-                foreach (float z in new[] { -0.55f, 0.55f })
-                    MakeBlock(root, PrimitiveType.Cylinder, BlockKind.Cylinder, new Vector3(x, y0 + 0.3f, z), new Vector3(0.6f, 0.15f, 0.6f), Quaternion.Euler(90, 0, 0), tire, 1.2f, L);
-
-            // 바닥 판(섀시)
-            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y0 + 0.7f, 0), new Vector3(3.6f, 0.2f, 1.5f), Quaternion.identity, bodyDark, 1.5f, L);
-
-            // 차체: 6 × 3 큐브 한 층
-            for (int i = 0; i < 6; i++)
-                for (int k = -1; k <= 1; k++)
-                {
-                    float x = (i - 2.5f) * Unit;
-                    MakeUnit(root, BlockKind.Cube, new Vector3(x, y0 + 0.8f, k * Unit), false, (i + k) % 2 == 0 ? body : bodyDark, L);
-                }
-
-            // 캐빈: 4 × 3, 바깥 고리는 유리창(얼음), 안쪽 2칸은 좌석
-            for (int i = 0; i < 4; i++)
-                for (int k = -1; k <= 1; k++)
-                {
-                    float x = (i - 1.5f) * Unit;
-                    bool inner = k == 0 && (i == 1 || i == 2);
-                    MakeUnit(root, inner ? BlockKind.Cube : BlockKind.Ice, new Vector3(x, y0 + 1.3f, k * Unit), false, inner ? seat : glass, L);
-                }
-
-            // 지붕
-            MakeBlock(root, PrimitiveType.Cube, BlockKind.Plank, new Vector3(0, y0 + 1.9f, 0), new Vector3(2.2f, 0.2f, 1.6f), Quaternion.identity, body, 1.2f, L);
-
-            // 범퍼(앞뒤) + 전조등/후미등
-            foreach (float sx in new[] { -1f, 1f })
-            {
-                MakeBlock(root, PrimitiveType.Cube, BlockKind.Cube, new Vector3(sx * 1.65f, y0 + 0.95f, 0), new Vector3(0.28f, 0.28f, 1.5f), Quaternion.identity, chrome, 0.8f, L);
-                foreach (float z in new[] { -0.5f, 0.5f })
-                    MakeBlock(root, PrimitiveType.Cube, BlockKind.Cube, new Vector3(sx * 1.65f, y0 + 1.22f, z), Vector3.one * 0.26f, Quaternion.identity, sx > 0 ? lamp : new Color(1f, 0.3f, 0.2f), 0.3f, L);
-            }
         }
 
         // ---------------- 로비 / 대장간 시험 발사대 ----------------
