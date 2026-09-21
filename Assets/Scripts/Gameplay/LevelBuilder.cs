@@ -2624,34 +2624,33 @@ namespace SmashGame
 
         /// <summary>
         /// 77 색동 물결 벽 (레퍼런스): 정면 가로 5칸 × 세로 5단, 깊이 5겹.
-        /// 칸은 격자 그대로 두고 칸마다 앞뒤(z)와 좌우(x) 위치를 호(弧)로 밀어 격자가 통째로 굽은 곡면이 된다.
-        /// 가로 칸마다 앞뒤로 — 가운데 줄이 앞으로 불룩. 깊이 겹마다 좌우로 — 가운데 겹이 옆으로 불룩.
+        /// 칸은 격자 그대로 두고 칸마다 앞뒤(z) 위치만 호(弧)로 밀어, 벽이 가로로도 세로로도 굽은 곡면이 된다.
+        /// 가로 칸마다 — 가운데 줄이 앞으로 불룩. 세로 단마다 — 가운데 단이 앞으로 불룩(배부른 벽).
         ///
-        /// 미는 값이 단(row)과 무관한 것이 이 구조의 핵심이다. 블록은 같은 세로줄 안에서만 서로를 밟으므로,
-        /// 세로줄을 통째로 미는 것은 받침을 한 톨도 깎지 않는다(받침 10할). 반대로 단마다 미는 성분을 넣으면
-        /// 곡면은 더 출렁이지만 같은 줄의 블록이 단마다 어긋나 보이고 받침도 깎인다 — 그래서 쓰지 않는다.
-        /// 굳이 세로로도 출렁이게 하려면 WaveAmpY를 올리면 되지만, 정렬이 흐트러지는 값을 치르게 된다.
+        /// 미는 방향을 앞뒤로만 한정한 것이 이 구조의 핵심이다.
+        /// ㆍ좌우로 밀면 같은 세로줄의 블록이 단마다 옆으로 어긋나 정면 격자가 흐트러져 보인다. 그래서 안 쓴다.
+        /// ㆍ앞뒤로 미는 건 시선 방향이라 정면 격자를 조금도 해치지 않으면서 휨은 그대로 보인다.
+        /// 다만 단마다 미는 양은 받침 면적을 깎으므로 호의 기울기가 가장 급한 구간(이웃 단 0.35칸)으로 묶는다.
+        /// 호의 평균(ArcMean)을 빼 주는데, 안 빼면 휨이 한쪽으로만 쏠려 구조물이 받침 가장자리로 치우치고
+        /// 가장자리 줄이 상판 밖으로 걸쳐 미끄러진다(실측 9개).
         /// </summary>
-        public static float WaveAmp = 0.35f, WaveAmpY = 0f, WavePeriodY = 8f;   // 칸 단위, 튜닝용
-        /// <summary>호(弧) 다섯 칸의 평균. 빼 주지 않으면 물결이 한쪽으로만 밀려 구조물이 받침 가장자리로 치우친다.</summary>
+        public static float WaveAmp = 0.35f, BowAmp = 0.9f;   // 칸 단위: 가로 칸 휨, 세로 단 휨
+        /// <summary>호(弧) 다섯 칸의 평균. 빼 주지 않으면 휨이 한쪽으로만 밀린다.</summary>
         const float ArcMean = 0.48284273f;   // (cos(-π/2)+cos(-π/4)+cos0+cos(π/4)+cos(π/2)) / 5
+        static float Arc5(float t) => Mathf.Cos(Mathf.PI * (t - 2f) / 4f) - ArcMean;
         static void BuildN_ColorWall(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = FrontPlate(root, p, 0f, 0f, 3f * DS + 0.14f, 7f * DS + 0.28f);
+            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 8f * DS + 0.28f);
             var colCol = new[] { RedCol, BlueCol, PinkCol, PurpleCol, RedCol };
             for (int row = 0; row < 5; row++)
             {
-                float rowZ = WaveAmpY * Mathf.Sin(2f * Mathf.PI * row / WavePeriodY);
-                float rowX = WaveAmpY * Mathf.Sin(2f * Mathf.PI * row / WavePeriodY + Mathf.PI * 0.5f);
+                float bow = BowAmp * Arc5(row);
                 for (int i = 0; i < 5; i++)
                 {
-                    float waveZ = WaveAmp * (Mathf.Cos(Mathf.PI * (i - 2f) / 4f) - ArcMean) + rowZ;
+                    float waveZ = WaveAmp * Arc5(i) + bow;
                     for (int d = 0; d < 5; d++)
-                    {
-                        float waveX = WaveAmp * (Mathf.Cos(Mathf.PI * (d - 2f) / 4f) - ArcMean) + rowX;
-                        RUnitAt(root, b, 0f, i - 2f + waveX, row, 1, BlockKind.Cube, colCol[i], L, d - 2f + waveZ);
-                    }
+                        RUnitAt(root, b, 0f, i - 2f, row, 1, BlockKind.Cube, colCol[i], L, d - 2f + waveZ);
                 }
             }
         }
