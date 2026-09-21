@@ -1822,32 +1822,52 @@ namespace SmashGame
             // ② 그래도 모자라면 상판마다 맨 뒷겹을 한 겹씩 뒤(상판의 로컬 +z)로 복제하고 그 상판을 그만큼 깊게 한다.
             var groups = pedestalGroups.Where(g => g != null && g.transform.IsChildOf(root)).ToList();
             int layers = 0;
+            // 상판이 하나일 때만 깊이를 늘린다. 여러 개면 SeparatePlates가 벌려 둔 간격을 도로 잡아먹어 상판끼리 부딪힌다.
+            if (groups.Count == 1)
             for (int pass = 0; pass < MaxAutoLayers && info.blocks.Count < MinBlocks; pass++)
             {
                 if (CloneBackLayer(root, info, groups) == 0) break;
                 layers++;
             }
-            // ③ ②로도 모자라면(원진처럼 블록이 상판 축과 다른 방향으로 놓인 배치) 블록마다 "자기 뒤쪽"(자기 yaw 기준 +DS)에
-            //    빈자리가 있고 그 자리가 아직 상판 위라면 한 칸 복제한다. 상판을 건드리지 않으니 어떤 배치에도 안전하다.
-            int filled = 0;
-            for (int pass = 0; pass < MaxAutoLayers && info.blocks.Count < MinBlocks; pass++)
-            {
-                int n = FillBehindBlocks(root, info);
-                if (n == 0) break;
-                filled += n;
-            }
-            // ④ 그래도 모자라면 위로 쌓는다. 상판 발자국을 그대로 두므로 폭 규칙·상판 간격을 건드리지 않는 마지막 수단이다.
-            //    규칙 ④(세로 최대 10칸)를 넘지 않는 선까지만.
-            int stacked = 0;
-            for (int pass = 0; pass < MaxStackCells && info.blocks.Count < MinBlocks; pass++)
-            {
-                int n = StackOnTop(root, info);
-                if (n == 0) break;
-                stacked += n;
-            }
+            // ③·④(뒤 빈칸 채우기·위로 쌓기)는 뺐다. 받침이 있어도 한 칸씩 덧붙인 블록은 무게중심이 밖으로 나가
+            //    물리가 깨어나는 순간 구조물이 통째로 무너졌다(87·88레벨 실측). 개수보다 안정이 우선이다.
+            //    ①②로 120개를 못 채우는 구조물은 빌더 자체를 다시 짜야 한다.
+            int filled = 0, stacked = 0;
             Physics.SyncTransforms();
+            int pruned = PruneFloating(info);
             if (layers > 0 || filled > 0 || stacked > 0)
-                Debug.Log($"[LevelBuilder] {info.level}: 블록 {MinBlocks}개 보강 — 뒷겹 {layers}겹, 뒤 빈칸 {filled}개, 위로 {stacked}개 → {info.blocks.Count}개");
+                Debug.Log($"[LevelBuilder] {info.level}: 블록 {MinBlocks}개 보강 — 뒷겹 {layers}겹, 뒤 빈칸 {filled}개, 위로 {stacked}개, 뜬 블록 정리 {pruned}개 → {info.blocks.Count}개");
+        }
+
+        /// <summary>
+        /// 이 자리가 받쳐지는가: 바닥이 상판 높이에 닿아 있거나(상판 위), 바로 아래 칸에 다른 블록이 있어야 한다.
+        /// 확인 없이 놓으면 공중에 뜬 블록이 생겨 물리가 깨어나는 순간 구조물이 통째로 무너진다.
+        /// </summary>
+        static bool Supported(Vector3 center, float bottomY, Vector3 size)
+        {
+            if (bottomY <= PedestalTop + 0.06f) return true;   // 상판 바로 위
+            Vector3 below = new Vector3(center.x, bottomY - DU * 0.5f, center.z);
+            foreach (var h in Physics.OverlapBox(below, new Vector3(size.x, DU, size.z) * 0.4f))
+                if (h != null && h.GetComponentInParent<Block>() != null) return true;
+            return false;
+        }
+
+        /// <summary>보강 단계가 끝난 뒤, 그래도 받침 없이 뜬 블록이 남았으면 지운다 (개수보다 안정이 우선).</summary>
+        static int PruneFloating(LevelInfo info)
+        {
+            Physics.SyncTransforms();
+            int removed = 0;
+            for (int i = info.blocks.Count - 1; i >= 0; i--)
+            {
+                var b = info.blocks[i]; if (b == null) continue;
+                var col = b.GetComponent<Collider>(); if (col == null) continue;
+                if (Supported(col.bounds.center, col.bounds.min.y, col.bounds.size)) continue;
+                info.blocks.RemoveAt(i);
+                Object.DestroyImmediate(b.gameObject);
+                removed++;
+            }
+            if (removed > 0) Physics.SyncTransforms();
+            return removed;
         }
 
         /// <summary>
@@ -1911,6 +1931,7 @@ namespace SmashGame
                 Vector3 center = col.bounds.center + back;
 
                 if (!WithinWidth(center, sz.x * 0.5f)) continue;   // 화면 폭 밖으로 나가면 안 된다
+                if (!Supported(center, col.bounds.min.y, sz)) continue;   // 아래가 비어 있으면 공중에 뜬다 (87·88레벨이 시작하자마자 무너지던 원인)
 
                 // 그 자리가 비어 있나 (0.45배로 줄인 상자라 이웃과 맞닿은 것만으론 걸리지 않는다)
                 bool occupied = false;
@@ -1969,6 +1990,9 @@ namespace SmashGame
             for (int gi = 0; gi < groups.Count; gi++)
             {
                 if (tops[gi] == null) continue;
+                // 둥근 상판은 건너뛴다. z로만 늘리면 타원이 되는데, 원형으로 둘러 세운 블록은 그 타원 밖으로 밀려나
+                // 받침을 잃는다 (70 둥근 성이 시작하자마자 무너지던 원인). 네모 상판만 깊이를 늘린다.
+                if (!(tops[gi] is BoxCollider)) continue;
                 float gyaw = groups[gi].transform.eulerAngles.y;
                 Vector3 fwd = Quaternion.Euler(0f, gyaw, 0f) * Vector3.forward;   // 이 상판이 보는 "뒤" 방향
                 var mine = new List<Block>();
