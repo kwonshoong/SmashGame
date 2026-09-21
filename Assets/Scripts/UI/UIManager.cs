@@ -93,6 +93,20 @@ namespace SmashGame
             var trainBtn = UIKit.Button(bottom, "훈련장", UIKit.Blue, new Vector2(1, 0.5f), new Vector2(-30, 0), new Vector2(320, 150), OpenTraining, 40);
             lobbyTrainingBadge = UIKit.Label(trainBtn.transform, "", 26, UIKit.Gold, new Vector2(1, 1), new Vector2(-6, -6), new Vector2(240, 40), TextAnchor.UpperRight, true);
             UIKit.Button(top, "초기화", new Color(0.4f, 0.4f, 0.4f), new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(150, 64), () => gm.ResetSave(), 24);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // 테스트용 레벨 점프 줄. 에디터와 개발 빌드에서만 만들어지므로 정식 빌드에는 들어가지 않는다.
+            // 보너스는 5·15·25…, 하드는 10·20·30… 이므로 ±5 버튼으로 두 종류를 번갈아 짚을 수 있다.
+            var jump = UIKit.Box(lobby, "LevelJump", new Color(0, 0, 0, 0.35f), new Vector2(0.5f, 0), new Vector2(0, 480), new Vector2(680, 80));
+            var steps = new[] { -10, -5, -1, 1, 5, 10 };
+            for (int k = 0; k < steps.Length; k++)
+            {
+                int step = steps[k];
+                float x = (k - (steps.Length - 1) * 0.5f) * 108f;
+                UIKit.Button(jump, (step > 0 ? "+" : "") + step, new Color(0.3f, 0.3f, 0.36f), new Vector2(0.5f, 0.5f),
+                    new Vector2(x, 0), new Vector2(100, 64), () => gm.SetLevel(gm.Data.currentLevel + step), 28);
+            }
+#endif
         }
 
         public void ShowLobby()

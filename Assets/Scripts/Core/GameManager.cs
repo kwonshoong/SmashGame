@@ -285,6 +285,14 @@ namespace SmashGame
 
         public void RetryLevel() => StartLevel();
 
+        /// <summary>테스트용 레벨 이동. 로비의 레벨 점프 줄에서만 호출한다(에디터·개발 빌드 전용 UI).</summary>
+        public void SetLevel(int level)
+        {
+            Data.currentLevel = Mathf.Max(1, level);
+            Data.Save();
+            OnDataChanged?.Invoke();
+        }
+
         // ---------------- 격파 도전 ----------------
 
         public bool IsTowerUnlocked => Data.currentLevel > Balance.TowerUnlockLevel;
