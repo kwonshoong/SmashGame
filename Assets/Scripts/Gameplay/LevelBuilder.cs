@@ -1822,8 +1822,9 @@ namespace SmashGame
             // ② 그래도 모자라면 상판마다 맨 뒷겹을 한 겹씩 뒤(상판의 로컬 +z)로 복제하고 그 상판을 그만큼 깊게 한다.
             var groups = pedestalGroups.Where(g => g != null && g.transform.IsChildOf(root)).ToList();
             int layers = 0;
-            // 상판이 하나일 때만 깊이를 늘린다. 여러 개면 SeparatePlates가 벌려 둔 간격을 도로 잡아먹어 상판끼리 부딪힌다.
-            if (groups.Count == 1)
+            // 상판이 여럿이어도 깊이를 늘린다 — 단, 늘린 뒤에도 상판끼리 MinPlateGap을 지키는 경우에만 (CloneBackLayer가 확인하고 되돌린다).
+            // 좌우로 놓인 상판(아치 문의 두 다리)은 z로 깊어져도 간격이 그대로라 안전하고,
+            // 앞뒤로 놓인 상판만 걸러진다. 이 제한이 없던 동안 아치 문이 54개(최소 120개 미달)로 만들어졌다.
             for (int pass = 0; pass < MaxAutoLayers && info.blocks.Count < MinBlocks; pass++)
             {
                 if (CloneBackLayer(root, info, groups) == 0) break;
@@ -2015,6 +2016,31 @@ namespace SmashGame
                 }
                 if (tooWide) continue;
 
+                // 상판이 여럿일 때는 "정면(yaw 0/180)이면서 좌우로 나란한" 경우에만 깊게 한다.
+                // 그래야 깊이가 월드 z로만 늘어나 서로의 간격(x)도, 화면 폭도 건드리지 않는다.
+                // 돌아간 상판(뱃머리 탑 yaw 45)은 깊이가 가로로 밀려 폭을 넘고, 그 뒤 SeparatePlates가 상판을 옮기면
+                // 위에 얹힌 블록만 허공에 남는다.
+                // 좌우로 나란한 상판(아치 문의 두 다리)은 z로 깊어져도 간격이 그대로라 안전하다.
+                // 앞뒤로 어긋난 상판(삼각 요새·T자 벽)은 깊어지면 간격이 줄어 SeparatePlates가 상판을 옆으로 밀고,
+                // 그 위에 얹힌 블록만 제자리에 남아 허공에 뜬다 — 87·88레벨이 무너지던 바로 그 경로다.
+                bool sideBySide = Mathf.Abs(Mathf.DeltaAngle(gyaw, 0f)) < 1f || Mathf.Abs(Mathf.DeltaAngle(gyaw, 180f)) < 1f;
+                for (int oj = 0; oj < tops.Count && sideBySide; oj++)
+                {
+                    if (oj == gi || tops[oj] == null) continue;
+                    if (Mathf.Abs(tops[oj].bounds.center.z - tops[gi].bounds.center.z) > DS) sideBySide = false;
+                }
+                if (!sideBySide) continue;
+                // 좌우로 나란한 상판은 z로 깊어져도 서로의 간격(x 방향)이 변하지 않으므로 간격을 따로 검사하지 않는다.
+                // 이 시점은 SeparatePlates 전이라 간격이 아직 최소치 미만일 수 있는데, 그걸 기준으로 재면
+                // 멀쩡한 구조물까지 보강이 막힌다 (아치 문이 54개로 만들어지던 원인).
+                foreach (var nm in new[] { "PedestalTop", "PedestalRim", "PedestalUnder" })
+                {
+                    var c = groups[gi].transform.Find(nm); if (c == null) continue;
+                    var ls = c.localScale; ls.z += DS; c.localScale = ls;
+                    var lp = c.localPosition; lp.z += DS * 0.5f; c.localPosition = lp;
+                }
+                Physics.SyncTransforms();
+
                 foreach (var b in back)
                 {
                     var col = b.GetComponent<Collider>(); if (col == null) continue;
@@ -2026,12 +2052,6 @@ namespace SmashGame
                     if (lying) RBar(root, basePos, Mathf.RoundToInt(Mathf.Max(sz.x, sz.z) / DS), b.kind, b.BaseColor, yaw, info.blocks);
                     else RUnit(root, basePos, Mathf.Max(1, Mathf.RoundToInt(sz.y / DU)), b.kind, b.BaseColor, yaw, info.blocks);
                     added++;
-                }
-                foreach (var name in new[] { "PedestalTop", "PedestalRim", "PedestalUnder" })
-                {
-                    var c = groups[gi].transform.Find(name); if (c == null) continue;
-                    var ls = c.localScale; ls.z += DS; c.localScale = ls;
-                    var lp = c.localPosition; lp.z += DS * 0.5f; c.localPosition = lp;
                 }
             }
             Physics.SyncTransforms();
