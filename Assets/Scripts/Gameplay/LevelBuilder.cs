@@ -2218,6 +2218,38 @@ namespace SmashGame
                 }
             }
         }
+
+        /// <summary>
+        /// 벽돌 엇쌓기 층. RBrickWall과 같은 패턴이지만 시작 줄(row0)을 지정할 수 있고, taper를 주면
+        /// 한 층 올라갈 때마다 양옆이 한 칸씩 좁아져 망루처럼 모인다.
+        /// 한 줄은 1칸 블록으로 채우고 다음 줄은 2칸 부재를 반 칸 어긋나게 깔아, 위아래 이음매가 엇갈리게 한다.
+        /// 통짜 보를 그냥 얹어 두면 한 발에 통째로 밀려나지만, 엇갈려 물리면 한 칸씩 깎아내야 한다.
+        /// 깊이 층(d)마다 어긋나는 방향을 바꿔 앞뒤 이음매도 겹치지 않는다.
+        /// </summary>
+        static void RBrickDeck(Transform root, Vector3 b, float yaw, int nCols, int rows, int depth, int row0,
+                               BlockKind cubeKind, Color cubeCol, Color barCol, List<Block> L, int taper = 0)
+        {
+            for (int row = 0; row < rows; row++)
+            {
+                int n = nCols - taper * 2 * row;
+                if (n < 1) break;
+                float k0 = -(n - 1) * 0.5f;
+                for (int d = 0; d < depth; d++)
+                {
+                    float j = d - (depth - 1) * 0.5f;
+                    int r = row0 + row;
+                    if ((row + d) % 2 == 0)
+                    {
+                        for (int i = 0; i < n; i++) RUnitAt(root, b, yaw, k0 + i, r, 1, cubeKind, cubeCol, L, j);
+                        continue;
+                    }
+                    int c = 0;
+                    RUnitAt(root, b, yaw, k0, r, 1, cubeKind, cubeCol, L, j); c = 1;   // 반 칸 어긋나게 시작
+                    for (; c + 1 < n; c += 2) RBarAt(root, b, yaw, k0 + c + 0.5f, r, 2, BlockKind.Cube, barCol, L, j);
+                    if (c < n) RUnitAt(root, b, yaw, k0 + c, r, 1, cubeKind, cubeCol, L, j);
+                }
+            }
+        }
         static readonly Color SlateCol = new Color(0.27f, 0.36f, 0.62f), OrangeCol = new Color(1f, 0.55f, 0.12f), SkyCol = new Color(0.75f, 0.93f, 1f);
 
         /// <summary>
@@ -2623,13 +2655,16 @@ namespace SmashGame
                 var b = FrontPlate(root, p, side * 1.15f, 0f, 1.5f * DS + 0.1f);
                 RBrickWall(root, b, 0f, 3, 5, 2, BlockKind.Cube, SlateCol, BlueCol, L);
             }
+            // 두 탑 위를 잇는 부분. 예전에는 3칸짜리 긴 보 몇 개를 그냥 걸쳐 놓기만 해서
+            // 한 발이면 통째로 밀려 떨어졌다. 이제 상인방 한 줄을 놓고 그 위에 벽돌 엇쌓기로 3층을 올린다.
             var c = Top(Vector3.zero);
-            foreach (float j in new[] { -0.5f, 0.5f })
-            {
-                RBarAt(root, c, 0f, 0f, 5, 3, BlockKind.Cube, RedCol, L, j);
-                for (int k = -3; k <= 3; k += 3) RBarAt(root, c, 0f, k, 6, 3, BlockKind.Cube, RedCol, L, j);
-                RUnitAt(root, c, 0f, 0, 7, 1, BlockKind.Cube, GoldCol, L, j);
-            }
+            // 상인방: 두 탑 전체 폭(8칸)을 덮는 보. 가운데 열린 2칸을 건너뛰고 양쪽 탑에 확실히 걸친다
+            foreach (float j in new[] { -0.5f, 0.5f }) RBarAt(root, c, 0f, 0f, 5, 8, BlockKind.Cube, RedCol, L, j);
+            // 그 위 3층: 8칸 → 6칸 → 4칸으로 좁아지는 망루. 칸 위치가 아래 탑 기둥(k = ±1.5·DS 배수)과 맞물린다
+            RBrickDeck(root, c, 0f, 8, 3, 2, 6, BlockKind.Cube, SlateCol, RedCol, L, 1);
+            // 꼭대기 장식은 2×2로 (규칙 ⑦). 한 칸짜리 하나만 얹으면 첫 발에 툭 떨어져 허전하다
+            foreach (float k in new[] { -0.5f, 0.5f })
+                foreach (float j in new[] { -0.5f, 0.5f }) RUnitAt(root, c, 0f, k, 9, 1, BlockKind.Cube, GoldCol, L, j);
         }
 
         /// <summary>8 쌍둥이 탑: 3열 벽돌 7단 두 겹 탑 둘, 꼭대기 금색 큐브.</summary>
