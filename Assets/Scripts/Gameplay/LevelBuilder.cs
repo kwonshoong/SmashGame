@@ -691,7 +691,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "색동 벽", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", _ => "성채"
             };
             return info;
         }
@@ -2623,35 +2623,26 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 77 색동 물결 벽 (레퍼런스): 정면 가로 5칸 × 세로 5단, 깊이 5겹.
-        /// 칸은 격자 그대로 두고 칸마다 앞뒤(z) 위치만 호(弧)로 밀어, 벽이 가로로도 세로로도 굽은 곡면이 된다.
-        /// 가로 칸마다 — 가운데 줄이 앞으로 불룩. 세로 단마다 — 가운데 단이 앞으로 불룩(배부른 벽).
+        /// 77 비틀린 색동 탑 (레퍼런스): 한 켜가 가로 5칸 × 깊이 5칸인 정사각 판이고, 그 판을 8층까지 쌓는다.
+        /// 한 층 올라갈 때마다 그 켜를 통째로 좌로 3도씩 돌려, 위로 갈수록 판이 비틀린다.
         ///
-        /// 미는 방향을 앞뒤로만 한정한 것이 이 구조의 핵심이다.
-        /// ㆍ좌우로 밀면 같은 세로줄의 블록이 단마다 옆으로 어긋나 정면 격자가 흐트러져 보인다. 그래서 안 쓴다.
-        /// ㆍ앞뒤로 미는 건 시선 방향이라 정면 격자를 조금도 해치지 않으면서 휨은 그대로 보인다.
-        /// 다만 단마다 미는 양은 받침 면적을 깎으므로 호의 기울기가 가장 급한 구간(이웃 단 0.35칸)으로 묶는다.
-        /// 호의 평균(ArcMean)을 빼 주는데, 안 빼면 휨이 한쪽으로만 쏠려 구조물이 받침 가장자리로 치우치고
-        /// 가장자리 줄이 상판 밖으로 걸쳐 미끄러진다(실측 9개).
+        /// 켜 전체를 같은 각도로 돌리는 것이 요점이다. 블록 하나하나를 따로 밀면 정면 격자가 흐트러지지만,
+        /// 판을 통째로 돌리면 격자는 그대로 유지된 채 방향만 바뀐다. 받침도 각도 차이만큼만 깎인다 —
+        /// 3도면 바깥 모서리 블록이 0.07칸 움직여 아래 블록을 8할 이상 밟는다.
         /// </summary>
-        public static float WaveAmp = 0.35f, BowAmp = 0.9f;   // 칸 단위: 가로 칸 휨, 세로 단 휨
-        /// <summary>호(弧) 다섯 칸의 평균. 빼 주지 않으면 휨이 한쪽으로만 밀린다.</summary>
-        const float ArcMean = 0.48284273f;   // (cos(-π/2)+cos(-π/4)+cos0+cos(π/4)+cos(π/2)) / 5
-        static float Arc5(float t) => Mathf.Cos(Mathf.PI * (t - 2f) / 4f) - ArcMean;
+        public const float TwistPerRow = 3f;   // 도
+        public const int TwistRows = 8;
         static void BuildN_ColorWall(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 8f * DS + 0.28f);
+            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 5f * DS + 0.28f);
             var colCol = new[] { RedCol, BlueCol, PinkCol, PurpleCol, RedCol };
-            for (int row = 0; row < 5; row++)
+            for (int row = 0; row < TwistRows; row++)
             {
-                float bow = BowAmp * Arc5(row);
+                float yaw = TwistPerRow * row;   // 좌로 (+yaw면 정면이 왼쪽을 향한다)
                 for (int i = 0; i < 5; i++)
-                {
-                    float waveZ = WaveAmp * Arc5(i) + bow;
                     for (int d = 0; d < 5; d++)
-                        RUnitAt(root, b, 0f, i - 2f, row, 1, BlockKind.Cube, colCol[i], L, d - 2f + waveZ);
-                }
+                        RUnitAt(root, b, yaw, i - 2f, row, 1, BlockKind.Cube, colCol[i], L, d - 2f);
             }
         }
 
