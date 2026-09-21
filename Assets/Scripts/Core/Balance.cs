@@ -73,13 +73,14 @@ namespace SmashGame
         /// <summary>보너스 블록 질량. 0.55에서는 한 발에 열 개씩 쓸려 나가 20초를 못 채우고 끝났다(35레벨 실측). 일반 레벨(0.7~1.0)과 비슷하게 둔다.</summary>
         public const float BonusMassScale = 0.85f;
         /// <summary>
-        /// 보너스 구조물 크기: 7칸 × 9~10층 × 앞뒤 여섯 겹 → 블록 350~380개.
+        /// 보너스 구조물 크기: 8칸 × 9~10층 × 앞뒤 여섯 겹 → 블록 400~430개.
         /// 블록 수는 "폭"이 아니라 "깊이"로 번다. 폭을 11칸까지 넓혔더니 화면 맞춤(FitToScreen)이 0.63배로 줄여
         /// 블록 한 칸이 일반 레벨의 3분의 2만 해 보였다 — 깊이는 화면 폭을 먹지 않으므로 늘려도 블록이 작아지지 않는다.
-        /// 7칸이면 화면 맞춤 배율이 0.97이라 일반 레벨과 거의 같은 크기가 된다.
+        /// 가로 화각 고정(GameManager.FovForAspect) 후 기준 반폭이 2.34이므로 8칸이면 화면 맞춤 배율이 1.0,
+        /// 즉 일반 레벨과 정확히 같은 블록 크기가 된다.
         /// 오래 버티게 만드는 주된 수단은 "단단함"이 아니라 "양"이다 — 25초 내내 부술 게 남아 있어야 한다.
         /// </summary>
-        public static int BonusCols(int level) => 7;
+        public static int BonusCols(int level) => 8;
         public static int BonusRows(int level) => Mathf.Min(10, 9 + level / 200);
         public const int BonusDepth = 6;
         /// <summary>보너스 판 종류: 사탕 산 · 사탕 벽 · 사탕 요새 순환 (자동차는 뺐다 — 부술 게 적었다)</summary>

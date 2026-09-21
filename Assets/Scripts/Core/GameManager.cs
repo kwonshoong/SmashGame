@@ -46,6 +46,20 @@ namespace SmashGame
         // 꼭대기(원통 9단)는 눈높이보다 20° 위 → 눈높이는 상판 위 약 1.7(원통 4개 높이), 구조물까지 거리 약 7.5, 세로 화각 60°.
         // 눈높이가 낮고 가까워서 눈 아래 블록은 윗면이, 눈 위 블록은 올라갈수록 아랫면이 넓게 보인다. 화면 폭에 블록 약 9칸.
         public const float CamFov = 60f;
+        /// <summary>
+        /// 구조물 설계 기준: 거리 7.5에서 좌우 반폭 2.34까지가 화면 안. 구조물은 이 안(최대 2.24)에 들어가도록 만들어진다.
+        /// 문제는 세로 화각 60도가 9:16 화면을 기준으로 잡혔다는 것 — 같은 60도라도 화면이 세로로 길면 가로로 좁아져
+        /// 9:18(720×1440)에서 반폭 2.17, 9:19.5에서 2.00까지 줄어 구조물 양끝이 잘린다(실측 스크린샷).
+        /// 그래서 세로 화각을 화면 비율에서 역산해 "가로 화각"을 고정한다. 세로로 긴 화면일수록 화각을 넓혀
+        /// 가로로 보이는 폭이 항상 2.34 이상이 되게 하고, 가로로 넓은 화면(태블릿)에서는 60도를 그대로 둔다.
+        /// </summary>
+        public const float CamRefDist = 7.5f, CamRefHalfWidth = 2.34f;
+        public static float FovForAspect(float aspect)
+        {
+            aspect = Mathf.Clamp(aspect, 0.3f, 3f);
+            float need = 2f * Mathf.Atan(CamRefHalfWidth / (CamRefDist * aspect)) * Mathf.Rad2Deg;
+            return Mathf.Clamp(Mathf.Max(CamFov, need), CamFov, 80f);   // 세로 프레임은 절대 좁히지 않는다(60도 하한)
+        }
         public static readonly Vector3 CamDefaultPos = new Vector3(0f, 2.7f, -7.5f);
         public static readonly Quaternion CamDefaultRot = Quaternion.Euler(5.4f, 0f, 0f);   // 수평선이 중앙보다 9% 위
         public static readonly Vector3 CamPanelPos = new Vector3(0f, 4.7f, -18.1f);   // 뒤로 빠져 대포·받침대·구조물이 한 화면에
@@ -58,9 +72,16 @@ namespace SmashGame
             camLerp = true;
         }
 
+        float lastAspect = -1f;
+
         void Update()
         {
             if (mainCamera == null) return;
+            if (!Mathf.Approximately(mainCamera.aspect, lastAspect))
+            {
+                lastAspect = mainCamera.aspect;
+                mainCamera.fieldOfView = FovForAspect(lastAspect);
+            }
             // 플레이 중에는 어떤 경로로 들어왔든 항상 기본 시점으로 고정 (패널 시점이 남는 문제 방지)
             if (State == GameState.Playing)
             {
@@ -122,7 +143,8 @@ namespace SmashGame
                 go.AddComponent<AudioListener>();
             }
             mainCamera.clearFlags = CameraClearFlags.SolidColor;
-            mainCamera.fieldOfView = CamFov;
+            mainCamera.fieldOfView = FovForAspect(mainCamera.aspect);
+            lastAspect = mainCamera.aspect;
             mainCamera.nearClipPlane = 0.1f;
             mainCamera.farClipPlane = 200f;
             SetupLighting();

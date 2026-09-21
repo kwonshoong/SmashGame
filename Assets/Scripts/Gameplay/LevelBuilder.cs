@@ -284,7 +284,9 @@ namespace SmashGame
                 topY = Mathf.Max(topY, r.bounds.max.y);
             }
             float dist = rangeZ - cam.transform.position.z;
-            float aspect = Mathf.Min(cam.aspect, 9f / 19.5f);   // 가장 좁은 폰 기준
+            // 가로 화각이 고정되어 있으므로(GameManager.FovForAspect) 실제 화면 비율을 그대로 쓴다 —
+            // 어느 기기에서든 거리 7.5에서 보이는 반폭이 2.34 이상으로 같다.
+            float aspect = cam.aspect;
             float halfFov = cam.fieldOfView * 0.5f * Mathf.Deg2Rad;
             float allowed = dist * Mathf.Tan(halfFov) * aspect * FitMargin;
             // 세로 한계: 화면 세로 반높이의 FitTopMargin까지 (HUD가 위를 가림). 상판을 축으로 키우므로 (top - 상판) 이 늘어난다
