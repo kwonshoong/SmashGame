@@ -92,6 +92,12 @@ namespace SmashGame
         /// 몇 발 만에 판이 끝난다(35레벨 실측) — 바닥을 먼저 깎아야 무너지게 해서 붕괴를 단계적으로 만든다.
         /// </summary>
         public static int BonusFloorHp(int level) => 2;
+        /// <summary>
+        /// 장갑 블록(겉면에 박힌 돌)에 추가로 곱하는 질량. 돌 소재 자체가 사탕의 3배이므로 최종 질량은 사탕의 약 9배가 된다.
+        /// 내구도가 남아 있는 동안은 여기에 다시 2배(Block.ReinforcedMassMult)가 걸려 공 한 발로는 꿈쩍도 하지 않는다.
+        /// 이 값이 보너스 판의 "도전하는 느낌"을 쥐고 있다 — 너무 올리면 끝까지 안 부서져 답답해진다.
+        /// </summary>
+        public const float BonusArmorMassMult = 3f;
         public static int BonusCoin(int level, int destroyed, int total, bool allClear)
             => Mathf.RoundToInt((BonusClearCoin * destroyed / (float)Mathf.Max(1, total) + (allClear ? BonusAllClearCoin : 0)) * CoinScale(level));
 
