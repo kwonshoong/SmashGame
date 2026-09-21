@@ -3279,10 +3279,11 @@ namespace SmashGame
                     {
                         // 창문처럼 군데군데 비워 두면 무너지는 모양이 살고, 아래를 파기도 쉽다 (속 겹만)
                         if (d == 1 && j > 0 && j < h - 1 && (i + j) % 5 == 0) continue;
-                        // 돌 장갑: 맨 뒷줄에만, 두 층에 한 줄씩. 사탕이 앞에서부터 날아가면 뒤에 회색 돌 띠가 드러나고,
+                        // 돌 장갑: 맨 뒤 두 겹에만, 두 층에 한 줄씩. 사탕이 앞에서부터 날아가면 뒤에 회색 돌 띠가 드러나고,
                         // 이 띠는 소재부터 무거운 데다(사탕의 3배) BonusArmorMassMult가 더 곱해져 공 한 발로는 꿈쩍도 하지 않는다.
                         // 내구도가 다 닳아야 비로소 밀린다 — 앞쪽 사탕은 그대로 우수수 날아가고, 마무리가 어려워진다.
-                        bool armor = d == Balance.BonusDepth - 1 && j % 2 == 0;
+                        // 두 겹이라 돌끼리 앞뒤로 맞물려 서로를 받쳐 준다(한 겹일 때보다 훨씬 버틴다).
+                        bool armor = d >= Balance.BonusDepth - 2 && j % 2 == 0;
                         var (kind, col) = armor ? (BlockKind.Stone, StoneCol) : BonusPick(rng, i * 3 + d * 7 + j);
                         var b = MakeUnit(root, kind, new Vector3((i - half) * DS, PedestalTop + j * DU, (d - (Balance.BonusDepth - 1) * 0.5f) * DS), 1, col, info.blocks, DU);
                         if (armor) b.Setup(b.kind, b.BaseColor, b.GetComponent<Rigidbody>().mass * Balance.BonusArmorMassMult, hp);
