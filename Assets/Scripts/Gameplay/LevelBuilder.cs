@@ -1777,8 +1777,22 @@ namespace SmashGame
         /// <summary>true면 화면 맞춤 배율을 1로 고정하고 맨 앞 블록을 FrontZ에 맞춘다</summary>
         static bool fixedFront;
 
-        /// <summary>규칙 ⑥ 블록 최소 개수. 모자라면 세로로 긴 조각(2~3칸)을 1칸 블록으로 쪼개 채운다 (모양·질량은 그대로, 조각 수만 는다).</summary>
-        public const int MinBlocks = 60;
+        /// <summary>
+        /// 규칙 ⑥ 블록 최소 개수. 모자라면 ① 세로로 긴 조각(2~3칸)을 1칸 블록으로 쪼개고(모양·질량은 그대로, 조각 수만 는다)
+        /// ② 그래도 모자라면 맨 뒷겹을 한 겹씩 뒤로 복제해 깊게 만든다.
+        /// 깊이는 화면 폭을 먹지 않으므로(원근 폭 규칙은 z가 클수록 오히려 여유가 는다) 블록 크기를 줄이지 않고 개수만 늘릴 수 있다.
+        /// </summary>
+        public const int MinBlocks = 120;
+        /// <summary>자동 복제로 덧붙일 수 있는 최대 겹 수 (너무 깊어지면 뒤쪽이 앞에 가려 보이지 않는다)</summary>
+        public const int MaxAutoLayers = 6;
+
+        /// <summary>
+        /// 규칙 ② 원근 폭 한계: 거리(7.5 + z)에서 화면에 보이는 좌우 반폭. 카메라가 가로 화각을 고정하므로
+        /// (7.5 + z) × (2.34 / 7.5) 가 그대로 보이는 폭이고, 여기서 0.1을 여유로 뺀다. 뒤로 갈수록(z가 클수록) 여유가 는다.
+        /// 블록을 자동으로 덧붙일 때 이 선을 넘지 않는지 반드시 확인한다 — 넘으면 화면 밖으로 잘린다.
+        /// </summary>
+        public static float WidthLimitAt(float z) => (7.5f + z) * (GameManager.CamRefHalfWidth / GameManager.CamRefDist) - 0.1f;
+        static bool WithinWidth(Vector3 center, float halfX) => Mathf.Abs(center.x) + halfX <= WidthLimitAt(center.z);
 
         static void EnsureMinBlocks(Transform root, LevelInfo info, System.Random rng)
         {
@@ -1805,33 +1819,199 @@ namespace SmashGame
             Physics.SyncTransforms();
             if (info.blocks.Count >= MinBlocks) return;
 
-            // 그래도 모자라면(이미 다 1칸 조각인 구조물) 뒷겹을 한 겹 더 복제해 세 겹으로 만들고 상판을 그만큼 깊게 한다.
-            // 정면(yaw 0) 상판·블록으로만 된 구조물에서만 — 돌린 배치는 빌더에서 직접 채운다.
+            // ② 그래도 모자라면 상판마다 맨 뒷겹을 한 겹씩 뒤(상판의 로컬 +z)로 복제하고 그 상판을 그만큼 깊게 한다.
             var groups = pedestalGroups.Where(g => g != null && g.transform.IsChildOf(root)).ToList();
-            bool frontal = groups.All(g => Mathf.Abs(Mathf.DeltaAngle(g.transform.eulerAngles.y, 0f)) < 0.5f)
-                        && info.blocks.All(b => b == null || Mathf.Abs(Mathf.DeltaAngle(b.transform.eulerAngles.y, 0f)) < 0.5f || Mathf.Abs(Mathf.DeltaAngle(b.transform.eulerAngles.y, 180f)) < 0.5f);
-            if (!frontal) return;
-            float meanZ = 0; int nb = 0; foreach (var b in info.blocks) if (b != null) { meanZ += b.transform.position.z; nb++; }
-            if (nb == 0) return; meanZ /= nb;
-            var back = info.blocks.Where(b => b != null && b.transform.position.z > meanZ + 0.1f).ToList();
-            if (back.Count == 0) return;
-            foreach (var b in back)
+            int layers = 0;
+            for (int pass = 0; pass < MaxAutoLayers && info.blocks.Count < MinBlocks; pass++)
             {
-                var col = b.GetComponent<Collider>(); if (col == null) continue;
-                var sz = col.bounds.size; var t = b.transform; float yaw = t.eulerAngles.y;
-                Vector3 basePos = new Vector3(t.position.x, col.bounds.min.y, t.position.z + DS);
-                if (sz.x > DU * 1.3f) RBar(root, basePos, Mathf.RoundToInt(sz.x / DS), b.kind, b.BaseColor, yaw, info.blocks);
-                else RUnit(root, basePos, Mathf.Max(1, Mathf.RoundToInt(sz.y / DU)), b.kind, b.BaseColor, yaw, info.blocks);
+                if (CloneBackLayer(root, info, groups) == 0) break;
+                layers++;
             }
-            foreach (var g in groups)
+            // ③ ②로도 모자라면(원진처럼 블록이 상판 축과 다른 방향으로 놓인 배치) 블록마다 "자기 뒤쪽"(자기 yaw 기준 +DS)에
+            //    빈자리가 있고 그 자리가 아직 상판 위라면 한 칸 복제한다. 상판을 건드리지 않으니 어떤 배치에도 안전하다.
+            int filled = 0;
+            for (int pass = 0; pass < MaxAutoLayers && info.blocks.Count < MinBlocks; pass++)
+            {
+                int n = FillBehindBlocks(root, info);
+                if (n == 0) break;
+                filled += n;
+            }
+            // ④ 그래도 모자라면 위로 쌓는다. 상판 발자국을 그대로 두므로 폭 규칙·상판 간격을 건드리지 않는 마지막 수단이다.
+            //    규칙 ④(세로 최대 10칸)를 넘지 않는 선까지만.
+            int stacked = 0;
+            for (int pass = 0; pass < MaxStackCells && info.blocks.Count < MinBlocks; pass++)
+            {
+                int n = StackOnTop(root, info);
+                if (n == 0) break;
+                stacked += n;
+            }
+            Physics.SyncTransforms();
+            if (layers > 0 || filled > 0 || stacked > 0)
+                Debug.Log($"[LevelBuilder] {info.level}: 블록 {MinBlocks}개 보강 — 뒷겹 {layers}겹, 뒤 빈칸 {filled}개, 위로 {stacked}개 → {info.blocks.Count}개");
+        }
+
+        /// <summary>
+        /// 꼭대기가 비어 있는 블록 위에 같은 블록을 한 칸 더 쌓는다 (상판 위 10칸 상한을 넘지 않는 선까지).
+        /// 상판 발자국이 그대로라 폭 규칙·상판 간격을 건드리지 않아, 돌아간 배치든 둥근 상판이든 안전하게 쓸 수 있다.
+        /// </summary>
+        static int StackOnTop(Transform root, LevelInfo info)
+        {
+            float ceiling = PedestalTop + MaxStackCells * DU - 0.01f;
+            var snapshot = new List<Block>(info.blocks);
+            int added = 0;
+            foreach (var b in snapshot)
+            {
+                if (info.blocks.Count >= MinBlocks) break;
+                if (b == null) continue;
+                var col = b.GetComponent<Collider>(); if (col == null) continue;
+                var sz = col.bounds.size;
+                if (sz.x > DU * 1.3f || sz.z > DU * 1.3f) continue;   // 눕힌 긴 부재 위에는 얹지 않는다
+                float top = col.bounds.max.y;
+                if (top + DU > ceiling) continue;
+                Vector3 center = new Vector3(col.bounds.center.x, top + DU * 0.5f, col.bounds.center.z);
+                float yaw = b.transform.eulerAngles.y;
+                bool occupied = false;
+                foreach (var h in Physics.OverlapBox(center, new Vector3(sz.x, DU, sz.z) * 0.45f, Quaternion.Euler(0f, yaw, 0f)))
+                    if (h != null && h.GetComponentInParent<Block>() != null) { occupied = true; break; }
+                if (occupied) continue;
+                RUnit(root, new Vector3(center.x, top, center.z), 1, b.kind, b.BaseColor, yaw, info.blocks);
+                added++;
+                Physics.SyncTransforms();
+            }
+            return added;
+        }
+
+        /// <summary>
+        /// 블록마다 자기 yaw 기준 바로 뒤(+DS) 자리가 비어 있고 그 자리가 아직 어떤 상판 위라면 같은 블록을 하나 복제한다.
+        /// 상판 크기를 바꾸지 않으므로 돌아간 상판·둥근 상판에도 그대로 쓸 수 있다. 복제한 개수를 돌려준다.
+        /// </summary>
+        static int FillBehindBlocks(Transform root, LevelInfo info)
+        {
+            var tops = new List<Collider>();
+            foreach (var g in pedestalGroups)
+            {
+                if (g == null || !g.transform.IsChildOf(root)) continue;
+                var t = g.transform.Find("PedestalTop");
+                var c = t != null ? t.GetComponent<Collider>() : null;
+                if (c != null) tops.Add(c);
+            }
+            if (tops.Count == 0) return 0;
+
+            var snapshot = new List<Block>(info.blocks);
+            int added = 0;
+            foreach (var b in snapshot)
+            {
+                if (info.blocks.Count >= MinBlocks) break;
+                if (b == null) continue;
+                var col = b.GetComponent<Collider>(); if (col == null) continue;
+                var sz = col.bounds.size;
+                if (sz.x > DU * 1.3f || sz.z > DU * 1.3f) continue;   // 눕힌 긴 부재는 건너뛴다 (뒤가 이미 자기 몸통)
+                float yaw = b.transform.eulerAngles.y;
+                Vector3 back = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward * DS;
+                Vector3 center = col.bounds.center + back;
+
+                if (!WithinWidth(center, sz.x * 0.5f)) continue;   // 화면 폭 밖으로 나가면 안 된다
+
+                // 그 자리가 비어 있나 (0.45배로 줄인 상자라 이웃과 맞닿은 것만으론 걸리지 않는다)
+                bool occupied = false;
+                foreach (var h in Physics.OverlapBox(center, sz * 0.45f, Quaternion.Euler(0f, yaw, 0f)))
+                    if (h != null && h.GetComponentInParent<Block>() != null) { occupied = true; break; }
+                if (occupied) continue;
+
+                // 그 자리가 아직 상판 위인가
+                bool onPlate = false;
+                foreach (var t in tops)
+                {
+                    Vector3 q = ClosestOnPlate(t, new Vector3(center.x, t.bounds.max.y, center.z));
+                    if (Vector2.Distance(new Vector2(q.x, q.z), new Vector2(center.x, center.z)) < DU * 0.5f) { onPlate = true; break; }
+                }
+                if (!onPlate) continue;
+
+                Vector3 basePos = new Vector3(center.x, col.bounds.min.y, center.z);
+                RUnit(root, basePos, Mathf.Max(1, Mathf.RoundToInt(sz.y / DU)), b.kind, b.BaseColor, yaw, info.blocks);
+                added++;
+                Physics.SyncTransforms();
+            }
+            return added;
+        }
+
+        /// <summary>
+        /// 상판마다 "그 상판 기준 맨 뒷겹"을 한 겹 뒤(상판의 로컬 +z 방향, 즉 상판이 돌아간 만큼 같이 돈 방향)로 복제하고
+        /// 그 상판의 깊이를 DS만큼 늘린다. 로컬 좌표로 계산하므로 돌아간 상판(삼각 요새·병풍 벽 등)에도 그대로 쓸 수 있다.
+        /// 깊이 방향은 화면 폭을 먹지 않고, 원근 폭 규칙도 z가 클수록 오히려 여유가 늘어난다.
+        /// 복제한 블록 수를 돌려준다.
+        /// </summary>
+        static int CloneBackLayer(Transform root, LevelInfo info, List<GameObject> groups)
+        {
+            if (groups.Count == 0) return 0;
+            var tops = new List<Collider>();
+            foreach (var g in groups) { var t = g.transform.Find("PedestalTop"); tops.Add(t != null ? t.GetComponent<Collider>() : null); }
+
+            // 블록을 가장 가까운 상판에 배정 (SeparatePlates와 같은 방식)
+            var owner = new int[info.blocks.Count];
+            for (int bi = 0; bi < info.blocks.Count; bi++)
+            {
+                owner[bi] = -1;
+                var b = info.blocks[bi];
+                var col = b != null ? b.GetComponent<Collider>() : null;
+                if (col == null) continue;
+                Vector3 c = col.bounds.center; float bestD = 0.35f;
+                for (int i = 0; i < tops.Count; i++)
+                {
+                    if (tops[i] == null) continue;
+                    Vector3 q = ClosestOnPlate(tops[i], new Vector3(c.x, tops[i].bounds.max.y, c.z));
+                    float dd = Vector2.Distance(new Vector2(q.x, q.z), new Vector2(c.x, c.z));
+                    if (dd < bestD) { bestD = dd; owner[bi] = i; }
+                }
+            }
+
+            int added = 0;
+            for (int gi = 0; gi < groups.Count; gi++)
+            {
+                if (tops[gi] == null) continue;
+                float gyaw = groups[gi].transform.eulerAngles.y;
+                Vector3 fwd = Quaternion.Euler(0f, gyaw, 0f) * Vector3.forward;   // 이 상판이 보는 "뒤" 방향
+                var mine = new List<Block>();
+                for (int bi = 0; bi < owner.Length; bi++)   // owner는 이 패스 시작 시점 기준 — 복제로 늘어난 뒤쪽은 보지 않는다
+                    if (owner[bi] == gi && bi < info.blocks.Count && info.blocks[bi] != null) mine.Add(info.blocks[bi]);
+                if (mine.Count == 0) continue;
+
+                float maxD = float.MinValue;
+                foreach (var b in mine) maxD = Mathf.Max(maxD, Vector3.Dot(b.transform.position, fwd));
+                var back = mine.Where(b => Vector3.Dot(b.transform.position, fwd) > maxD - DS * 0.5f).ToList();
+                if (back.Count == 0) continue;
+
+                // 폭 가드: 이 그룹을 한 겹 더 깊게 하면 화면 밖으로 나가는가? (돌아간 상판은 "깊이"가 화면 가로로 밀린다)
+                bool tooWide = false;
+                foreach (var b in back)
+                {
+                    var c2 = b.GetComponent<Collider>(); if (c2 == null) continue;
+                    Vector3 p2 = c2.bounds.center + fwd * DS;
+                    if (!WithinWidth(p2, c2.bounds.extents.x)) { tooWide = true; break; }
+                }
+                if (tooWide) continue;
+
+                foreach (var b in back)
+                {
+                    var col = b.GetComponent<Collider>(); if (col == null) continue;
+                    var sz = col.bounds.size; var t = b.transform; float yaw = t.eulerAngles.y;
+                    Vector3 pos = t.position + fwd * DS;
+                    Vector3 basePos = new Vector3(pos.x, col.bounds.min.y, pos.z);
+                    bool lying = Mathf.Abs(Mathf.DeltaAngle(yaw, gyaw)) < 0.5f || Mathf.Abs(Mathf.DeltaAngle(yaw, gyaw + 180f)) < 0.5f
+                               ? sz.x > DU * 1.3f : sz.z > DU * 1.3f;
+                    if (lying) RBar(root, basePos, Mathf.RoundToInt(Mathf.Max(sz.x, sz.z) / DS), b.kind, b.BaseColor, yaw, info.blocks);
+                    else RUnit(root, basePos, Mathf.Max(1, Mathf.RoundToInt(sz.y / DU)), b.kind, b.BaseColor, yaw, info.blocks);
+                    added++;
+                }
                 foreach (var name in new[] { "PedestalTop", "PedestalRim", "PedestalUnder" })
                 {
-                    var c = g.transform.Find(name); if (c == null) continue;
+                    var c = groups[gi].transform.Find(name); if (c == null) continue;
                     var ls = c.localScale; ls.z += DS; c.localScale = ls;
                     var lp = c.localPosition; lp.z += DS * 0.5f; c.localPosition = lp;
                 }
+            }
             Physics.SyncTransforms();
-            Debug.Log($"[LevelBuilder] {info.level}: 블록 {MinBlocks}개 미만이라 뒷겹 {back.Count}개를 한 겹 더 복제 (세 겹)");
+            return added;
         }
 
         /// <summary>규칙 ⑤ 상판 사이 최소 간격 0.70 (블록 대각선 0.62보다 넓게 — 돌아 떨어지는 블록도 끼지 않는다. 1.2칸=0.55에선 L23·224에서 끼었다).</summary>
