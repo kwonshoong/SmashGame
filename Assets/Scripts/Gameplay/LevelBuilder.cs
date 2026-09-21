@@ -2221,11 +2221,24 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 벽돌 엇쌓기 층. RBrickWall과 같은 패턴이지만 시작 줄(row0)을 지정할 수 있고, taper를 주면
-        /// 한 층 올라갈 때마다 양옆이 한 칸씩 좁아져 망루처럼 모인다.
-        /// 한 줄은 1칸 블록으로 채우고 다음 줄은 2칸 부재를 반 칸 어긋나게 깔아, 위아래 이음매가 엇갈리게 한다.
+        /// 벽돌 한 줄. 참고 사진처럼 모든 벽돌이 2칸짜리로 같고, offset이면 반 장(1칸) 밀려 깔린다.
+        /// 밀린 줄의 양 끝에는 반 벽돌(1칸)이 들어가 줄 길이는 그대로다. 위아래 줄의 이음매가 절대 겹치지 않는다.
+        /// </summary>
+        static void RBrickRow(Transform root, Vector3 b, float yaw, float kCenter, int n, int row, bool offset,
+                              BlockKind cubeKind, Color cubeCol, Color barCol, List<Block> L, float j)
+        {
+            if (n <= 0) return;
+            float k0 = kCenter - (n - 1) * 0.5f;
+            int c = 0;
+            if (offset && n > 1) { RUnitAt(root, b, yaw, k0, row, 1, cubeKind, cubeCol, L, j); c = 1; }   // 반 벽돌로 시작
+            for (; c + 1 < n; c += 2) RBarAt(root, b, yaw, k0 + c + 0.5f, row, 2, BlockKind.Cube, barCol, L, j);
+            if (c < n) RUnitAt(root, b, yaw, k0 + c, row, 1, cubeKind, cubeCol, L, j);                    // 남는 끝칸도 반 벽돌
+        }
+
+        /// <summary>
+        /// 벽돌 엇쌓기 층. 줄마다 반 장씩 어긋난 2칸 벽돌로 쌓고, taper를 주면 한 층 올라갈 때마다
+        /// 양옆이 한 칸씩 좁아져 망루처럼 모인다. 깊이 층(d)마다 어긋나는 방향을 바꿔 앞뒤 이음매도 겹치지 않는다.
         /// 통짜 보를 그냥 얹어 두면 한 발에 통째로 밀려나지만, 엇갈려 물리면 한 칸씩 깎아내야 한다.
-        /// 깊이 층(d)마다 어긋나는 방향을 바꿔 앞뒤 이음매도 겹치지 않는다.
         /// </summary>
         static void RBrickDeck(Transform root, Vector3 b, float yaw, int nCols, int rows, int depth, int row0,
                                BlockKind cubeKind, Color cubeCol, Color barCol, List<Block> L, int taper = 0)
@@ -2234,58 +2247,51 @@ namespace SmashGame
             {
                 int n = nCols - taper * 2 * row;
                 if (n < 1) break;
-                float k0 = -(n - 1) * 0.5f;
                 for (int d = 0; d < depth; d++)
-                {
-                    float j = d - (depth - 1) * 0.5f;
-                    int r = row0 + row;
-                    if ((row + d) % 2 == 0)
-                    {
-                        for (int i = 0; i < n; i++) RUnitAt(root, b, yaw, k0 + i, r, 1, cubeKind, cubeCol, L, j);
-                        continue;
-                    }
-                    int c = 0;
-                    RUnitAt(root, b, yaw, k0, r, 1, cubeKind, cubeCol, L, j); c = 1;   // 반 칸 어긋나게 시작
-                    for (; c + 1 < n; c += 2) RBarAt(root, b, yaw, k0 + c + 0.5f, r, 2, BlockKind.Cube, barCol, L, j);
-                    if (c < n) RUnitAt(root, b, yaw, k0 + c, r, 1, cubeKind, cubeCol, L, j);
-                }
+                    RBrickRow(root, b, yaw, 0f, n, row0 + row, (row + d) % 2 == 1, cubeKind, cubeCol, barCol, L, d - (depth - 1) * 0.5f);
             }
         }
 
         /// <summary>
         /// 속 빈 사각 고리 한 줄. n×n 칸의 테두리만 채우고 가운데는 비운다.
-        /// stagger면 네 모서리만 1칸 블록이고 각 변은 2칸 부재로 깔려, 아래윗줄의 이음매가 서로 엇갈린다
-        /// (참고 사진의 망루처럼 벽돌이 엇물리는 느낌). 좌우 변은 yaw+90으로 돌려 변을 따라 눕힌다.
+        /// stagger면 네 변 모두 반 장 밀린 벽돌 줄이 되고, 동시에 모서리 칸의 주인이 앞뒤 변 ↔ 좌우 변으로 바뀐다.
+        /// 실제 벽돌 코너가 한 켜씩 번갈아 물리는 방식이라, 모서리가 세로로 쭉 갈라지지 않는다.
         /// </summary>
         static void RBrickRing(Transform root, Vector3 b, float yaw, int n, int row,
                                BlockKind cubeKind, Color cubeCol, Color barCol, List<Block> L, bool stagger)
         {
             float h = (n - 1) * 0.5f;
-            if (n <= 2 || !stagger)
+            if (n <= 2)
             {
                 for (int i = 0; i < n; i++)
                     for (int t = 0; t < n; t++)
-                    {
-                        float k = -h + i, j = -h + t;
-                        if (Mathf.Abs(k) < h - 0.01f && Mathf.Abs(j) < h - 0.01f) continue;   // 속은 비운다
-                        RUnitAt(root, b, yaw, k, row, 1, cubeKind, cubeCol, L, j);
-                    }
+                        RUnitAt(root, b, yaw, -h + i, row, 1, cubeKind, cubeCol, L, -h + t);
                 return;
             }
-            foreach (float k in new[] { -h, h })
-                foreach (float j in new[] { -h, h })
-                    RUnitAt(root, b, yaw, k, row, 1, cubeKind, cubeCol, L, j);   // 네 모서리
-            int inner = n - 2;
+            bool frontOwnsCorner = !stagger;
             foreach (float edge in new[] { -h, h })
             {
-                int c = 0;
-                while (c + 1 < inner) { RBarAt(root, b, yaw, -h + 1 + c + 0.5f, row, 2, BlockKind.Cube, barCol, L, edge); c += 2; }
-                if (c < inner) RUnitAt(root, b, yaw, -h + 1 + c, row, 1, cubeKind, cubeCol, L, edge);
-                c = 0;
-                while (c + 1 < inner) { RBarAt(root, b, yaw + 90f, -h + 1 + c + 0.5f, row, 2, BlockKind.Cube, barCol, L, -edge); c += 2; }
-                if (c < inner) RUnitAt(root, b, yaw + 90f, -h + 1 + c, row, 1, cubeKind, cubeCol, L, -edge);
+                RBrickRow(root, b, yaw, 0f, frontOwnsCorner ? n : n - 2, row, stagger, cubeKind, cubeCol, barCol, L, edge);
+                RBrickRow(root, b, yaw + 90f, 0f, frontOwnsCorner ? n - 2 : n, row, stagger, cubeKind, cubeCol, barCol, L, -edge);
             }
         }
+
+        /// <summary>
+        /// 두께 있는 벽돌 고리 한 켜. 같은 켜 안에 n, n-2, … 크기의 고리를 겹쳐 깔아 벽을 thickness칸 두껍게 만든다.
+        /// 위층이 좁아질 때 그 벽이 아래 벽 안쪽 켜 위에 정확히 얹히도록 하는 장치 —
+        /// 실제 탑도 아래로 갈수록 벽이 두껍다. 겹마다 어긋나는 방향을 뒤집어 이음매가 안팎으로도 겹치지 않는다.
+        /// </summary>
+        static void RBrickRingThick(Transform root, Vector3 b, float yaw, int n, int row, int thickness,
+                                    BlockKind cubeKind, Color cubeCol, Color barCol, List<Block> L, bool stagger)
+        {
+            for (int t = 0; t < thickness; t++)
+            {
+                int m = n - 2 * t;
+                if (m < 1) break;
+                RBrickRing(root, b, yaw, m, row, cubeKind, cubeCol, barCol, L, stagger ^ (t % 2 == 1));
+            }
+        }
+
         static readonly Color SlateCol = new Color(0.27f, 0.36f, 0.62f), OrangeCol = new Color(1f, 0.55f, 0.12f), SkyCol = new Color(0.75f, 0.93f, 1f);
 
         /// <summary>
@@ -2598,17 +2604,20 @@ namespace SmashGame
         static void BuildN_Watchtower(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 5f * DS + 0.28f);
-            // 소재는 반드시 큐브 계열로. Stone·Cylinder·Candy·Log는 원기둥으로 그려져서 통을 쌓은 것처럼 보인다
-            // (참고 사진은 각진 벽돌이다). 색만 돌 느낌으로 맞춘다.
+            var b = FrontPlate(root, p, 0f, 0f, 3.5f * DS + 0.14f, 7f * DS + 0.28f);
+            // 소재는 반드시 큐브 계열로. Stone·Cylinder·Candy·Log는 IsCylinderKind라 원기둥으로 그려진다.
             var kind = Heavy(info) ? BlockKind.Cube : BlockKind.Crate;
             var col = Heavy(info) ? StoneCol : CrateCol;
-            // 아래 5칸 → 4칸 → 3칸으로 좁아진다. 줄마다 엇쌓기를 번갈아 넣어 이음매가 어긋난다
-            int[] size = { 5, 5, 5, 5, 4, 4, 4, 3, 3 };
-            for (int row = 0; row < size.Length; row++)
-                RBrickRing(root, b, 0f, size[row], row, kind, row % 2 == 0 ? col : SlateCol, col, L, row % 2 == 1);
-            // 꼭대기 전망대. 참고 사진처럼 내밀게 하려면 반 칸을 튀어나와야 하는데, 이 격자에서는 받침이 25%밖에 안 걸려
-            // 물리가 깨어나는 순간 테두리가 통째로 떨어진다(실측 11개). 그래서 아래 줄과 같은 3칸으로 두고 금색으로만 구분한다.
+            // 7 → 5 → 3 으로 좁아지는 탑. 좁아질 때마다 아래 벽이 위 벽보다 두꺼워서 위층이 아래 벽 안쪽 켜에
+            // 그대로 얹힌다. 이 격자에서 반 칸은 겹치는 게 아니라 옆칸이라, 두께 없이 그냥 줄이면 위 벽이
+            // 받침 0으로 속 빈 가운데에 걸려 통째로 떨어진다(실측 19~36개).
+            RBrickRingThick(root, b, 0f, 7, 0, 3, kind, col, col, L, false);          // 굽도리
+            for (int row = 1; row < 6; row++)                                          // 아래 몸통
+                RBrickRingThick(root, b, 0f, 5, row, 2, kind, col, col, L, row % 2 == 1);
+            for (int row = 6; row < 9; row++)                                          // 위 몸통
+                RBrickRing(root, b, 0f, 3, row, kind, SlateCol, SlateCol, L, row % 2 == 1);
+            // 꼭대기 전망대. 참고 사진처럼 내밀게 하려면 반 칸을 튀어나와야 하는데 받침이 25%뿐이라 물리가 깨어나는
+            // 순간 테두리가 통째로 떨어진다(실측 11개). 아래 줄과 같은 3칸으로 두고 금색으로만 구분한다.
             RBrickRing(root, b, 0f, 3, 9, kind, GoldCol, GoldCol, L, false);
         }
 
