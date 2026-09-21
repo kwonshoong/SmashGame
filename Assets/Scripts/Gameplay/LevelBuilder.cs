@@ -2623,19 +2623,28 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 77 색동 벽 (레퍼런스): 정면 가로 5칸 × 세로 5단, 깊이 5겹의 꽉 찬 덩어리.
-        /// 벽돌 엇쌓기와 정반대로 격자를 하나도 어긋내지 않는다 — 칸이 정확히 맞물려 있어
-        /// 공이 파고든 자리만 뚫리고 옆줄은 그대로 서 있다. 색은 세로줄로 서서 어느 줄을 노릴지 바로 읽힌다.
+        /// 77 색동 물결 벽 (레퍼런스): 정면 가로 5칸 × 세로 5단, 깊이 5겹.
+        /// 칸은 격자 그대로 두되 칸마다 앞뒤 깊이를 사인파로 밀어, 격자가 통째로 굽은 곡면이 된다.
+        /// 좌우 물결과 위아래 물결의 진폭이 다른 데는 이유가 있다. 블록은 같은 세로줄 안에서만 서로를 밟으므로
+        /// 좌우로 미는 건 지지력에 값을 치르지 않아 크게(0.6칸) 줄 수 있지만, 한 단 올라갈 때 어긋나는 양은
+        /// 그대로 받침 면적을 깎는다. 0.35칸 진폭에 5단 주기로 줬더니 단 사이가 0.41칸씩 어긋나
+        /// 받침이 6할이 안 돼 28개가 앞으로 쏟아졌다. 그래서 위아래는 진폭을 낮추고 주기를 늘려
+        /// 단 사이 어긋남을 0.2칸(받침 8할)으로 묶었다.
         /// </summary>
+        public static float WaveAmpX = 0.8f, WaveAmpY = 0.35f, WavePeriodY = 8f;   // 튜닝용
         static void BuildN_ColorWall(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 5f * DS + 0.28f);
+            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 7f * DS + 0.28f);
             var colCol = new[] { RedCol, BlueCol, PinkCol, PurpleCol, RedCol };
+            float AmpX = WaveAmpX, AmpY = WaveAmpY;   // 칸 단위
             for (int row = 0; row < 5; row++)
                 for (int i = 0; i < 5; i++)
+                {
+                    float wave = AmpX * Mathf.Sin(2f * Mathf.PI * i / 5f) + AmpY * Mathf.Sin(2f * Mathf.PI * row / WavePeriodY);
                     for (int d = 0; d < 5; d++)
-                        RUnitAt(root, b, 0f, i - 2f, row, 1, BlockKind.Cube, colCol[i], L, d - 2f);
+                        RUnitAt(root, b, 0f, i - 2f, row, 1, BlockKind.Cube, colCol[i], L, d - 2f + wave);
+                }
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
