@@ -594,6 +594,7 @@ namespace SmashGame
                 case 94: BuildN_TwistTwinBridge(root, rng, p, info); break;
                 case 95: BuildN_Hourglass(root, rng, p, info); break;
                 case 96: BuildN_LadderWall(root, rng, p, info); break;
+                case 97: BuildN_JarTower(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -710,7 +711,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", 90 => "다발 기둥 성문", 91 => "계단 코벨 벽", 92 => "비틀린 기둥 성문", 93 => "井자 교차 기둥 성문", 94 => "비틀린 쌍탑 다리", 95 => "모래시계 탑", 96 => "사다리 벽", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", 90 => "다발 기둥 성문", 91 => "계단 코벨 벽", 92 => "비틀린 기둥 성문", 93 => "井자 교차 기둥 성문", 94 => "비틀린 쌍탑 다리", 95 => "모래시계 탑", 96 => "사다리 벽", 97 => "항아리 탑", _ => "성채"
             };
             return info;
         }
@@ -3191,6 +3192,42 @@ namespace SmashGame
                 }
                 RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, SlateCol, L, j);
             }
+        }
+
+        /// <summary>
+        /// 97 항아리 탑: 95번 모래시계를 둥글게 다듬은 것. 폭만 좁아졌다 벌어지는 95와 달리
+        /// 허리에서 폭과 깊이를 함께 좁혀 사방에서 잘록하게 만든다.
+        ///
+        /// 처음에는 블록을 원 둘레에 돌려 놓아 진짜 원통으로 만들려 했는데 두 번 실패했다.
+        /// 바깥 둘레로 개수를 세면 안쪽에서 간격이 좁아져 이웃끼리 파고들어 176개 중 171개가 터졌고,
+        /// 안쪽 둘레로 세어 겹침을 없애니 이번엔 바깥에 틈이 벌어져 블록끼리 닿지 않았다.
+        /// 서로 기대지 못하는 낱개 기둥 열 단은 그냥 쓰러진다(74개). 이 격자에서 원은 비싸다.
+        /// 그래서 네모를 유지하되 폭·깊이를 함께 줄여 둥근 실루엣만 얻는 쪽으로 갔다.
+        ///
+        /// 좁아지는 쪽은 그냥 쌓으면 되지만 다시 벌어지는 쪽은 통부재로 받아야 한다.
+        /// 폭은 5칸 부재가 3칸 허리에 6할, 깊이는 4칸 부재가 두 겹 허리에 5할 걸친다.
+        /// </summary>
+        static void BuildN_JarTower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 3f);
+            var wide = new[] { -1.5f, -0.5f, 0.5f, 1.5f };
+            var core = new[] { -0.5f, 0.5f };
+            foreach (float j in wide)
+            {
+                for (int k = -3; k <= 3; k++) { RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j); RUnitAt(root, b, 0f, k, 1, 1, BlockKind.Cube, SlateCol, L, j); }
+                for (int k = -2; k <= 2; k++) { RUnitAt(root, b, 0f, k, 2, 1, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, k, 3, 1, BlockKind.Cube, BlueCol, L, j); }
+            }
+            foreach (float j in core)                                                    // 허리 — 폭도 깊이도 좁다
+                for (int row = 4; row <= 5; row++)
+                    for (int k = -1; k <= 1; k++) RUnitAt(root, b, 0f, k, row, 1, BlockKind.Cube, RedCol, L, j);
+            // 벌어지는 순서가 중요하다. 폭과 깊이를 한꺼번에 벌리면 새로 생긴 바깥 칸이 받침을 못 찾는다
+            // (5칸까지만 벌린 층 위에 7칸을 얹었더니 양 끝 칸이 떠서 13개가 무너졌다).
+            // 그래서 두 겹짜리 허리 위에서 폭을 3 → 5 → 7로 먼저 다 벌리고, 그 다음에 깊이를 벌린다.
+            foreach (float j in core) RBarAt(root, b, 0f, 0f, 6, 5, BlockKind.Cube, GoldCol, L, j);
+            foreach (float j in core) RBarAt(root, b, 0f, 0f, 7, 7, BlockKind.Cube, GoldCol, L, j);
+            for (int k = -3; k <= 3; k++) RBarAt(root, b, 90f, 0f, 8, 4, BlockKind.Cube, PinkCol, L, -k);   // 깊이가 벌어진다
+            foreach (float j in wide) RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, PurpleCol, GoldCol, L, j);
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
