@@ -595,6 +595,10 @@ namespace SmashGame
                 case 95: BuildN_Hourglass(root, rng, p, info); break;
                 case 96: BuildN_LadderWall(root, rng, p, info); break;
                 case 97: BuildN_JarTower(root, rng, p, info); break;
+                case 98: BuildN_HexWhirl(root, rng, p, info); break;
+                case 99: BuildN_HexTrio(root, rng, p, info); break;
+                case 100: BuildN_HexMoat(root, rng, p, info); break;
+                case 101: BuildN_HexSpiralStair(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -2221,21 +2225,27 @@ namespace SmashGame
                         RUnitAt(root, b, 0f, k, row, 1, kind, col, L, j);
         }
 
-        /// <summary>벌집(육각 최밀) 배치 원판. 줄마다 반 칸씩 어긋나고 줄 간격은 0.866칸이라
+        /// <summary>벌집(육각 최밀) 고리. 줄마다 반 칸씩 어긋나고 줄 간격은 0.866칸이라
         /// 원기둥끼리 여섯 방향으로 맞물려, 위에서 내려다보면 사각 격자보다 훨씬 원에 가깝다.
-        /// 층끼리는 같은 평면을 쓰므로(위 층은 아래 층의 부분집합) 받침은 항상 100%다.</summary>
-        static void RHexDiscAt(Transform root, Vector3 b, float r, int row, BlockKind kind, Color col, List<Block> L)
+        /// yaw를 주면 좌표계째 돌아가므로 층마다 조금씩 비틀어 소용돌이를 만들 수 있다.
+        /// 비틀림 한 칸이 잃는 받침은 (중심에서의 거리 × 각도)이므로 반지름 2.6칸(1.2m)에서는
+        /// 3도가 블록 폭의 14%, 6도가 28%다. 5할을 넘기지 않는 선에서만 돌린다.</summary>
+        static void RHexRingAt(Transform root, Vector3 b, float rOut, float rIn, int row, float yaw,
+                               BlockKind kind, Color col, List<Block> L)
         {
             const float RowGap = 0.8660254f;
-            int m = Mathf.CeilToInt(r) + 1;
+            int m = Mathf.CeilToInt(rOut) + 1;
             for (int q = -m; q <= m; q++)
                 for (int t = -m; t <= m; t++)
                 {
-                    float x = q + t * 0.5f, z = t * RowGap;
-                    if (x * x + z * z <= r * r + 1e-4f)
-                        RUnitAt(root, b, 0f, x, row, 1, kind, col, L, z);
+                    float x = q + t * 0.5f, z = t * RowGap, d2 = x * x + z * z;
+                    if (d2 <= rOut * rOut + 1e-4f && (rIn <= 0f || d2 > rIn * rIn))
+                        RUnitAt(root, b, yaw, x, row, 1, kind, col, L, z);
                 }
         }
+        static void RHexDiscAt(Transform root, Vector3 b, float r, int row, BlockKind kind, Color col, List<Block> L)
+            => RHexRingAt(root, b, r, 0f, row, 0f, kind, col, L);
+
         /// <summary>규칙 ⑦ 2×2 기둥 묶음: (k±0.5, j±0.5) 네 기둥. 홀로 선 탑은 최소 이 크기여야 한두 방에 안 무너진다.</summary>
         static void RCluster(Transform root, Vector3 b, float yaw, float k, float j, int h, BlockKind kind, Color col, List<Block> L, bool each = false)
         { foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RColAt(root, b, yaw, k + dk, j + dj, h, kind, col, L, each); }
@@ -3246,6 +3256,84 @@ namespace SmashGame
             RHexDiscAt(root, b, 1.0f, 7, BlockKind.Cylinder, PinkCol, L);
             RHexDiscAt(root, b, 1.0f, 8, BlockKind.Cylinder, PinkCol, L);
             RHexDiscAt(root, b, 1.0f, 9, BlockKind.Log, GoldCol, L);            // 주둥이
+        }
+
+        /// <summary>98 벌집 소용돌이 탑: 열아홉 개짜리 벌집 원판을 층마다 5도씩 돌려 여덟 층.
+        /// 원기둥이라 돌려도 서로 파고들지 않고, 최대 반지름 2칸(0.92m)에서 5도면
+        /// 어긋남이 0.08m — 블록 폭의 18%라 받침 8할이 남는다. 색을 층마다 바꿔 비틀림을 눈에 보이게 했다.</summary>
+        static void BuildN_HexWhirl(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2.0f, 4.0f);
+            var cols = new[] { SlateCol, BlueCol, PurpleCol, PinkCol, GoldCol };
+            for (int row = 0; row < 8; row++)
+                RHexRingAt(root, b, 2.2f, 0f, row, row * 5f,
+                           row % 3 == 2 ? BlockKind.Candy : BlockKind.Cylinder, cols[row % cols.Length], L);
+        }
+
+        /// <summary>99 세 벌집 소용돌이: 일곱 개짜리 작은 벌집 세 덩이를 삼각으로 놓고
+        /// 가운데만 반대로 돌린다. 반지름이 1칸뿐이라 8도까지 돌려도 어긋남이 0.06m로 안전하고,
+        /// 세 탑이 서로 다른 방향으로 꼬여 올라가 어느 쪽을 먼저 칠지 고르게 된다.</summary>
+        static void BuildN_HexTrio(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2.8f, 5.0f, 0.3f);
+            var spots = new[] { new Vector3(-1.8f, -1.2f, 8f), new Vector3(1.8f, -1.2f, 8f), new Vector3(0f, 1.8f, -8f) };
+            var cols = new[] { BlueCol, PinkCol, GoldCol };
+            for (int i = 0; i < spots.Length; i++)
+            {
+                var bb = Shift(b, spots[i].x, spots[i].y);
+                for (int row = 0; row < 8; row++)
+                    RHexRingAt(root, bb, 1.0f, 0f, row, row * spots[i].z,
+                               row % 4 == 3 ? BlockKind.Candy : BlockKind.Cylinder,
+                               row % 4 == 3 ? StoneCol : cols[i], L);
+            }
+        }
+
+        /// <summary>100 벌집 해자 탑: 바깥 벌집 고리와 안쪽 벌집 심이 서로 반대로 꼬인다.
+        /// 고리의 안지름을 1.9칸으로 잡아 심(반지름 1칸)과 한 칸을 비워 뒀다. 그래야 둘이
+        /// 반대로 돌아도 파고들지 않는다. 고리를 먼저 헐면 심이 홀로 남아 다음 한 방에 넘어간다.</summary>
+        static void BuildN_HexMoat(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2.65f, 5.3f);
+            for (int row = 0; row < 6; row++)
+                RHexRingAt(root, b, 2.7f, 1.9f, row, row * 3f,
+                           row % 2 == 0 ? BlockKind.Cylinder : BlockKind.Stone,
+                           row % 2 == 0 ? SlateCol : StoneCol, L);
+            for (int row = 0; row < 10; row++)
+                RHexRingAt(root, b, 1.0f, 0f, row, -row * 6f,
+                           row >= 8 ? BlockKind.Log : BlockKind.Cylinder,
+                           row >= 8 ? GoldCol : (row % 2 == 0 ? RedCol : PinkCol), L);
+        }
+
+        /// <summary>101 벌집 나선 계단: 벌집 평면의 칸마다 각도에 따라 높이를 달리 줘
+        /// 한 바퀴 도는 동안 4단에서 10단까지 차오르는 나선을 만든다. 게다가 층마다 4도씩
+        /// 비틀어 계단 자체가 꼬인다. 기둥 하나하나가 낱개 블록이라 낮은 쪽부터 깎아 들어갈 수 있다.</summary>
+        static void BuildN_HexSpiralStair(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2.0f, 4.0f);
+            const float RowGap = 0.8660254f;
+            var cols = new[] { SlateCol, BlueCol, PurpleCol, PinkCol, RedCol, GoldCol, GreenCol };
+            for (int q = -3; q <= 3; q++)
+                for (int t = -3; t <= 3; t++)
+                {
+                    float x = q + t * 0.5f, z = t * RowGap;
+                    float d2 = x * x + z * z;
+                    if (d2 > 2.2f * 2.2f + 1e-4f) continue;
+                    int h;
+                    if (d2 < 1e-4f) h = 10;
+                    else
+                    {
+                        float ang = Mathf.Atan2(z, x); if (ang < 0f) ang += Mathf.PI * 2f;
+                        h = 4 + Mathf.RoundToInt(ang / (Mathf.PI * 2f) * 6f);
+                    }
+                    for (int row = 0; row < h; row++)
+                        RUnitAt(root, b, row * 4f, x, row, 1,
+                                row == h - 1 ? BlockKind.Candy : BlockKind.Cylinder,
+                                row == h - 1 ? StoneCol : cols[row % cols.Length], L, z);
+                }
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
