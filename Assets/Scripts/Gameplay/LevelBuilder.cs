@@ -222,7 +222,7 @@ namespace SmashGame
         /// <summary>true면 상판을 블록 발자국에 맞춰 줄이지 않는다 (둥근 상판 위 호 배치처럼 발자국 사각형이 상판 모양과 다를 때)</summary>
         static bool keepPlateShape;
 
-        public const float PlateMargin = 0.22f;   // 상판이 블록 발자국보다 밖으로 나오는 여유
+        public const float PlateMargin = 0.15f;   // 상판이 블록 발자국보다 밖으로 나오는 여유 (작을수록 발자국에 딱 맞는다)
 
         /// <summary>
         /// 상판을 그 위에 놓인 블록의 발자국에 맞춰 줄인다 (줄이기만 한다). 상판이 블록보다 넓으면 쓰러진 블록이 상판 위에 쌓여
@@ -577,7 +577,10 @@ namespace SmashGame
                 case 77: BuildN_ColorWall(root, rng, p, info); break;
                 case 78: BuildN_Whirl(root, rng, p, info); break;
                 case 79: BuildN_Twine(root, rng, p, info); break;
-                case 80: BuildN_TwistChimney(root, rng, p, info); break;
+                case 80: BuildN_TwinTwist(root, rng, p, info); break;
+                case 81: BuildN_TriTwist(root, rng, p, info); break;
+                case 82: BuildN_BrickTwistFront(root, rng, p, info); break;
+                case 83: BuildN_BrickTwistBack(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -694,7 +697,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "비틀린 굴뚝", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", _ => "성채"
             };
             return info;
         }
@@ -2625,60 +2628,127 @@ namespace SmashGame
             RBrickRing(root, b, 0f, 3, 9, kind, GoldCol, GoldCol, L, false);
         }
 
+        /// <summary>상판 윗면 중심을 칸 단위로 옮긴 기준점. 한 상판 위에 여러 채를 세울 때 쓴다.</summary>
+        static Vector3 Shift(Vector3 b, float cx, float cz) => b + Vector3.right * (cx * DS) + Vector3.forward * (cz * DS);
+
         /// <summary>
-        /// 비틀림 탑 공통 빌더. 한 켜는 n×n 정사각 판이고 그 판을 통째로 yawOf(층)만큼 돌려 쌓는다.
+        /// 비틀림 탑 한 채. 한 켜는 n×n 정사각 판이고 그 판을 통째로 yawOf(층)만큼 돌려 쌓는다.
+        /// 이미 만들어 둔 상판 위 (cx, cz) 칸 위치에 세우므로 여러 채를 한 상판에 올릴 수 있다.
         ///
         /// 블록을 하나씩 밀면 정면 격자가 흐트러지지만, 판을 통째로 돌리면 격자는 그대로 유지된 채
         /// 방향만 바뀐다. 받침이 깎이는 양은 '중심에서 모서리까지 거리 × 이웃 층 각도차(라디안)'다.
-        /// 5칸 판의 바깥 모서리는 중심에서 1.63이므로 6도면 0.17 — 블록 폭(0.45)의 38%만 어긋난다.
-        /// 이 값이 절반을 넘으면 모서리부터 떨어져 나가므로, 판이 넓을수록 각도는 작게 잡아야 한다.
+        /// 5칸 판의 바깥 모서리는 중심에서 1.63이라 6도면 블록 폭의 38%만 어긋난다. 절반을 넘으면
+        /// 모서리부터 떨어져 나가므로, 판이 넓을수록 각도는 작게 잡아야 한다(3칸 판은 훨씬 관대하다).
         /// </summary>
-        static void RTwistTower(Transform root, Palette p, LevelInfo info, int n, int rows, bool hollow,
-                                System.Func<int, float> yawOf, Color[] cols)
+        static void RTwistAt(Transform root, Vector3 b, float cx, float cz, int n, int rows,
+                             System.Func<int, float> yawOf, Color[] cols, List<Block> L)
         {
-            Begin(info); var L = info.blocks;
+            var bb = Shift(b, cx, cz);
             float half = (n - 1) * 0.5f;
-            var b = FrontPlate(root, p, 0f, 0f, (half + 0.5f) * DS + 0.14f, (n + 1) * DS + 0.28f);
             for (int row = 0; row < rows; row++)
             {
                 float yaw = yawOf(row);
                 for (int i = 0; i < n; i++)
                     for (int d = 0; d < n; d++)
-                    {
-                        if (hollow && i > 0 && i < n - 1 && d > 0 && d < n - 1) continue;   // 속 빈 굴뚝
-                        RUnitAt(root, b, yaw, i - half, row, 1, BlockKind.Cube, cols[i % cols.Length], L, d - half);
-                    }
+                        RUnitAt(root, bb, yaw, i - half, row, 1, BlockKind.Cube, cols[i % cols.Length], L, d - half);
             }
         }
+
+        /// <summary>블록 발자국(칸 단위 반폭·전체 깊이)에 딱 맞는 상판. 블록 반 칸(0.225)에 2cm만 더한다.</summary>
+        static Vector3 TightPlate(Transform root, Palette p, LevelInfo info, float halfXCells, float depthCells, float zCells = 0f)
+            => FrontPlate(root, p, 0f, zCells * DS, halfXCells * DS + DU * 0.5f + 0.02f, depthCells * DS + DU + 0.04f);
+
         static readonly Color[] CandyCols = { RedCol, BlueCol, PinkCol, PurpleCol, RedCol };
+        static readonly Color[] CandyColsB = { PurpleCol, PinkCol, BlueCol };
+        static readonly Color[] CandyColsC = { BlueCol, GreenCol, PinkCol };
         public static float TwistPerRow = 6f;   // 도
         public static int TwistRows = 8;
 
         /// <summary>77 비틀린 색동 탑: 5×5 켜를 층마다 같은 각도로 좌로 돌려 8층. 꼭대기 42도.</summary>
         static void BuildN_ColorWall(Transform root, System.Random rng, Palette p, LevelInfo info)
-            => RTwistTower(root, p, info, 5, TwistRows, false, r => TwistPerRow * r, CandyCols);
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2f, 4f);
+            RTwistAt(root, b, 0f, 0f, 5, TwistRows, r => TwistPerRow * r, CandyCols, L);
+        }
 
         /// <summary>
-        /// 78 소용돌이 탑: 층마다 도는 각도 자체가 커진다(1.6도씩 증가, 꼭대기 누적 28도).
-        /// 아래는 거의 반듯하고 위로 갈수록 급히 감겨 올라가는 소용돌이가 된다.
-        /// 각도 증가폭은 이웃 층 차이가 6.4도를 넘지 않게 잡았다 — 그 위로는 모서리 받침이 절반 아래로 떨어진다.
+        /// 78 소용돌이 탑: 층마다 도는 각도 자체가 커진다(꼭대기 누적 28도).
+        /// 아래는 거의 반듯하고 위로 갈수록 급히 감겨 올라간다. 각도 증가폭은 이웃 층 차이가
+        /// 6.4도를 넘지 않게 잡았다 — 그 위로는 모서리 받침이 절반 아래로 떨어진다.
         /// </summary>
         static void BuildN_Whirl(Transform root, System.Random rng, Palette p, LevelInfo info)
-            => RTwistTower(root, p, info, 5, 8, false, r => r * (r + 3) * 0.4f, CandyCols);
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2f, 4f);
+            RTwistAt(root, b, 0f, 0f, 5, 8, r => r * (r + 3) * 0.4f, CandyCols, L);
+        }
 
         /// <summary>
         /// 79 꽈배기 탑: 도는 방향이 중간에 뒤집힌다(사인 한 주기, 진폭 10도).
-        /// 아래 절반은 좌로 감기고 위 절반은 우로 풀려, 허리가 잘록한 꽈배기 실루엣이 된다.
+        /// 아래 절반은 좌로 감기고 위 절반은 우로 풀려 허리가 잘록해진다.
         /// </summary>
         static void BuildN_Twine(Transform root, System.Random rng, Palette p, LevelInfo info)
-            => RTwistTower(root, p, info, 5, 8, false, r => 10f * Mathf.Sin(Mathf.PI * r / 4f), CandyCols);
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2f, 4f);
+            RTwistAt(root, b, 0f, 0f, 5, 8, r => 10f * Mathf.Sin(Mathf.PI * r / 4f), CandyCols, L);
+        }
 
         /// <summary>
-        /// 80 비틀린 굴뚝: 5칸 판의 테두리만 남긴 속 빈 고리를 층마다 6도씩 돌려 8층.
-        /// 가운데가 뚫려 있어 공이 안쪽까지 파고들고, 한쪽 벽이 무너지면 반대쪽이 버티는 맛이 있다.
+        /// 80 쌍둥이 비틀림 탑: 3×3 탑 두 채를 좌우에. 둘이 서로 반대로 감겨 가운데가 벌어진 X로 보인다.
+        /// 3칸 판은 모서리가 중심에서 0.98밖에 안 떨어져 있어 5도로 돌려도 어긋남이 블록 폭의 19%다.
         /// </summary>
-        static void BuildN_TwistChimney(Transform root, System.Random rng, Palette p, LevelInfo info)
-            => RTwistTower(root, p, info, 5, 8, true, r => 6f * r, CandyCols);
+        static void BuildN_TwinTwist(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            // 간격과 각도는 함께 정해야 한다. 3칸 탑이 t도 돌면 반폭이 DS×(cos t + sin t) + 0.225 로 늘어나므로,
+            // 두 탑 중심 거리가 그 두 배보다 좁으면 위 켜끼리 부딪혀 서로 밀어낸다(중심 3.6칸·35도에서 실측 6개).
+            // 4도×7층이면 반폭 0.85, 중심 4칸(1.84)이라 0.15 여유가 남는다.
+            var b = TightPlate(root, p, info, 3.4f, 3f);
+            RTwistAt(root, b, -2f, 0f, 3, 8, r =>  4f * r, CandyCols, L);
+            RTwistAt(root, b,  2f, 0f, 3, 8, r => -4f * r, CandyColsB, L);
+        }
+
+        /// <summary>
+        /// 81 세 비틀림 탑: 3×3 탑 셋을 앞 둘·뒤 하나로. 앞 두 채를 헐어야 뒤 탑이 보이는 삼각 배치다.
+        /// </summary>
+        static void BuildN_TriTwist(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            // 앞 두 채를 ±2칸에 두면 3.5도만 돌아도 위 켜가 서로 닿아 한 덩어리로 보인다.
+            // ±2.4칸으로 벌리고 각도를 낮춰 가운데에 뒤 탑이 비치는 틈을 남겼다.
+            var b = TightPlate(root, p, info, 3.4f, 6.5f, 0.25f);
+            RTwistAt(root, b, -2.2f, -1.7f, 3, 8, r =>  3.5f * r, CandyCols, L);
+            RTwistAt(root, b,  2.2f, -1.7f, 3, 8, r => -3.5f * r, CandyColsB, L);
+            RTwistAt(root, b,  0f,   1.9f, 3, 8, r =>  7f * r, CandyColsC, L);
+        }
+
+        /// <summary>
+        /// 82 벽돌 벽 앞의 비틀림 탑: 뒤에 엇갈려 쌓은 벽돌 벽, 앞에 비틀림 탑.
+        /// 탑이 벽을 가려 먼저 탑을 치워야 하고, 쓰러진 탑이 벽을 때리는 연쇄가 난다.
+        /// </summary>
+        static void BuildN_BrickTwistFront(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            // 높이를 같게 두면 앞 탑이 벽을 통째로 가려 탑 하나로만 보인다. 벽을 두 단 높여 어깨 위로 드러냈다.
+            var b = TightPlate(root, p, info, 2f, 7f, 0.25f);
+            RBrickDeck(root, Shift(b, 0f, 2.2f), 0f, 5, 8, 3, 0, BlockKind.Cube, SlateCol, BlueCol, L);
+            RTwistAt(root, b, 0f, -2.2f, 3, 6, r => 5f * r, CandyCols, L);
+        }
+
+        /// <summary>
+        /// 83 비틀림 탑 뒤의 벽돌 벽: 82와 앞뒤를 바꾼 배치. 벽이 앞을 막아 탑을 직접 못 노린다.
+        /// 벽을 뚫거나 넘겨 쳐야 해서 같은 재료로도 공략이 완전히 달라진다.
+        /// </summary>
+        static void BuildN_BrickTwistBack(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            // 이쪽은 반대로 앞 벽을 낮춰, 그 너머로 비틀린 탑 꼭대기가 보이게 했다. 보이니까 노리게 된다.
+            var b = TightPlate(root, p, info, 2f, 7f, 0.25f);
+            RBrickDeck(root, Shift(b, 0f, -2.2f), 0f, 5, 6, 3, 0, BlockKind.Cube, SlateCol, RedCol, L);
+            RTwistAt(root, b, 0f, 2.2f, 3, 8, r => 5f * r, CandyColsC, L);
+        }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
         static void BuildN_BrickFence(Transform root, System.Random rng, Palette p, LevelInfo info)
