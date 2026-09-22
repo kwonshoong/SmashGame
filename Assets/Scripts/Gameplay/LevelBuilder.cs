@@ -606,6 +606,36 @@ namespace SmashGame
                 case 106: BuildN_TurnedKeep(root, rng, p, info); break;
                 case 107: BuildN_HexPierGate(root, rng, p, info); break;
                 case 108: BuildN_HexTwinBridge(root, rng, p, info); break;
+                case 109: BuildN_IceWindowWall(root, rng, p, info); break;
+                case 110: BuildN_LogWell(root, rng, p, info); break;
+                case 111: BuildN_StepWall(root, rng, p, info); break;
+                case 112: BuildN_StoneColonnade(root, rng, p, info); break;
+                case 113: BuildN_HexDome(root, rng, p, info); break;
+                case 114: BuildN_TwinWallTied(root, rng, p, info); break;
+                case 115: BuildN_CrateTwist(root, rng, p, info); break;
+                case 116: BuildN_LatticeWall(root, rng, p, info); break;
+                case 117: BuildN_TwinRoof(root, rng, p, info); break;
+                case 118: BuildN_IceBridge(root, rng, p, info); break;
+                case 119: BuildN_Seesaw(root, rng, p, info); break;
+                case 120: BuildN_HexChimney(root, rng, p, info); break;
+                case 121: BuildN_CrateFort(root, rng, p, info); break;
+                case 122: BuildN_DoubleEaveHouse(root, rng, p, info); break;
+                case 123: BuildN_LeaningHex(root, rng, p, info); break;
+                case 124: BuildN_LogPile(root, rng, p, info); break;
+                case 125: BuildN_HexTwinGable(root, rng, p, info); break;
+                case 126: BuildN_StoneGate(root, rng, p, info); break;
+                case 127: BuildN_SkyGarden(root, rng, p, info); break;
+                case 128: BuildN_DoubleTrap(root, rng, p, info); break;
+                case 129: BuildN_Battlement(root, rng, p, info); break;
+                case 130: BuildN_HexFlower(root, rng, p, info); break;
+                case 131: BuildN_DepthStep(root, rng, p, info); break;
+                case 132: BuildN_DoubleArch(root, rng, p, info); break;
+                case 133: BuildN_TwistGatehouse(root, rng, p, info); break;
+                case 134: BuildN_SquareSpiral(root, rng, p, info); break;
+                case 135: BuildN_CandyColonnade(root, rng, p, info); break;
+                case 136: BuildN_HexDepthTrio(root, rng, p, info); break;
+                case 137: BuildN_SlabStack(root, rng, p, info); break;
+                case 138: BuildN_FourHexPiers(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -2253,6 +2283,24 @@ namespace SmashGame
         static void RHexDiscAt(Transform root, Vector3 b, float r, int row, BlockKind kind, Color col, List<Block> L)
             => RHexRingAt(root, b, r, 0f, row, 0f, kind, col, L);
 
+        /// <summary>엇갈린 벽돌 띠: 여러 겹·여러 단을 한 번에. 홀수 단이 반 칸 밀린다.</summary>
+        static void RBrickBand(Transform root, Vector3 b, float[] layers, float kCenter, int n,
+                               int rowFrom, int rowTo, BlockKind kind, Color a, Color c, List<Block> L)
+        {
+            foreach (float j in layers)
+                for (int row = rowFrom; row <= rowTo; row++)
+                    RBrickRow(root, b, 0f, kCenter, n, row, row % 2 == 1, kind, a, c, L, j);
+        }
+
+        /// <summary>벌집 기둥/껍질을 여러 단 쌓는다. twist를 주면 단마다 그만큼 돌아간다.</summary>
+        static void RHexStack(Transform root, Vector3 b, float cx, float cz, float rOut, float rIn,
+                              int rowFrom, int rowTo, float twist, BlockKind kind, Color a, Color c, List<Block> L)
+        {
+            var bb = Shift(b, cx, cz);
+            for (int row = rowFrom; row <= rowTo; row++)
+                RHexRingAt(root, bb, rOut, rIn, row, (row - rowFrom) * twist, kind, row % 2 == 0 ? a : c, L);
+        }
+
         /// <summary>규칙 ⑦ 2×2 기둥 묶음: (k±0.5, j±0.5) 네 기둥. 홀로 선 탑은 최소 이 크기여야 한두 방에 안 무너진다.</summary>
         static void RCluster(Transform root, Vector3 b, float yaw, float k, float j, int h, BlockKind kind, Color col, List<Block> L, bool each = false)
         { foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RColAt(root, b, yaw, k + dk, j + dj, h, kind, col, L, each); }
@@ -3571,6 +3619,558 @@ namespace SmashGame
                 RHexRingAt(root, b, 1.0f, 0f, row, (row - 7) * 7f,
                            row == 9 ? BlockKind.Log : BlockKind.Cylinder,
                            row == 9 ? GoldCol : RedCol, L);
+        }
+
+        /// <summary>109 얼음 창 벽: 벽돌 벽 한가운데 세 칸을 얼음으로 바꿨다. 얼음은 맞으면 깨져
+        /// 사라지므로, 같은 벽인데도 가운데를 노리면 위쪽 절반이 통째로 받침을 잃는다.</summary>
+        static void BuildN_IceWindowWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 2f);
+            var l3 = new[] { -1f, 0f, 1f };
+            RBrickBand(root, b, l3, 0f, 7, 0, 2, BlockKind.Cube, SlateCol, BlueCol, L);
+            foreach (float j in l3)
+                for (int row = 3; row <= 5; row++)
+                    for (int k = -3; k <= 3; k++)
+                    {
+                        bool ice = Mathf.Abs(k) <= 1;
+                        RUnitAt(root, b, 0f, k, row, 1, ice ? BlockKind.Ice : BlockKind.Cube,
+                                ice ? SkyCol : (row % 2 == 0 ? SlateCol : BlueCol), L, j);
+                    }
+            RBrickBand(root, b, l3, 0f, 7, 6, 8, BlockKind.Cube, SlateCol, BlueCol, L);
+            foreach (float j in l3) RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+        }
+
+        /// <summary>110 통나무 우물: 앞뒤 벽은 둥근 통나무, 양 옆은 네모 벽돌인 빈 사각 고리.
+        /// 속이 비어 있어 앞벽을 헐면 뒷벽이 그대로 드러난다. 고리라 위를 덮지 않았다.</summary>
+        static void BuildN_LogWell(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            for (int row = 0; row < 8; row++)
+            {
+                foreach (float j in new[] { -2f, 2f })
+                    for (int k = -3; k <= 3; k++)
+                        RUnitAt(root, b, 0f, k, row, 1, BlockKind.Log, row % 2 == 0 ? OrangeCol : GoldCol, L, j);
+                foreach (float j in new[] { -1f, 0f, 1f })
+                {
+                    RUnitAt(root, b, 0f, -3f, row, 1, BlockKind.Cube, row % 2 == 0 ? SlateCol : BlueCol, L, j);
+                    RUnitAt(root, b, 0f, 3f, row, 1, BlockKind.Cube, row % 2 == 0 ? SlateCol : BlueCol, L, j);
+                }
+            }
+        }
+
+        /// <summary>111 층층 계단 벽: 폭을 7 → 6 → 4 → 2로 줄이되 왼쪽 끝은 그대로 두어
+        /// 계단이 오른쪽으로만 내려간다. 좌우가 다르니 어느 쪽을 때리느냐가 달라진다.</summary>
+        static void BuildN_StepWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            RBrickBand(root, b, l5, 0f, 7, 0, 3, BlockKind.Cube, SlateCol, BlueCol, L);
+            RBrickBand(root, b, l5, -0.5f, 6, 4, 5, BlockKind.Cube, PurpleCol, SkyCol, L);
+            RBrickBand(root, b, l5, -1.5f, 4, 6, 7, BlockKind.Cube, RedCol, OrangeCol, L);
+            RBrickBand(root, b, l5, -2.5f, 2, 8, 8, BlockKind.Cube, GoldCol, PinkCol, L);
+            foreach (float j in l5) RLidAt(root, b, 0f, 2, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j, -2.5f);
+        }
+
+        /// <summary>112 돌기둥 회랑: 둥근 돌기둥 다섯이 널빤지 인방을 이고, 그 위에 벽돌벽이 올라선다.
+        /// 기둥 간격이 1.5칸이라 어느 하나를 빼도 인방이 옆 기둥에 걸쳐 버틴다 — 둘은 빼야 무너진다.</summary>
+        static void BuildN_StoneColonnade(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 2f);
+            var l3 = new[] { -1f, 0f, 1f };
+            foreach (float k in new[] { -3f, -1.5f, 0f, 1.5f, 3f })
+                foreach (float j in l3)
+                    RColAt(root, b, 0f, k, j, 6, BlockKind.Stone, StoneCol, L, true);
+            foreach (float j in l3)
+            {
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Plank, CrateCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 7, false, BlockKind.Cube, BlueCol, SkyCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 8, true, BlockKind.Cube, BlueCol, SkyCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>113 벌집 돔: 반지름을 2.7 → 1.0으로 줄여 올린 둥근 돔.
+        /// 아래는 무거운 돌, 가운데는 원기둥, 꼭대기는 가벼운 사탕이라 위로 갈수록 가볍다.</summary>
+        static void BuildN_HexDome(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 5.2f);
+            RHexStack(root, b, 0f, 0f, 2.7f, 0f, 0, 1, 0f, BlockKind.Stone, StoneCol, StoneCol, L);
+            RHexStack(root, b, 0f, 0f, 2.4f, 0f, 2, 3, 0f, BlockKind.Cylinder, SlateCol, BlueCol, L);
+            RHexStack(root, b, 0f, 0f, 2.0f, 0f, 4, 5, 0f, BlockKind.Cylinder, BlueCol, SkyCol, L);
+            RHexStack(root, b, 0f, 0f, 1.5f, 0f, 6, 7, 0f, BlockKind.Candy, PinkCol, RedCol, L);
+            RHexStack(root, b, 0f, 0f, 1.0f, 0f, 8, 9, 0f, BlockKind.Log, GoldCol, OrangeCol, L);
+        }
+
+        /// <summary>114 어긋난 쌍벽: 앞뒤로 떨어진 두 벽을 세우고 가운데 한 겹을 비워 둔 뒤
+        /// 맨 위에서 깊이로 지르는 부재로 둘을 묶었다. 앞벽만 헐면 뒷벽이 묶인 채 남는다.</summary>
+        static void BuildN_TwinWallTied(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            RBrickBand(root, b, new[] { -2f, -1f }, 0f, 7, 0, 7, BlockKind.Cube, SlateCol, BlueCol, L);
+            RBrickBand(root, b, new[] { 1f, 2f }, 0f, 7, 0, 7, BlockKind.Cube, PurpleCol, PinkCol, L);
+            for (int k = -3; k <= 3; k++)                                    // 깊이로 지르는 묶음 부재
+                RBarAt(root, b, 90f, 0f, 8, 5, BlockKind.Cube, GoldCol, L, -k);
+            foreach (float j in new[] { -1f, 0f, 1f })
+                RBrickRow(root, b, 0f, 0f, 7, 9, true, BlockKind.Cube, GoldCol, OrangeCol, L, j);
+        }
+
+        /// <summary>115 비틀린 상자 탑: 5×5칸 상자 탑을 단마다 4도씩 돌린다.
+        /// 모서리가 중심에서 3.2칸(1.47m)이라 4도면 어긋남이 0.10m — 블록 폭의 23%다.</summary>
+        static void BuildN_CrateTwist(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2.5f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in l5)
+                for (int row = 0; row <= 8; row++)
+                    RBrickRow(root, b, row * 4f, 0f, 5, row, row % 2 == 1, BlockKind.Crate,
+                              row % 3 == 0 ? OrangeCol : CrateCol, GoldCol, L, j);
+            foreach (float j in l5) RLidAt(root, b, 36f, 5, 9, BlockKind.Cube, PurpleCol, GoldCol, L, j);
+        }
+
+        /// <summary>116 사탕 격자 벽: 꽉 찬 단과 한 칸 걸러 비운 단을 번갈아 쌓는다.
+        /// 빈 칸으로 공이 지나가기도 하고, 운이 좋으면 뒤쪽 격자까지 때린다.</summary>
+        static void BuildN_LatticeWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in l5)
+            {
+                for (int row = 0; row <= 8; row++)
+                {
+                    if (row % 2 == 0) RBrickRow(root, b, 0f, 0f, 7, row, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                    else foreach (int k in new[] { -3, -1, 1, 3 })
+                        RUnitAt(root, b, 0f, k, row, 1, BlockKind.Candy, k % 2 == 0 ? PinkCol : RedCol, L, j);
+                }
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>117 두 탑 한 지붕: 탑 둘 사이를 비우고 7칸 부재 한 장으로 지붕을 덮는다.
+        /// 지붕이 두 탑에 세 칸씩 걸쳐 있어, 한쪽 탑만 무너뜨려도 지붕이 반대쪽으로 미끄러진다.</summary>
+        static void BuildN_TwinRoof(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            RBrickBand(root, b, l5, -2f, 3, 0, 6, BlockKind.Cube, SlateCol, BlueCol, L);
+            RBrickBand(root, b, l5, 2f, 3, 0, 6, BlockKind.Cube, PurpleCol, PinkCol, L);
+            foreach (float j in l5)
+            {
+                RBarAt(root, b, 0f, 0f, 7, 7, BlockKind.Cube, GoldCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 8, true, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, SlateCol, L, j);
+            }
+        }
+
+        /// <summary>118 얼음 다리: 무거운 돌 탑 둘을 잇는 다리가 얼음이다.
+        /// 얼음은 맞으면 깨져 사라지므로, 다리 위에 올린 집이 통째로 떨어진다.</summary>
+        static void BuildN_IceBridge(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in l5)
+                for (int row = 0; row <= 5; row++)
+                    foreach (int k in new[] { -3, -2, 2, 3 })
+                        RUnitAt(root, b, 0f, k, row, 1, BlockKind.Stone, StoneCol, L, j);
+            foreach (float j in l5)
+            {
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Ice, SkyCol, L, j);          // 얼음 다리
+                RBrickRow(root, b, 0f, 0f, 3, 7, false, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 3, 8, true, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>119 무게추 저울: 가운데 기둥 하나에 7칸 널빤지를 얹고 양 끝에 돌을 올렸다.
+        /// 양쪽이 같은 무게라 가만히 있지만, 한쪽 돌만 떨어뜨리면 반대쪽으로 통째로 기운다.</summary>
+        static void BuildN_Seesaw(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            RBrickBand(root, b, l5, 0f, 3, 0, 1, BlockKind.Cube, SlateCol, BlueCol, L);
+            foreach (float j in l5)
+                for (int k = -1; k <= 1; k++)
+                {
+                    RUnitAt(root, b, 0f, k, 2, 3, BlockKind.Cube, PurpleCol, L, j);
+                    RUnitAt(root, b, 0f, k, 5, 1, BlockKind.Cube, PinkCol, L, j);
+                }
+            foreach (float j in l5)
+            {
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Plank, CrateCol, L, j);
+                foreach (int k in new[] { -3, -2, 2, 3 })
+                {
+                    RUnitAt(root, b, 0f, k, 7, 1, BlockKind.Stone, StoneCol, L, j);
+                    RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Stone, StoneCol, L, j);
+                }
+                RBarAt(root, b, 0f, 0f, 9, 3, BlockKind.Cube, GoldCol, L, j);
+            }
+        }
+
+        /// <summary>120 나선 벌집 굴뚝: 속이 빈 벌집 고리를 열 단, 단마다 3도씩 돌려 올린다.
+        /// 서른 도가 돌아가는 동안 고리가 나선처럼 흐른다. 속이 비어 앞을 헐면 뒤가 드러난다.</summary>
+        static void BuildN_HexChimney(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2.65f, 5.3f);
+            RHexStack(root, b, 0f, 0f, 2.7f, 1.9f, 0, 9, 3f, BlockKind.Cylinder, SlateCol, BlueCol, L);
+        }
+
+        /// <summary>121 상자 성채: 상자 벽 위 양 끝에만 곁탑을 올린 성채. 가운데가 낮아
+        /// 곁탑을 노리면 한 방에 한 탑씩, 가운데를 노리면 벽이 길게 무너진다.</summary>
+        static void BuildN_CrateFort(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            RBrickBand(root, b, l5, 0f, 7, 0, 5, BlockKind.Crate, CrateCol, OrangeCol, L);
+            RBrickBand(root, b, l5, -2.5f, 2, 6, 8, BlockKind.Cube, SlateCol, BlueCol, L);
+            RBrickBand(root, b, l5, 2.5f, 2, 6, 8, BlockKind.Cube, SlateCol, BlueCol, L);
+            foreach (float j in l5)
+            {
+                RLidAt(root, b, 0f, 2, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j, -2.5f);
+                RLidAt(root, b, 0f, 2, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j, 2.5f);
+            }
+        }
+
+        /// <summary>122 처마 두 겹 집: 처마를 중간에 한 번, 꼭대기에 한 번 덮는다.
+        /// 처마는 양옆으로 반 칸씩 내밀므로 위층 벽이 아래층보다 조금 넓어 보인다.</summary>
+        static void BuildN_DoubleEaveHouse(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2.5f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            RBrickBand(root, b, l5, 0f, 5, 0, 3, BlockKind.Cube, SlateCol, BlueCol, L);
+            foreach (float j in l5) RLidAt(root, b, 0f, 5, 4, BlockKind.Cube, GoldCol, OrangeCol, L, j);
+            RBrickBand(root, b, l5, 0f, 5, 5, 7, BlockKind.Cube, RedCol, PinkCol, L);
+            foreach (float j in l5)
+            {
+                RLidAt(root, b, 0f, 5, 8, BlockKind.Cube, GoldCol, OrangeCol, L, j);
+                RBarAt(root, b, 0f, 0f, 9, 3, BlockKind.Cube, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>123 기울어진 벌집 탑: 둥근 원판을 두 단마다 0.25칸씩 옆으로 밀어 올린다.
+        ///
+        /// 처음엔 0.35칸씩 밀었다. 블록 폭의 36%라 계산상으로는 받침이 6할 남지만,
+        /// 원기둥은 네모와 달리 닿는 면이 렌즈 모양이라 바깥 줄이 이웃 없이 혼자 기울어
+        /// 꼭대기 두 단이 통째로 굴러떨어졌다(여덟 개). 0.25칸(26%)으로 줄이고
+        /// 무거운 통나무는 맨 윗단에만 남겼다. 기울기는 위아래로 나눠 ±0.5칸이다.</summary>
+        static void BuildN_LeaningHex(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            // 기울기는 0에서 시작하지 않고 -0.7칸에서 시작해 +0.7칸에서 끝낸다.
+            // 0에서 시작했더니 위로 갈수록 상판 밖으로 나가 열 개가 굴러떨어졌다(가장자리 2.31).
+            var b = TightPlate(root, p, info, 2.5f, 4.2f);
+            var cols = new[] { SlateCol, BlueCol, PurpleCol, PinkCol, RedCol };
+            for (int row = 0; row < 10; row++)
+                RHexRingAt(root, Shift(b, (row / 2) * 0.25f - 0.5f, 0f), 2.0f, 0f, row, 0f,
+                           row == 9 ? BlockKind.Log : BlockKind.Cylinder,
+                           row == 9 ? GoldCol : cols[(row / 2) % cols.Length], L);
+        }
+
+        /// <summary>124 통나무 장작 탑: 둥근 통나무 단과 네모 벽돌 단을 번갈아 쌓고 폭을 줄인다.
+        /// 둥근 단은 잘 구르고 네모 단은 버티니, 어느 단을 맞히느냐에 따라 무너지는 모양이 다르다.</summary>
+        static void BuildN_LogPile(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2.5f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            for (int row = 0; row <= 9; row++)
+            {
+                int n = row <= 3 ? 5 : (row <= 6 ? 3 : 1);
+                foreach (float j in l5)
+                {
+                    if (row % 2 == 0)
+                        for (int k = -(n / 2); k <= n / 2; k++)
+                            RUnitAt(root, b, 0f, k, row, 1, BlockKind.Log, row % 4 == 0 ? OrangeCol : GoldCol, L, j);
+                    else if (n >= 2)
+                        RBrickRow(root, b, 0f, 0f, n, row, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                    else
+                        RUnitAt(root, b, 0f, 0f, row, 1, BlockKind.Cube, SlateCol, L, j);
+                }
+            }
+        }
+
+        /// <summary>125 벌집 쌍탑 박공: 둥근 탑 둘 위에 네모 박공지붕을 얹었다.
+        /// 지붕이 두 탑을 묶고 있어 한 탑만 무너뜨려도 지붕이 반대쪽으로 쏠린다.</summary>
+        static void BuildN_HexTwinGable(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 1.75f);
+            var deep = new[] { -0.866f, 0f, 0.866f };
+            foreach (int k in new[] { -2, 2 })
+                RHexStack(root, b, k, 0f, 1.0f, 0f, 0, 6, k < 0 ? 5f : -5f,
+                          BlockKind.Cylinder, k < 0 ? BlueCol : PurpleCol, SkyCol, L);
+            foreach (float j in deep)
+            {
+                RBarAt(root, b, 0f, 0f, 7, 7, BlockKind.Cube, SlateCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 5, 8, true, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RBarAt(root, b, 0f, 0f, 9, 3, BlockKind.Cube, GoldCol, L, j);
+            }
+        }
+
+        /// <summary>126 돌 관문: 세 칸 폭 돌기둥 둘이 한 칸짜리 좁은 문을 남기고,
+        /// 그 위를 돌 인방과 벽돌벽이 누른다. 이 게임에서 가장 무거운 구조다.</summary>
+        static void BuildN_StoneGate(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in l5)
+                foreach (int k in new[] { -3, -2, -1, 1, 2, 3 })
+                {
+                    RUnitAt(root, b, 0f, k, 0, 3, BlockKind.Stone, StoneCol, L, j);
+                    RUnitAt(root, b, 0f, k, 3, 3, BlockKind.Stone, StoneCol, L, j);
+                    RUnitAt(root, b, 0f, k, 6, 1, BlockKind.Stone, StoneCol, L, j);
+                }
+            foreach (float j in l5)
+            {
+                RBarAt(root, b, 0f, 0f, 7, 7, BlockKind.Stone, StoneCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 8, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>127 공중 정원: 기둥 둘 위에 다리를 놓고, 그 다리 위에 둥근 사탕 정원을 얹었다.
+        /// 정원은 땅을 딛고 있지 않아 기둥 어느 쪽을 헐어도 통째로 떨어진다.</summary>
+        static void BuildN_SkyGarden(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            RBrickBand(root, b, l5, 0f, 7, 0, 1, BlockKind.Cube, SlateCol, BlueCol, L);
+            foreach (float j in l5)
+                foreach (int k in new[] { -3, -2, 2, 3 })
+                {
+                    RUnitAt(root, b, 0f, k, 2, 3, BlockKind.Cube, PurpleCol, L, j);
+                    RUnitAt(root, b, 0f, k, 5, 1, BlockKind.Cube, PinkCol, L, j);
+                }
+            foreach (float j in l5)
+            {
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Cube, GoldCol, L, j);
+                foreach (int k in new[] { -3, 3 }) RUnitAt(root, b, 0f, k, 7, 1, BlockKind.Cube, SlateCol, L, j);
+            }
+            for (int row = 7; row <= 9; row++)
+                RHexRingAt(root, b, 1.0f, 0f, row, (row - 7) * 6f,
+                           row == 9 ? BlockKind.Log : BlockKind.Candy,
+                           row == 9 ? GreenCol : (row % 2 == 0 ? PinkCol : RedCol), L);
+        }
+
+        /// <summary>128 두 겹 함정 탑: 가벼운 얼음 기둥 위에 무거운 돌 판을 얹는 짜임을 두 번 겹쳤다.
+        /// 아래 얼음을 깨면 위 돌 판까지 연달아 내려앉는다.</summary>
+        static void BuildN_DoubleTrap(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            var piers = new[] { -3, -2, 0, 2, 3 };
+            RBrickBand(root, b, l5, 0f, 7, 0, 2, BlockKind.Cube, SlateCol, BlueCol, L);
+            foreach (float j in l5)
+            {
+                foreach (int k in piers) RUnitAt(root, b, 0f, k, 3, 2, BlockKind.Ice, SkyCol, L, j);
+                RBarAt(root, b, 0f, 0f, 5, 7, BlockKind.Stone, StoneCol, L, j);
+                foreach (int k in piers) RUnitAt(root, b, 0f, k, 6, 2, BlockKind.Ice, SkyCol, L, j);
+                RBarAt(root, b, 0f, 0f, 8, 7, BlockKind.Stone, StoneCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>129 총안 성벽: 여덟 단을 꽉 채운 벽 위에 한 칸 걸러 총안을 세웠다.
+        /// 가장 단순하고 가장 단단한 형태 — 위부터 한 칸씩 갉아야 한다.</summary>
+        static void BuildN_Battlement(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            RBrickBand(root, b, l5, 0f, 7, 0, 7, BlockKind.Cube, SlateCol, BlueCol, L);
+            foreach (float j in l5)
+                foreach (int k in new[] { -3, -1, 1, 3 })
+                    RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Stone, StoneCol, L, j);
+        }
+
+        /// <summary>130 세 잎 탑: 넓은 벌집 원판 위에 작은 둥근 탑 셋이 120도로 앉았다.
+        ///
+        /// 탑 자리를 아무 데나 잡으면 안 된다. 처음엔 (2.5, 0)과 (-1.25, ±2.165)에 놓았는데
+        /// 이 좌표들은 벌집 격자 위의 점이 아니라서, 탑의 칸이 원판 칸 사이 틈에 걸치고
+        /// 옆 탑과는 0.23m까지 파고들어 196개 중 127개가 터졌다.
+        /// 그래서 탑 중심을 격자점 (±1.5, -0.866)과 (0, 1.732)로 옮겼다. 셋이 서로 3칸씩
+        /// 떨어져 칸이 겹치지 않고, 탑의 모든 칸이 원판 칸 바로 위에 정확히 얹힌다.</summary>
+        static void BuildN_HexFlower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 5.2f);
+            for (int row = 0; row <= 2; row++)
+                RHexRingAt(root, b, 2.7f, 0f, row, 0f,
+                           row == 1 ? BlockKind.Stone : BlockKind.Cylinder,
+                           row == 1 ? StoneCol : SlateCol, L);
+            var spots = new[] { new Vector2(-1.5f, -0.866f), new Vector2(1.5f, -0.866f), new Vector2(0f, 1.732f) };
+            var cols = new[] { BlueCol, PurpleCol, RedCol };
+            for (int i = 0; i < spots.Length; i++)
+                for (int row = 3; row <= 7; row++)
+                    RHexRingAt(root, Shift(b, spots[i].x, spots[i].y), 1.0f, 0f, row, (row - 3) * 6f,
+                               row == 7 ? BlockKind.Log : BlockKind.Cylinder,
+                               row == 7 ? GoldCol : cols[i], L);
+        }
+
+        /// <summary>131 깊이 계단 벽: 앞 겹은 열 단, 가운데 겹은 일곱 단, 뒤 겹은 네 단.
+        /// 옆에서 보면 계단이고 앞에서 보면 그냥 벽이라, 공이 위를 넘으면 뒤가 살아남는다.</summary>
+        static void BuildN_DepthStep(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            RBrickBand(root, b, new[] { -2f, -1f }, 0f, 7, 0, 9, BlockKind.Cube, SlateCol, BlueCol, L);
+            RBrickBand(root, b, new[] { 0f, 1f }, 0f, 7, 0, 6, BlockKind.Cube, PurpleCol, PinkCol, L);
+            RBrickBand(root, b, new[] { 2f }, 0f, 7, 0, 3, BlockKind.Cube, RedCol, OrangeCol, L);
+        }
+
+        /// <summary>132 두 겹 아치: 계단 코벨로 닫는 아치를 위아래로 두 번 겹쳤다.
+        /// 아래 아치를 부수면 위 아치가 통째로 내려앉는다.</summary>
+        static void BuildN_DoubleArch(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in l5)
+                for (int stage = 0; stage < 2; stage++)
+                {
+                    int r0 = stage * 5;
+                    foreach (int k in new[] { -3, -2, 2, 3 })
+                        RUnitAt(root, b, 0f, k, r0, 2, BlockKind.Cube, stage == 0 ? RedCol : PurpleCol, L, j);
+                    // 코벨 단에도 바깥 칸(±3)을 채워야 한다. 비워 두었더니 그 위의 2칸 부재가
+                    // 허공에 놓여 열 개가 떨어졌다.
+                    RUnitAt(root, b, 0f, -3f, r0 + 2, 1, BlockKind.Cube, SlateCol, L, j);
+                    RBarAt(root, b, 0f, -1.5f, r0 + 2, 2, BlockKind.Cube, BlueCol, L, j);
+                    RBarAt(root, b, 0f, 1.5f, r0 + 2, 2, BlockKind.Cube, BlueCol, L, j);
+                    RUnitAt(root, b, 0f, 3f, r0 + 2, 1, BlockKind.Cube, SlateCol, L, j);
+                    RBarAt(root, b, 0f, -2.5f, r0 + 3, 2, BlockKind.Cube, SlateCol, L, j);
+                    RBarAt(root, b, 0f, 0f, r0 + 3, 3, BlockKind.Cube, GoldCol, L, j);
+                    RBarAt(root, b, 0f, 2.5f, r0 + 3, 2, BlockKind.Cube, SlateCol, L, j);
+                    RBrickRow(root, b, 0f, 0f, 7, r0 + 4, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                }
+        }
+
+        /// <summary>133 비틀린 문루: 아래는 곧은 문, 위는 단마다 4도씩 돌아가는 문루.
+        /// 문을 부수면 비틀린 문루가 돌아가며 흩어진다.</summary>
+        static void BuildN_TwistGatehouse(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in l5)
+            {
+                foreach (int k in new[] { -3, -2, 2, 3 })
+                {
+                    RUnitAt(root, b, 0f, k, 0, 3, BlockKind.Cube, SlateCol, L, j);
+                    RUnitAt(root, b, 0f, k, 3, 2, BlockKind.Cube, BlueCol, L, j);
+                }
+                RBarAt(root, b, 0f, 0f, 5, 7, BlockKind.Stone, StoneCol, L, j);
+                for (int row = 6; row <= 8; row++)
+                    RBrickRow(root, b, (row - 6) * 4f, 0f, 5, row, row % 2 == 1, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RLidAt(root, b, 8f, 5, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>134 네모 나선 계단: 5×5칸 평면에서 각도에 따라 기둥 높이를 3단부터 10단까지 준다.
+        /// 벌집이 아닌 네모 격자로 같은 나선을 만들면 계단참이 각져 오히려 더 '계단'처럼 보인다.</summary>
+        static void BuildN_SquareSpiral(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2f, 4f);
+            var cols = new[] { SlateCol, BlueCol, PurpleCol, PinkCol, RedCol, OrangeCol, GoldCol, GreenCol };
+            for (int k = -2; k <= 2; k++)
+                for (int jj = -2; jj <= 2; jj++)
+                {
+                    int h;
+                    if (k == 0 && jj == 0) h = 10;
+                    else
+                    {
+                        float ang = Mathf.Atan2(jj, k); if (ang < 0f) ang += Mathf.PI * 2f;
+                        h = 3 + Mathf.RoundToInt(ang / (Mathf.PI * 2f) * 7f);
+                    }
+                    for (int row = 0; row < h; row++)
+                        RUnitAt(root, b, 0f, k, row, 1,
+                                row == h - 1 ? BlockKind.Candy : BlockKind.Cube,
+                                row == h - 1 ? StoneCol : cols[row % cols.Length], L, jj);
+                }
+        }
+
+        /// <summary>135 사탕 기둥 회랑: 가벼운 사탕 기둥이 무거운 돌 지붕을 이고 있다.
+        /// 112 돌기둥 회랑과 정확히 반대 — 기둥 하나만 부러져도 지붕이 통째로 내려온다.</summary>
+        static void BuildN_CandyColonnade(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 2f);
+            var l3 = new[] { -1f, 0f, 1f };
+            foreach (float k in new[] { -3f, -1.5f, 0f, 1.5f, 3f })
+                foreach (float j in l3)
+                    RColAt(root, b, 0f, k, j, 6, BlockKind.Candy, PinkCol, L, true);
+            foreach (float j in l3)
+            {
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Stone, StoneCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 7, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 8, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>136 깊이가 다른 세 탑: 둥근 탑 셋을 앞·뒤·가운데로 흩어 놓고 높이를 달리했다.
+        /// 가운데 높은 탑은 뒤에 있어 앞 탑들을 치우기 전에는 맞히기 어렵다.</summary>
+        static void BuildN_HexDepthTrio(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 5f, 0.3f);
+            RHexStack(root, b, -2f, -1.5f, 1.0f, 0f, 0, 5, 7f, BlockKind.Cylinder, BlueCol, SkyCol, L);
+            RHexStack(root, b, 2f, -1.5f, 1.0f, 0f, 0, 5, -7f, BlockKind.Cylinder, PurpleCol, PinkCol, L);
+            RHexStack(root, b, 0f, 1.6f, 1.0f, 0f, 0, 8, 7f, BlockKind.Cylinder, RedCol, GoldCol, L);
+            RHexRingAt(root, Shift(b, 0f, 1.6f), 1.0f, 0f, 9, 0f, BlockKind.Log, GoldCol, L);
+        }
+
+        /// <summary>137 돌 판 층층: 둥근 기둥 단과 무거운 돌 판 단을 다섯 번 번갈아 쌓았다.
+        /// 어느 층을 부수든 그 위의 돌 판이 곧장 내려앉는다 — 위로 갈수록 무너질 무게가 줄어든다.</summary>
+        static void BuildN_SlabStack(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var l5 = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in l5)
+            {
+                for (int row = 0; row <= 8; row += 2)
+                    foreach (int k in new[] { -3, -1, 1, 3 })
+                        RUnitAt(root, b, 0f, k, row, 1, BlockKind.Cylinder,
+                                row % 4 == 0 ? BlueCol : PurpleCol, L, j);
+                for (int row = 1; row <= 7; row += 2)
+                    RBarAt(root, b, 0f, 0f, row, 7, BlockKind.Stone, StoneCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PinkCol, L, j);
+            }
+        }
+
+        /// <summary>138 네 둥근 기둥 위의 방: 둥근 벌집 기둥 넷이 네모난 방 하나를 이고 있다.
+        /// 기둥 사이가 뻥 뚫려 있어 공이 아래로 지나가기도 한다. 기둥 둘을 부수면 방이 기운다.</summary>
+        static void BuildN_FourHexPiers(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 5f);
+            foreach (int k in new[] { -2, 2 })
+                foreach (float jz in new[] { -1.5f, 1.5f })
+                    RHexStack(root, b, k, jz, 1.0f, 0f, 0, 5, k < 0 ? 6f : -6f,
+                              BlockKind.Cylinder, k < 0 ? BlueCol : PurpleCol, SkyCol, L);
+            foreach (float j in new[] { -1.5f, 0f, 1.5f })
+            {
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Cube, SlateCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 7, false, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 8, true, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
