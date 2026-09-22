@@ -589,6 +589,7 @@ namespace SmashGame
                 case 89: BuildN_SkyBridge(root, rng, p, info); break;
                 case 90: BuildN_ClusterGate(root, rng, p, info); break;
                 case 91: BuildN_CorbelWall(root, rng, p, info); break;
+                case 92: BuildN_TwistPierGate(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -705,7 +706,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", 90 => "다발 기둥 성문", 91 => "계단 코벨 벽", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", 90 => "다발 기둥 성문", 91 => "계단 코벨 벽", 92 => "비틀린 기둥 성문", _ => "성채"
             };
             return info;
         }
@@ -3019,6 +3020,46 @@ namespace SmashGame
                 foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 6), 2, BlockKind.Cube, BlueCol, 0f, L, true);
                 foreach (int k in new[] { -3, -2, 0, 2, 3 }) RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Cube, PurpleCol, L, j);
                 RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, SlateCol, L, j);
+            }
+        }
+
+        /// <summary>
+        /// 92 비틀린 기둥 성문: 90번과 같은 얼개인데 양옆 기둥을 2칸 부재로 비스듬히 비틀어 쌓는다.
+        ///
+        /// 한 켜는 2칸 부재 넷으로 2칸 × 4겹 바닥을 덮고, 그 켜를 통째로 5도씩 돌려 올린다.
+        /// 각도를 5도로 묶은 데는 두 가지 이유가 있다. 기둥 모서리가 중심에서 1.02 떨어져 있어
+        /// 5도면 어긋남이 블록 폭의 20%에 그치고, 25도까지 돌아간 꼭대기 켜의 폭이 ±1.89로
+        /// 화면 제한(2.01) 안에 겨우 들어온다. 그 이상 돌리면 기둥이 화면 밖으로 밀려난다.
+        /// 왼쪽과 오른쪽을 반대로 돌려 가운데를 향해 감기게 했다.
+        /// </summary>
+        static void BuildN_TwistPierGate(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 3f);   // 가로 7칸, 깊이 4겹
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);
+            foreach (float kc in new[] { -2.5f, 2.5f })
+            {
+                var pc = Shift(b, kc, 0f);
+                float dir = kc < 0f ? 1f : -1f;
+                for (int row = 1; row <= 5; row++)
+                {
+                    float yaw = (row - 1) * 5f * dir;
+                    var col = row % 2 == 0 ? CrateCol : WoodCol;
+                    foreach (float jj in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+                        RBarAt(root, pc, yaw, 0f, row, 2, BlockKind.Crate, col, L, jj);
+                }
+            }
+            // 가운데 기둥은 90번과 같다 — 앞겹은 비워 두고 안쪽 두 겹만 막는다.
+            foreach (float j in new[] { -0.5f, 0.5f })
+                for (int row = 1; row <= 5; row++)
+                    RBarAt(root, b, 0f, 0f, row, 3, BlockKind.Cube, PurpleCol, L, j);
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+            {
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Plank, WoodCol, L, j);
+                foreach (int k in new[] { -3, -2, 2, 3 }) RUnitAt(root, b, 0f, k, 7, 1, BlockKind.Cube, RedCol, L, j);
+                for (int k = -1; k <= 1; k++) { RUnitAt(root, b, 0f, k, 7, 1, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Cube, BlueCol, L, j); }
+                RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);
             }
         }
 
