@@ -22,12 +22,17 @@ namespace SmashGame
         public const float RollRestDamping = 12f, RollFreeDamping = 0.05f;
         public LevelController controller;
         public float fallY = 1.0f;
+        /// <summary>블록의 가장 낮은 점이 이 높이 아래로 내려가면 '땅에 닿았다'로 본다.
+        /// 중심 높이(fallY)만 보면 긴 부재가 받침대 발치에 비스듬히 걸쳐 중심이 높게 남아
+        /// 땅에 누운 채로 사라지지 않는 일이 생긴다. 그래서 콜라이더 아랫면으로도 판정한다.</summary>
+        public float groundTouchY = LevelBuilder.GroundY + 0.3f;
 
         public const float ReinforcedMassMult = 2f;   // 6이면 강화 블록(최대 79kg)이 닿아 있는 일반 블록을 마찰로 눌러 구조물 전체가 붙은 듯 굳는다(플레이 로그로 확인)
         public bool IsReinforced => hp > 1;
         float baseMass = 1f;
 
         Rigidbody rb;
+        Collider bodyCol;
         Renderer rend;
         Color baseColor;
         bool removed;
@@ -52,6 +57,7 @@ namespace SmashGame
             rb.sleepThreshold = 0.05f;
             var col = GetComponent<Collider>();
             if (col != null) col.material = Materials.BlockPhysics;
+            bodyCol = col;
             // 강화 블록: 고정(kinematic)하면 받침이 사라져도 공중에 떠 있으므로, 대신 무겁게 만들고 공의 충격만 무시한다.
             baseMass = mass;
             rb.isKinematic = false;
@@ -90,12 +96,16 @@ namespace SmashGame
 
         void Update()
         {
-            if (!removed && transform.position.y < fallY)
-            {
-                MarkRemoved();
-                Debris.Spawn(transform.position, baseColor, 4, transform.localScale.magnitude * 0.2f);
-                Destroy(gameObject, 1.5f);
-            }
+            if (removed) return;
+            bool fell = transform.position.y < fallY;
+            bool touchedGround = bodyCol != null && bodyCol.bounds.min.y <= groundTouchY;
+            if (!fell && !touchedGround) return;
+            MarkRemoved();
+            // 잘 깨지는 것(얼음·사탕)은 땅에 닿는 순간 부서지고, 나머지는 파편을 흘리며 잠깐 뒤 치워진다.
+            bool brittle = kind == BlockKind.Ice || kind == BlockKind.Candy;
+            Debris.Spawn(transform.position, baseColor, brittle ? 8 : 4,
+                         transform.localScale.magnitude * (brittle ? 0.25f : 0.2f));
+            Destroy(gameObject, brittle ? 0f : 1.0f);
         }
 
         void MarkRemoved()
