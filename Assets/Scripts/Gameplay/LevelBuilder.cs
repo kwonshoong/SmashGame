@@ -599,6 +599,10 @@ namespace SmashGame
                 case 99: BuildN_HexTrio(root, rng, p, info); break;
                 case 100: BuildN_HexMoat(root, rng, p, info); break;
                 case 101: BuildN_HexSpiralStair(root, rng, p, info); break;
+                case 102: BuildN_TrapTower(root, rng, p, info); break;
+                case 103: BuildN_LeaningTower(root, rng, p, info); break;
+                case 104: BuildN_ShellAndEgg(root, rng, p, info); break;
+                case 105: BuildN_Crane(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -2290,7 +2294,7 @@ namespace SmashGame
         /// 2칸을 가운데에 둔다(8칸 → 3·2·3, 6칸 → 3·3, 10칸 → 3·2·2·3, 4칸 → 2·2).
         /// </summary>
         static void RLidAt(Transform root, Vector3 b, float yaw, int nCells, int row,
-                           BlockKind kind, Color colA, Color colB, List<Block> L, float j = 0f)
+                           BlockKind kind, Color colA, Color colB, List<Block> L, float j = 0f, float kCenter = 0f)
         {
             int span = nCells + 1;                       // 양옆 반 칸씩 처마
             int n3 = span / 3;
@@ -2300,8 +2304,8 @@ namespace SmashGame
             for (int i = 0; i < (n3 + 1) / 2; i++) pieces.Add(3);
             for (int i = 0; i < n2; i++) pieces.Add(2);
             for (int i = 0; i < n3 / 2; i++) pieces.Add(3);
-            if (pieces.Count == 0) { RBarAt(root, b, yaw, 0f, row, span, kind, colA, L, j); return; }
-            float k = -span * 0.5f;
+            if (pieces.Count == 0) { RBarAt(root, b, yaw, kCenter, row, span, kind, colA, L, j); return; }
+            float k = kCenter - span * 0.5f;
             for (int i = 0; i < pieces.Count; i++)
             {
                 int len = pieces[i];
@@ -3358,6 +3362,125 @@ namespace SmashGame
                                 row == h - 1 ? BlockKind.Candy : BlockKind.Cylinder,
                                 row == h - 1 ? StoneCol : cols[row % cols.Length], L, z);
                 }
+        }
+
+        /// <summary>102 함정 탑: 무게가 다른 블록을 섞어 '무너지는 순서'를 설계한다.
+        ///
+        /// 지금까지는 전부 같은 무게(1.0)로 쌓았는데, 이 엔진은 돌 2.2, 얼음 0.8, 사탕 0.7로
+        /// 종류마다 무게가 다르다. 그래서 가벼운 얼음 기둥 위에 무거운 돌 판을 얹고,
+        /// 그 위를 다시 가벼운 사탕으로 채웠다. 얼음 기둥 하나만 깨면 돌 판이 기울어
+        /// 제 무게로 나머지를 끌고 내려온다 — 한 방이 열 방을 대신하는 구조다.</summary>
+        static void BuildN_TrapTower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            foreach (float j in new[] { -2f, -1f, 0f, 1f, 2f })
+            {
+                RBrickRow(root, b, 0f, 0f, 7, 0, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 1, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                foreach (int k in new[] { -3, -1, 1, 3 })                       // 얼음 기둥 — 가볍고 잘 깨진다
+                {
+                    RUnitAt(root, b, 0f, k, 2, 2, BlockKind.Ice, SkyCol, L, j);
+                    RUnitAt(root, b, 0f, k, 4, 1, BlockKind.Ice, SkyCol, L, j);
+                }
+                RBarAt(root, b, 0f, 0f, 5, 7, BlockKind.Stone, StoneCol, L, j);  // 돌 판 — 이 층이 함정이다
+                RBrickRow(root, b, 0f, 0f, 7, 6, false, BlockKind.Candy, PinkCol, RedCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 7, true, BlockKind.Candy, PinkCol, RedCol, L, j);
+                RBarAt(root, b, 0f, 0f, 8, 7, BlockKind.Stone, StoneCol, L, j);  // 두 번째 돌 판
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>103 어긋나 오르는 탑: 좌우 대칭을 버린 첫 구조.
+        ///
+        /// 두 단마다 한 칸씩 오른쪽으로 옮겨 가며 폭을 5 → 4 → 3으로 줄인다.
+        /// 옮긴 단의 바깥 칸은 2칸 부재로 놓아 절반이 아래 단에 얹히게 했다(반 칸은 0할 받침이다).
+        /// 왼쪽에는 4단짜리 버팀을 붙여, 기울어 보이면서도 실제 무게중심은 받침 안에 있게 했다.
+        /// 오른쪽 위를 때리면 기운 쪽으로, 왼쪽 버팀을 때리면 통째로 넘어간다.</summary>
+        static void BuildN_LeaningTower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            var layers = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in layers)
+            {
+                RBrickRow(root, b, 0f, 0f, 5, 0, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 5, 1, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0.5f, 4, 2, false, BlockKind.Cube, PurpleCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0.5f, 4, 3, true, BlockKind.Cube, PurpleCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 1f, 4, 4, false, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RBrickRow(root, b, 0f, 1f, 4, 5, true, BlockKind.Cube, RedCol, OrangeCol, L, j);
+                RBrickRow(root, b, 0f, 2f, 3, 6, false, BlockKind.Cube, GoldCol, PinkCol, L, j);
+                RBrickRow(root, b, 0f, 2f, 3, 7, true, BlockKind.Cube, GoldCol, PinkCol, L, j);
+                RBrickRow(root, b, 0f, 2f, 3, 8, false, BlockKind.Cube, GoldCol, PinkCol, L, j);
+                RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, PurpleCol, GoldCol, L, j, 2f);   // 기운 꼭대기 위에 맞춰 덮는다
+                // 왼쪽 버팀 — 계단식으로 몸통에 기대게 한다. 처음엔 -3칸에 4단을 곧게 세웠더니
+                // 폭 한 칸짜리 외딴 기둥이라 저 혼자 기울었다(다섯 개가 움직였다).
+                RUnitAt(root, b, 0f, -3f, 0, 2, BlockKind.Stone, StoneCol, L, j);
+                RUnitAt(root, b, 0f, -2f, 2, 2, BlockKind.Stone, StoneCol, L, j);
+            }
+        }
+
+        /// <summary>104 껍질과 알: 네모난 벽돌 껍질 안에 둥근 원기둥 심이 따로 서 있다.
+        ///
+        /// 껍질은 두께 한 칸짜리 사각 고리라 안이 통째로 비어 있고, 그 빈 곳에 벌집 일곱 개짜리
+        /// 원기둥 심이 껍질에 닿지 않게 서 있다. 껍질을 헐기 전에는 심이 보이지도 맞지도 않는다.
+        /// 껍질 윗단은 덮지 않았다 — 심이 껍질보다 두 단 높아 머리만 내밀고 있다.</summary>
+        static void BuildN_ShellAndEgg(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            for (int row = 0; row < 7; row++)
+            {
+                bool off = row % 2 == 1;
+                foreach (float j in new[] { -2f, 2f })                                                // 앞뒤 껍질
+                {
+                    if (row == 3 || row == 4)                                                         // 창 — 여기로 알이 비친다
+                    {
+                        RUnitAt(root, b, 0f, -3f, row, 1, BlockKind.Cube, SlateCol, L, j);
+                        RBarAt(root, b, 0f, 0f, row, 3, BlockKind.Cube, BlueCol, L, j);
+                        RUnitAt(root, b, 0f, 3f, row, 1, BlockKind.Cube, SlateCol, L, j);
+                    }
+                    else RBrickRow(root, b, 0f, 0f, 7, row, off, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                }
+                foreach (float j in new[] { -1f, 0f, 1f })                                            // 옆 껍질
+                {
+                    RUnitAt(root, b, 0f, -3f, row, 1, BlockKind.Cube, off ? BlueCol : SlateCol, L, j);
+                    RUnitAt(root, b, 0f, 3f, row, 1, BlockKind.Cube, off ? BlueCol : SlateCol, L, j);
+                }
+            }
+            for (int row = 0; row < 10; row++)                                                        // 안쪽 알 — 껍질보다 세 단 높다
+                RHexRingAt(root, b, 1.0f, 0f, row, row * 4f,
+                           row >= 8 ? BlockKind.Log : BlockKind.Cylinder,
+                           row >= 8 ? GoldCol : (row % 2 == 0 ? RedCol : PinkCol), L);
+        }
+
+        /// <summary>105 외팔보 크레인: 한쪽으로만 뻗은 팔을 반대쪽 돌 추로 버틴다.
+        ///
+        /// 7칸 팔이 기둥에 얹히는 건 두 칸뿐이라 팔만으로는 곧장 기운다. 그래서 기둥 반대편
+        /// 머리에 돌(무게 2.2) 넉 장을 올려 무게중심을 기둥 발자국 안으로 끌어왔다.
+        /// 계산하면 팔 7 × 1.0이 0칸에, 돌 4 × 2.2가 -2.5칸에 있어 합친 중심이 -1.4칸 —
+        /// 기둥이 딛고 선 -2.5 ~ -0.5칸 안이다. 그러니 돌 추를 먼저 떨구면 팔이 통째로 넘어간다.</summary>
+        static void BuildN_Crane(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            foreach (float j in new[] { -2f, -1f, 0f, 1f, 2f })
+            {
+                RBrickRow(root, b, 0f, 0f, 7, 0, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 1, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                foreach (int k in new[] { -2, -1 })                              // 기둥 두 칸 폭
+                {
+                    RUnitAt(root, b, 0f, k, 2, 3, BlockKind.Cube, PurpleCol, L, j);
+                    RUnitAt(root, b, 0f, k, 5, 2, BlockKind.Cube, PurpleCol, L, j);
+                }
+                for (int row = 2; row <= 5; row++)                               // 팔 밑의 화물 더미
+                    RBrickRow(root, b, 0f, 2f, 3, row, row % 2 == 1, BlockKind.Crate, OrangeCol, GoldCol, L, j);
+                RBarAt(root, b, 0f, 0f, 7, 7, BlockKind.Cube, SlateCol, L, j);   // 팔
+                RBarAt(root, b, 0f, -2.5f, 8, 2, BlockKind.Stone, StoneCol, L, j);   // 돌 추
+                RBarAt(root, b, 0f, -2.5f, 9, 2, BlockKind.Stone, StoneCol, L, j);
+                RUnitAt(root, b, 0f, 3f, 8, 1, BlockKind.Candy, PinkCol, L, j);  // 팔 끝 갈고리
+            }
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
