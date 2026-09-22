@@ -136,8 +136,14 @@ namespace SmashGame
         public const float TargetMassPerBallGrowth = 0.004f; // 레벨당 +0.4% (기준 질량 기준). 여기에 블록 질량 배율 성장(BlockMassGrowth)이 곱해져 실제 곡선이 된다
         public const float HardLevelMassMult = 1.6f;         // 하드 레벨은 공 1개당 60% 더 밀어야 한다 (로그상 1.35는 체감되지 않았다)
         public const int StartBallsBase = 2;                 // 질량 비례분에 더하는 여유
-        public const int MinStartBalls = 8, MaxStartBalls = 34;   // 하한 8: 아주 높은 레벨에선 공이 8개로 고정되고 그 뒤 난이도는 블록 질량 배율이 계속 올린다. 상한 40 → 34: 저레벨이 상한에 걸려 공이 남아돌았다
-        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * (1f + level * TargetMassPerBallGrowth) * (hard ? HardLevelMassMult : 1f);
+        /// <summary>초반 보정. 1~2레벨 플레이 로그에서 스탯 1레벨 공이 실제로 걷어낸 양은
+        /// 원통 다발 2.27kg/발, 벽돌 담 1.2kg/발이었다. 그런데 목표치는 1.9kg/발이라
+        /// 벽돌 담(2레벨)은 공 37개로 126개 중 56개밖에 못 걷어내고 두 번 다 졌다.
+        /// 스탯이 아직 1레벨인 구간에서는 목표치를 낮추고 블록도 가볍게 한다.</summary>
+        public static float EarlyMassMult(int level) => Mathf.Lerp(0.80f, 1f, Mathf.Clamp01((level - 1) / 9f));
+        public static float EarlyTargetMult(int level) => Mathf.Lerp(0.65f, 1f, Mathf.Clamp01((level - 1) / 14f));
+        public const int MinStartBalls = 8, MaxStartBalls = 40;   // 하한 8: 아주 높은 레벨에선 공이 8개로 고정되고 그 뒤 난이도는 블록 질량 배율이 계속 올린다. 상한 40 → 34: 저레벨이 상한에 걸려 공이 남아돌았다
+        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * EarlyTargetMult(level) * (1f + level * TargetMassPerBallGrowth) * (hard ? HardLevelMassMult : 1f);
         public static int StartBalls(int level, bool hard, float totalMass, float structureFactor = 1f)
         {
             int n = StartBallsBase + Mathf.RoundToInt(totalMass * Mathf.Clamp(structureFactor, 0.5f, 1.6f) / TargetMassPerBall(level, hard));
@@ -231,7 +237,7 @@ namespace SmashGame
         /// 시작 공은 이 배율을 뺀 "기준 질량"(BallRefMassScale 기준)으로 세므로, 무거워진 만큼이 그대로 난이도가 된다. 레벨은 무한이므로 상한을 두지 않는다.</summary>
         public const float BlockMassBase = 0.7f;
         public const float BlockMassGrowth = 0.0015f;
-        public static float BlockMassScale(int level) => BlockMassBase * (1f + Mathf.Max(0, level - 1) * BlockMassGrowth);
+        public static float BlockMassScale(int level) => BlockMassBase * EarlyMassMult(level) * (1f + Mathf.Max(0, level - 1) * BlockMassGrowth);
         /// <summary>시작 공 계산의 기준 질량 배율 (TargetMassPerBall이 이 배율에서 튜닝됨). 실제 배율/기준 배율만큼 블록이 더 무겁고, 그만큼 어렵다.</summary>
         public const float BallRefMassScale = 0.6f;
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>

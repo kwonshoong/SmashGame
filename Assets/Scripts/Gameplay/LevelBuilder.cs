@@ -1846,6 +1846,11 @@ namespace SmashGame
         /// 깊이는 화면 폭을 먹지 않으므로(원근 폭 규칙은 z가 클수록 오히려 여유가 는다) 블록 크기를 줄이지 않고 개수만 늘릴 수 있다.
         /// </summary>
         public const int MinBlocks = 120;
+        /// <summary>레벨별 블록 최소 개수. 1레벨까지 120개를 채우면 튜토리얼이 아니라 시험이 된다.
+        /// 실제로 1~2레벨 플레이 로그에서 2레벨(벽돌 담)이 126개·102kg으로 불어나
+        /// 공 37개로 56개밖에 못 걷어냈다(공 하나당 1.5개). 초반은 자연 크기 그대로 두고
+        /// 레벨당 7개씩 올려 11레벨에서 120개에 닿게 한다.</summary>
+        public static int MinBlocksFor(int level) => Mathf.Min(MinBlocks, 45 + Mathf.Max(0, level - 1) * 7);
         /// <summary>자동 복제로 덧붙일 수 있는 최대 겹 수 (너무 깊어지면 뒤쪽이 앞에 가려 보이지 않는다)</summary>
         public const int MaxAutoLayers = 6;
 
@@ -1859,7 +1864,8 @@ namespace SmashGame
 
         static void EnsureMinBlocks(Transform root, LevelInfo info, System.Random rng)
         {
-            if (info.blocks.Count >= MinBlocks) return;
+            int want = MinBlocksFor(info.level);
+            if (info.blocks.Count >= want) return;
             // 쪼갤 후보: 세로로 선 2~3칸 조각 (눕힌 부재는 폭이 넓으니 제외). 위쪽 조각부터 쪼개면 아래가 통짜라 안정에 유리하다
             var cand = new List<(Block b, int cells)>();
             foreach (var b in info.blocks)
@@ -1873,14 +1879,14 @@ namespace SmashGame
             cand.Sort((x, y) => y.b.transform.position.y.CompareTo(x.b.transform.position.y));
             foreach (var (b, cells) in cand)
             {
-                if (info.blocks.Count >= MinBlocks) break;
+                if (info.blocks.Count >= want) break;
                 var t = b.transform; float yaw = t.eulerAngles.y; var kind = b.kind; var color = b.BaseColor;
                 Vector3 basePos = new Vector3(t.position.x, b.GetComponent<Collider>().bounds.min.y, t.position.z);
                 info.blocks.Remove(b); Object.DestroyImmediate(b.gameObject);
                 for (int k = 0; k < cells; k++) RUnit(root, basePos + Vector3.up * k * DU, 1, kind, color, yaw, info.blocks);
             }
             Physics.SyncTransforms();
-            if (info.blocks.Count >= MinBlocks) return;
+            if (info.blocks.Count >= want) return;
 
             // ② 그래도 모자라면 상판마다 맨 뒷겹을 한 겹씩 뒤(상판의 로컬 +z)로 복제하고 그 상판을 그만큼 깊게 한다.
             var groups = pedestalGroups.Where(g => g != null && g.transform.IsChildOf(root)).ToList();
@@ -1888,7 +1894,7 @@ namespace SmashGame
             // 상판이 여럿이어도 깊이를 늘린다 — 단, 늘린 뒤에도 상판끼리 MinPlateGap을 지키는 경우에만 (CloneBackLayer가 확인하고 되돌린다).
             // 좌우로 놓인 상판(아치 문의 두 다리)은 z로 깊어져도 간격이 그대로라 안전하고,
             // 앞뒤로 놓인 상판만 걸러진다. 이 제한이 없던 동안 아치 문이 54개(최소 120개 미달)로 만들어졌다.
-            for (int pass = 0; pass < MaxAutoLayers && info.blocks.Count < MinBlocks; pass++)
+            for (int pass = 0; pass < MaxAutoLayers && info.blocks.Count < want; pass++)
             {
                 if (CloneBackLayer(root, info, groups) == 0) break;
                 layers++;
@@ -1900,7 +1906,7 @@ namespace SmashGame
             Physics.SyncTransforms();
             int pruned = PruneFloating(info);
             if (layers > 0 || filled > 0 || stacked > 0)
-                Debug.Log($"[LevelBuilder] {info.level}: 블록 {MinBlocks}개 보강 — 뒷겹 {layers}겹, 뒤 빈칸 {filled}개, 위로 {stacked}개, 뜬 블록 정리 {pruned}개 → {info.blocks.Count}개");
+                Debug.Log($"[LevelBuilder] {info.level}: 블록 {want}개 보강 — 뒷겹 {layers}겹, 뒤 빈칸 {filled}개, 위로 {stacked}개, 뜬 블록 정리 {pruned}개 → {info.blocks.Count}개");
         }
 
         /// <summary>
@@ -1945,7 +1951,7 @@ namespace SmashGame
             int added = 0;
             foreach (var b in snapshot)
             {
-                if (info.blocks.Count >= MinBlocks) break;
+                if (info.blocks.Count >= MinBlocksFor(info.level)) break;
                 if (b == null) continue;
                 var col = b.GetComponent<Collider>(); if (col == null) continue;
                 var sz = col.bounds.size;
@@ -1985,7 +1991,7 @@ namespace SmashGame
             int added = 0;
             foreach (var b in snapshot)
             {
-                if (info.blocks.Count >= MinBlocks) break;
+                if (info.blocks.Count >= MinBlocksFor(info.level)) break;
                 if (b == null) continue;
                 var col = b.GetComponent<Collider>(); if (col == null) continue;
                 var sz = col.bounds.size;
