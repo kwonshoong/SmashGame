@@ -587,6 +587,8 @@ namespace SmashGame
                 case 87: BuildN_Arcade(root, rng, p, info); break;
                 case 88: BuildN_DoorRoom(root, rng, p, info); break;
                 case 89: BuildN_SkyBridge(root, rng, p, info); break;
+                case 90: BuildN_ClusterGate(root, rng, p, info); break;
+                case 91: BuildN_CorbelWall(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -703,7 +705,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", 90 => "다발 기둥 성문", 91 => "계단 코벨 벽", _ => "성채"
             };
             return info;
         }
@@ -2959,6 +2961,56 @@ namespace SmashGame
                 RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Plank, WoodCol, L, j);         // 구름다리
                 foreach (int k in new[] { -1, 0, 1 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, PinkCol, 0f, L, true);
                 RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);     // 집 지붕
+            }
+        }
+
+        /// <summary>
+        /// 90 다발 기둥 성문: 기둥을 1칸이 아니라 2×2 묶음으로 세운 성문.
+        ///
+        /// 기둥 보강 방식이 87·89와 다르다. 저쪽은 가는 기둥 옆에 버팀 기둥을 덧대는 식이고,
+        /// 이쪽은 기둥 자체를 네 줄 묶음으로 굵게 만든다. 한 줄이 깨져도 나머지 세 줄이 하중을 받아
+        /// 문이 바로 내려앉지 않는다 — 대신 다 헐려면 네 배를 깎아야 한다.
+        /// 홀로 선 탑은 최소 2×2여야 한두 방에 안 무너진다는 규칙을 기둥에 그대로 적용한 것이다.
+        /// </summary>
+        static void BuildN_ClusterGate(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 3f);   // 가로 7칸, 깊이 4겹
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);
+            foreach (float kc in new[] { -2.5f, 2.5f })
+                foreach (float jc in new[] { -1f, 1f })
+                    RCluster(root, At(b, 0f, 0f, 0f, 1), 0f, kc, jc, 5, BlockKind.Crate, CrateCol, L, true);
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+            {
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Plank, WoodCol, L, j);   // 문 위 통인방
+                RUnitAt(root, b, 0f, -3, 7, 1, BlockKind.Cube, RedCol, L, j); RUnitAt(root, b, 0f, 3, 7, 1, BlockKind.Cube, RedCol, L, j);
+            }
+            foreach (float jc in new[] { -1f, 1f }) RCluster(root, At(b, 0f, 0f, 0f, 7), 0f, 0f, jc, 2, BlockKind.Cube, PurpleCol, L, true);
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f }) RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);
+        }
+
+        /// <summary>
+        /// 91 계단 코벨 벽: 기둥 위를 인방으로 건너지 않고, 층마다 한 칸씩 안으로 내밀어 아치를 닫는다.
+        ///
+        /// 세 번째 보강 방식이다. 버팀 기둥도 묶음 기둥도 아니고, 하중을 기둥 머리로 모으는 방식 자체를
+        /// 바꾼다. 내민 칸은 아래 칸에 4분의 3이 얹히므로 처마와 달리 받침을 깎지 않고,
+        /// 긴 인방이 없으니 '인방 하나가 급소'인 구조도 아니다. 대신 한 칸씩 갉아야 해서 오래 걸린다.
+        /// </summary>
+        static void BuildN_CorbelWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 2f);   // 가로 7칸, 깊이 3겹
+            foreach (float j in new[] { -1f, 0f, 1f })
+            {
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);
+                foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 1), 2, BlockKind.Cube, BlueCol, 0f, L, true);
+                foreach (int k in new[] { -3, -2, 0, 2, 3 }) RUnitAt(root, b, 0f, k, 3, 1, BlockKind.Cube, PurpleCol, L, j);   // 한 칸씩 내민다
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 4, 1, BlockKind.Cube, RedCol, L, j);                     // 아치가 닫힌다
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 5, 1, BlockKind.Cube, SlateCol, L, j);
+                foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 6), 2, BlockKind.Cube, BlueCol, 0f, L, true);
+                foreach (int k in new[] { -3, -2, 0, 2, 3 }) RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Cube, PurpleCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, SlateCol, L, j);
             }
         }
 
