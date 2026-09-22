@@ -2207,7 +2207,19 @@ namespace SmashGame
         static void RUnitAt(Transform root, Vector3 b, float yaw, float k, int row, int cells, BlockKind kind, Color col, List<Block> L, float j = 0f)
             => RUnit(root, At(b, yaw, k, j, row), cells, kind, col, yaw, L);
         static void RColAt(Transform root, Vector3 b, float yaw, float k, float j, int h, BlockKind kind, Color col, List<Block> L, bool each = false)
+
             => RCol(root, At(b, yaw, k, j), h, kind, col, yaw, L, each);
+
+        /// <summary>반지름 r 안에 드는 격자 칸만 채워 한 층짜리 원판을 만든다.
+        /// 원기둥 종류를 넘기면 실제 원기둥으로 그려져 층 전체가 둥글게 읽힌다.</summary>
+        static void RDiscAt(Transform root, Vector3 b, float r, int row, BlockKind kind, Color col, List<Block> L)
+        {
+            int m = Mathf.CeilToInt(r);
+            for (int k = -m; k <= m; k++)
+                for (int j = -m; j <= m; j++)
+                    if (k * k + j * j <= r * r)
+                        RUnitAt(root, b, 0f, k, row, 1, kind, col, L, j);
+        }
         /// <summary>규칙 ⑦ 2×2 기둥 묶음: (k±0.5, j±0.5) 네 기둥. 홀로 선 탑은 최소 이 크기여야 한두 방에 안 무너진다.</summary>
         static void RCluster(Transform root, Vector3 b, float yaw, float k, float j, int h, BlockKind kind, Color col, List<Block> L, bool each = false)
         { foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RColAt(root, b, yaw, k + dk, j + dj, h, kind, col, L, each); }
@@ -3194,40 +3206,30 @@ namespace SmashGame
             }
         }
 
-        /// <summary>
-        /// 97 항아리 탑: 95번 모래시계를 둥글게 다듬은 것. 폭만 좁아졌다 벌어지는 95와 달리
-        /// 허리에서 폭과 깊이를 함께 좁혀 사방에서 잘록하게 만든다.
+        /// <summary>97 둥근 항아리 탑: 원기둥 부재를 원판 평면으로 쌓은 진짜 둥근 탑.
         ///
-        /// 처음에는 블록을 원 둘레에 돌려 놓아 진짜 원통으로 만들려 했는데 두 번 실패했다.
-        /// 바깥 둘레로 개수를 세면 안쪽에서 간격이 좁아져 이웃끼리 파고들어 176개 중 171개가 터졌고,
-        /// 안쪽 둘레로 세어 겹침을 없애니 이번엔 바깥에 틈이 벌어져 블록끼리 닿지 않았다.
-        /// 서로 기대지 못하는 낱개 기둥 열 단은 그냥 쓰러진다(74개). 이 격자에서 원은 비싸다.
-        /// 그래서 네모를 유지하되 폭·깊이를 함께 줄여 둥근 실루엣만 얻는 쪽으로 갔다.
+        /// 네모 블록으로 실루엣만 줄여서는 둥글어 보이지 않는다는 걸 한 번 배웠다.
+        /// 이 엔진은 Cylinder/Candy/Log/Stone 종류를 실제 원기둥으로 그리므로(RBar는 늘 상자)
+        /// 몸통은 전부 RUnitAt + 원기둥 종류로 쌓고, 평면 자체도 i^2+j^2 &lt;= r^2 인 칸만 채워
+        /// 층마다 원판이 되게 한다. r을 3.0 → 2.3 → 1.5로 줄이면 위 칸은 항상 아래 칸 위에 있다.
         ///
-        /// 좁아지는 쪽은 그냥 쌓으면 되지만 다시 벌어지는 쪽은 통부재로 받아야 한다.
-        /// 폭은 5칸 부재가 3칸 허리에 6할, 깊이는 4칸 부재가 두 겹 허리에 5할 걸친다.
-        /// </summary>
+        /// 다시 벌어지는 허리 위는 원판을 바로 못 얹는다(모서리 칸이 대각선만 물어 0할 받침).
+        /// 그래서 5칸 통부재를 가로로 깔고 그 위에 세로로 한 겹 더 깔아 코벨 판을 만든 뒤
+        /// 그 판 위에 r = 2.4 원판을 두 층 올린다. 금색 두 겹이 항아리 어깨의 띠처럼 읽힌다.</summary>
         static void BuildN_JarTower(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = TightPlate(root, p, info, 3f, 3f);
-            var wide = new[] { -1.5f, -0.5f, 0.5f, 1.5f };
-            var core = new[] { -0.5f, 0.5f };
-            foreach (float j in wide)
-            {
-                for (int k = -3; k <= 3; k++) { RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j); RUnitAt(root, b, 0f, k, 1, 1, BlockKind.Cube, SlateCol, L, j); }
-                for (int k = -2; k <= 2; k++) { RUnitAt(root, b, 0f, k, 2, 1, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, k, 3, 1, BlockKind.Cube, BlueCol, L, j); }
-            }
-            foreach (float j in core)                                                    // 허리 — 폭도 깊이도 좁다
-                for (int row = 4; row <= 5; row++)
-                    for (int k = -1; k <= 1; k++) RUnitAt(root, b, 0f, k, row, 1, BlockKind.Cube, RedCol, L, j);
-            // 벌어지는 순서가 중요하다. 폭과 깊이를 한꺼번에 벌리면 새로 생긴 바깥 칸이 받침을 못 찾는다
-            // (5칸까지만 벌린 층 위에 7칸을 얹었더니 양 끝 칸이 떠서 13개가 무너졌다).
-            // 그래서 두 겹짜리 허리 위에서 폭을 3 → 5 → 7로 먼저 다 벌리고, 그 다음에 깊이를 벌린다.
-            foreach (float j in core) RBarAt(root, b, 0f, 0f, 6, 5, BlockKind.Cube, GoldCol, L, j);
-            foreach (float j in core) RBarAt(root, b, 0f, 0f, 7, 7, BlockKind.Cube, GoldCol, L, j);
-            for (int k = -3; k <= 3; k++) RBarAt(root, b, 90f, 0f, 8, 4, BlockKind.Cube, PinkCol, L, -k);   // 깊이가 벌어진다
-            foreach (float j in wide) RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, PurpleCol, GoldCol, L, j);
+            var b = TightPlate(root, p, info, 3f, 6f);
+            RDiscAt(root, b, 3.0f, 0, BlockKind.Cylinder, SlateCol, L);
+            RDiscAt(root, b, 3.0f, 1, BlockKind.Cylinder, SlateCol, L);
+            RDiscAt(root, b, 2.3f, 2, BlockKind.Cylinder, BlueCol, L);
+            RDiscAt(root, b, 2.3f, 3, BlockKind.Cylinder, BlueCol, L);
+            RDiscAt(root, b, 1.5f, 4, BlockKind.Candy, RedCol, L);              // 허리
+            RDiscAt(root, b, 1.5f, 5, BlockKind.Candy, RedCol, L);
+            for (int j = -1; j <= 1; j++) RBarAt(root, b, 0f, 0f, 6, 5, BlockKind.Cube, GoldCol, L, j);   // 코벨 판 1겹
+            for (int k = -2; k <= 2; k++) RBarAt(root, b, 90f, 0f, 7, 5, BlockKind.Cube, GoldCol, L, -k); // 코벨 판 2겹
+            RDiscAt(root, b, 2.4f, 8, BlockKind.Cylinder, PurpleCol, L);        // 어깨
+            RDiscAt(root, b, 1.8f, 9, BlockKind.Log, PinkCol, L);               // 주둥이
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
