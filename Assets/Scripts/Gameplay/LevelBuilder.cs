@@ -581,6 +581,8 @@ namespace SmashGame
                 case 81: BuildN_TriTwist(root, rng, p, info); break;
                 case 82: BuildN_BrickTwistFront(root, rng, p, info); break;
                 case 83: BuildN_BrickTwistBack(root, rng, p, info); break;
+                case 84: BuildN_GuardTower(root, rng, p, info); break;
+                case 85: BuildN_BarTwist(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -697,7 +699,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", _ => "성채"
             };
             return info;
         }
@@ -2748,6 +2750,61 @@ namespace SmashGame
             var b = TightPlate(root, p, info, 2f, 7f, 0.25f);
             RBrickDeck(root, Shift(b, 0f, -2.2f), 0f, 5, 6, 3, 0, BlockKind.Cube, SlateCol, RedCol, L);
             RTwistAt(root, b, 0f, 2.2f, 3, 8, r => 5f * r, CandyColsC, L);
+        }
+
+        /// <summary>
+        /// 84 가드 벽과 중앙 비틀림 탑: 좌우에 엇갈려 쌓은 가드 벽 둘, 그 사이 가운데에 비틀림 탑.
+        ///
+        /// 벽을 어디에 세울지는 취향이 아니라 계산이다. 가운데 탑은 위로 갈수록 감기며 반폭이
+        /// DS×(cos t + sin t) + 0.225 까지 늘어나는데(3칸 탑·35도에서 0.85), 벽 안쪽 면이 그보다
+        /// 안에 있으면 위 켜가 벽을 때려 둘 다 무너진다. 벽 중심을 ±2.9칸에 두면 안쪽 면이 0.88이라
+        /// 0.03 여유로 스친다. 공은 이 좁은 틈으로 넣거나 벽을 먼저 헐어야 한다.
+        /// </summary>
+        static void BuildN_GuardTower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3.4f, 4f);
+            foreach (float sx in new[] { -2.9f, 2.9f })
+                RBrickDeck(root, Shift(b, sx, 0f), 90f, 5, 6, 2, 0, BlockKind.Cube, SlateCol, sx < 0f ? BlueCol : RedCol, L);
+            RTwistAt(root, b, 0f, 0f, 3, 8, r => 5f * r, CandyCols, L);
+        }
+
+        /// <summary>
+        /// 85 긴 블록 비틀림 탑: 1칸 블록 켜와 3칸·2칸 긴 블록 켜를 번갈아 쌓고 층마다 5도씩 돌린다.
+        ///
+        /// 긴 블록 켜는 같은 5×5 바닥을 두 개짜리 부재로만 덮으므로 블록 수가 25개에서 10개로 준다.
+        /// 그래서 한 방에 훨씬 크게 뜯기고, 그 자리에 얹혀 있던 1칸 블록 켜가 통째로 주저앉는다.
+        /// 긴 블록의 방향은 두 켜마다 90도 돌려 위아래 이음매가 겹치지 않게 했다.
+        /// </summary>
+        static void BuildN_BarTwist(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 2f, 4f);
+            for (int row = 0; row < 8; row++)
+            {
+                float yaw = 5f * row;
+                if (row % 2 == 0)
+                {
+                    for (int i = 0; i < 5; i++)
+                        for (int d = 0; d < 5; d++)
+                            RUnitAt(root, b, yaw, i - 2f, row, 1, BlockKind.Cube, CandyCols[i], L, d - 2f);
+                    continue;
+                }
+                float ax = (row % 4 == 1) ? 0f : 90f;   // 두 켜마다 긴 블록 방향을 90도 돌린다
+                for (int d = 0; d < 5; d++)
+                {
+                    if (d % 2 == 0)
+                    {
+                        RBarAt(root, b, yaw + ax, -1f,   row, 3, BlockKind.Cube, GoldCol,  L, d - 2f);
+                        RBarAt(root, b, yaw + ax,  1.5f, row, 2, BlockKind.Cube, SlateCol, L, d - 2f);
+                    }
+                    else
+                    {
+                        RBarAt(root, b, yaw + ax, -1.5f, row, 2, BlockKind.Cube, SlateCol, L, d - 2f);
+                        RBarAt(root, b, yaw + ax,  1f,   row, 3, BlockKind.Cube, GoldCol,  L, d - 2f);
+                    }
+                }
+            }
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
