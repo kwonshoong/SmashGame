@@ -592,6 +592,8 @@ namespace SmashGame
                 case 92: BuildN_TwistPierGate(root, rng, p, info); break;
                 case 93: BuildN_CribGate(root, rng, p, info); break;
                 case 94: BuildN_TwistTwinBridge(root, rng, p, info); break;
+                case 95: BuildN_Hourglass(root, rng, p, info); break;
+                case 96: BuildN_LadderWall(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -708,7 +710,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", 90 => "다발 기둥 성문", 91 => "계단 코벨 벽", 92 => "비틀린 기둥 성문", 93 => "井자 교차 기둥 성문", 94 => "비틀린 쌍탑 다리", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", 90 => "다발 기둥 성문", 91 => "계단 코벨 벽", 92 => "비틀린 기둥 성문", 93 => "井자 교차 기둥 성문", 94 => "비틀린 쌍탑 다리", 95 => "모래시계 탑", 96 => "사다리 벽", _ => "성채"
             };
             return info;
         }
@@ -3133,6 +3135,61 @@ namespace SmashGame
                 foreach (int k in new[] { -3, 3 }) RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Cube, RedCol, L, j);
                 for (int k = -1; k <= 1; k++) RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Cube, PinkCol, L, j);
                 RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);
+            }
+        }
+
+        /// <summary>
+        /// 95 모래시계 탑: 넓은 바닥에서 3칸 허리로 좁아졌다가 다시 7칸으로 벌어지는 윗몸을 얹는다.
+        ///
+        /// 지금까지 만든 것들이 전부 '아래가 넓고 위가 가벼운' 안전한 구조였다면, 이건 반대로
+        /// 무게를 일부러 위에 몰아 둔다. 블록의 절반 이상이 허리 위에 있고 그 하중이 3칸 기둥
+        /// 하나로 내려온다. 허리를 치면 윗몸이 통째로 내려앉고, 윗몸만 갉으면 허리는 멀쩡히 남는다.
+        ///
+        /// 벌어지는 층을 큐브로 쌓으면 한 칸씩 내민 칸이 받침 0이 되어 그냥 떨어진다.
+        /// 그래서 5칸·7칸 통부재로 받아 낸다 — 5칸 부재는 3칸 허리에 6할, 7칸 부재는 그 위에 7할이 걸린다.
+        /// </summary>
+        static void BuildN_Hourglass(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 3f);
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+            {
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);   // 넓은 바닥
+                for (int k = -2; k <= 2; k++) RUnitAt(root, b, 0f, k, 1, 1, BlockKind.Cube, BlueCol, L, j);
+                for (int row = 2; row <= 4; row++)                                                            // 허리
+                    for (int k = -1; k <= 1; k++) RUnitAt(root, b, 0f, k, row, 1, BlockKind.Cube, RedCol, L, j);
+                RBarAt(root, b, 0f, 0f, 5, 5, BlockKind.Cube, GoldCol, L, j);                                  // 벌어지기 시작
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Cube, GoldCol, L, j);
+                for (int k = -3; k <= 3; k++) { RUnitAt(root, b, 0f, k, 7, 1, BlockKind.Cube, PurpleCol, L, j); RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Cube, PinkCol, L, j); }
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, SlateCol, GoldCol, L, j);
+            }
+        }
+
+        /// <summary>
+        /// 96 사다리 벽: 탑 둘 사이를 가로장으로만 잇고 그 사이를 통째로 비워 둔다.
+        ///
+        /// 지금까지는 빈칸이 '창'이나 '문'처럼 벽에 뚫린 구멍이었는데, 여기서는 빈칸이 구조의 절반이다.
+        /// 공이 가로장 사이로 지나가 버리기도 하고, 운 좋으면 뒤쪽 가로장까지 때린다.
+        /// 가로장과 탑이 같은 칸을 다투지 않게 짜는 것이 요점이다. 탑을 통기둥으로 세우고 그 위에
+        /// 5칸 가로장을 걸쳤더니 가로장 끝이 탑 블록과 같은 칸에 들어가 서로 파고들며 99개가 터졌다.
+        /// 그래서 바깥 칸(±3)만 통기둥으로 세우고 안쪽 칸(±2)은 홀수 단에만 턱으로 두어,
+        /// 짝수 단에는 그 자리를 가로장에게 내준다. 가로장은 그 턱 위에 한 칸씩 올라타고,
+        /// 다음 턱은 다시 가로장 위에 올라선다 — 사다리처럼 서로 물린다.
+        /// </summary>
+        static void BuildN_LadderWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 3f);
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+            {
+                foreach (int k in new[] { -3, 3 })
+                    RCol(root, At(b, 0f, k, j, 0), 9, BlockKind.Cube, k < 0 ? BlueCol : RedCol, 0f, L, true);
+                for (int row = 0; row <= 8; row++)
+                {
+                    if (row % 2 == 0) RBarAt(root, b, 0f, 0f, row, 5, BlockKind.Plank, WoodCol, L, j);            // 가로장 (칸 −2~2)
+                    else foreach (int k in new[] { -2, 2 }) RUnitAt(root, b, 0f, k, row, 1, BlockKind.Cube, k < 0 ? BlueCol : RedCol, L, j);   // 가로장이 얹힐 턱
+                }
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, SlateCol, L, j);
             }
         }
 
