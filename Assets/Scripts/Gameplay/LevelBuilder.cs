@@ -3118,11 +3118,17 @@ namespace SmashGame
         static void BuildN_Bridge(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            foreach (int side in new[] { -1, 1 }) { var b = FrontPlate(root, p, side * 1.1f, 0f, 1f * DS + 0.1f); RBrickWall(root, b, 0f, 2, 5, 2, BlockKind.Crate, CrateCol, WoodCol, L); }
+            // 다리 상판은 5칸이어야 한다. 3칸이면 폭 ±0.685라 탑 안쪽 면(±0.645)에 겨우 4cm만 걸쳐
+            // 받침이 9%다. 물리가 깨어나면 미끄러지면서 그 위에 얹은 큐브·부재·사탕이 통째로 떨어진다
+            // (실측: 받침 45% 미만 블록 6개, 그중 둘은 이미 땅에 떨어진 상태).
+            // 5칸이면 ±1.145까지 뻗어 탑 위에 반 칸(0.50) 이상 올라탄다.
+            // 깊이를 6겹으로 짠 건 모양이 아니라 EnsureMinBlocks 때문이다. 2겹(44블록)으로 두면
+            // 최소 120개를 채우려고 뒷겹을 복제하는데, 그 복제본이 다리 아래 빈칸까지 메워 버린다.
+            foreach (int side in new[] { -1, 1 }) { var b = FrontPlate(root, p, side * 1.1f, 0f, 1f * DS + 0.1f, 6f * DS + 0.2f); RBrickWall(root, b, 0f, 2, 5, 6, BlockKind.Crate, CrateCol, WoodCol, L); }
             var c = Top(Vector3.zero);
-            foreach (float j in new[] { -0.5f, 0.5f })
+            foreach (float j in new[] { -2.5f, -1.5f, -0.5f, 0.5f, 1.5f, 2.5f })
             {
-                RBarAt(root, c, 0f, 0f, 5, 3, BlockKind.Plank, WoodCol, L, j);
+                RBarAt(root, c, 0f, 0f, 5, 5, BlockKind.Plank, WoodCol, L, j);
                 for (int k = -1; k <= 1; k++) RUnitAt(root, c, 0f, k, 6, 1, BlockKind.Crate, CrateCol, L, j);
                 RBarAt(root, c, 0f, 0f, 7, 3, BlockKind.Plank, WoodCol, L, j);
                 RUnitAt(root, c, 0f, 0, 8, 1, BlockKind.Candy, PinkCol, L, j);
@@ -3638,8 +3644,12 @@ namespace SmashGame
         static void BuildN_ThreeWindows(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = FrontPlate(root, p, 0f, 0f, 3.5f * DS + 0.15f);
-            foreach (float j in new[] { -0.5f, 0.5f })
+            // 겹 수는 모양이 아니라 EnsureMinBlocks 때문에 정한다. 2겹(48블록)으로 두면 최소 120개를
+            // 채우려고 뒷겹을 복제하는데, 그 복제본이 창 세 개를 뒤에서 막아 버려 창이 창으로 안 보이고
+            // 맨 윗단도 들쭉날쭉해진다(실측: 설계는 2겹인데 결과물은 5겹, 창자리까지 메워짐).
+            // 처음부터 5겹으로 짜면 같은 두께인데 창은 앞뒤로 뚫려 있고 성가퀴도 가지런하다.
+            var b = FrontPlate(root, p, 0f, 0f, 3.5f * DS + 0.15f, 5f * DS + 0.2f);
+            foreach (float j in new[] { -2f, -1f, 0f, 1f, 2f })
             {
                 for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);
                 RBarAt(root, b, 0f, -2f, 1, 3, BlockKind.Cube, BlueCol, L, j); RBarAt(root, b, 0f, 2f, 1, 3, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, 0, 1, 1, BlockKind.Cube, SlateCol, L, j);
