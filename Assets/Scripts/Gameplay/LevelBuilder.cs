@@ -3662,8 +3662,13 @@ namespace SmashGame
                 RBarAt(root, b, 0f, -2f, 4, 3, BlockKind.Cube, RedCol, L, j); RBarAt(root, b, 0f, 2f, 4, 3, BlockKind.Cube, RedCol, L, j); RUnitAt(root, b, 0f, 0, 4, 1, BlockKind.Cube, SlateCol, L, j);
                 // 5단 꽉 찬 층
                 for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 5, 1, BlockKind.Cube, SlateCol, L, j);
-                // 6단 천장
-                RBarAt(root, b, 0f, -2f, 6, 3, BlockKind.Cube, RedCol, L, j); RBarAt(root, b, 0f, 2f, 6, 3, BlockKind.Cube, RedCol, L, j); RUnitAt(root, b, 0f, 0, 6, 1, BlockKind.Cube, SlateCol, L, j);
+                // 6단 천장 — 3칸 + 2칸 + 3칸 = 8칸으로 7칸 벽을 덮는다.
+                // 3칸 바를 ±2.5칸에 놓으면 [-4,-1]과 [1,4]를, 가운데 2칸 바가 [-1,1]을 맡아
+                // 겹치는 데도 비는 데도 없이 딱 맞물리고, 양옆으로 반 칸씩 처마가 나온다.
+                // 7칸을 3+1+3으로 덮으면 가운데 한 칸이 이음매가 되어 그 줄만 따로 떨어져 나간다.
+                RBarAt(root, b, 0f, -2.5f, 6, 3, BlockKind.Cube, RedCol, L, j);
+                RBarAt(root, b, 0f, 0f, 6, 2, BlockKind.Cube, SlateCol, L, j);
+                RBarAt(root, b, 0f, 2.5f, 6, 3, BlockKind.Cube, RedCol, L, j);
                 // 7~8단 위층 창 셋
                 foreach (int k in new[] { -3, -1, 1, 3 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, BlueCol, 0f, L, true);
                 // 9단 지붕 마감
