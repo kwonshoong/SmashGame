@@ -3045,25 +3045,49 @@ namespace SmashGame
         /// <summary>
         /// 91 계단 코벨 벽: 기둥 위를 인방으로 건너지 않고, 층마다 한 칸씩 안으로 내밀어 아치를 닫는다.
         ///
-        /// 세 번째 보강 방식이다. 버팀 기둥도 묶음 기둥도 아니고, 하중을 기둥 머리로 모으는 방식 자체를
-        /// 바꾼다. 내민 칸은 아래 칸에 4분의 3이 얹히므로 처마와 달리 받침을 깎지 않고,
-        /// 긴 인방이 없으니 '인방 하나가 급소'인 구조도 아니다. 대신 한 칸씩 갉아야 해서 오래 걸린다.
+        /// 처음 판은 두 가지가 부실했다. ① 내민 칸을 1×1로 놓으니 아래에 받칠 칸이 아예 없어
+        /// 그냥 떠 있었다 — 코벨은 내미는 부재가 2칸 이상이어야 절반이 기둥에 얹힌다.
+        /// ② 맨 위층이 1×1 기둥 셋에 뚜껑만 얹은 꼴이라 한 방에 날아갔다.
+        ///
+        /// 그래서 전부 다시 짰다. 밑동 세 단은 엇갈린 벽돌(2칸 부재+반 칸), 기둥은 3단·2단짜리
+        /// 통블록을 섞어 두 칸 폭으로 세우고, 기둥 머리는 깊이 5겹을 한 번에 꿰는 5칸 부재로 묶는다.
+        /// 아치는 2칸 부재가 반씩 내밀고 그 위를 3칸 부재가 덮어 닫는다(3분의 2가 얹힌다).
+        /// 꼭대기는 다시 엇갈린 벽돌 한 단을 깔고 그 위에 처마를 덮어, 뚜껑만 얹은 형태를 없앴다.
         /// </summary>
         static void BuildN_CorbelWall(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = TightPlate(root, p, info, 3f, 2f);   // 가로 7칸, 깊이 3겹
-            foreach (float j in new[] { -1f, 0f, 1f })
+            var b = TightPlate(root, p, info, 3f, 4f);          // 가로 7칸, 깊이 5겹
+            var layers = new[] { -2f, -1f, 0f, 1f, 2f };
+            foreach (float j in layers)
             {
-                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);
-                foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 1), 2, BlockKind.Cube, BlueCol, 0f, L, true);
-                foreach (int k in new[] { -3, -2, 0, 2, 3 }) RUnitAt(root, b, 0f, k, 3, 1, BlockKind.Cube, PurpleCol, L, j);   // 한 칸씩 내민다
-                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 4, 1, BlockKind.Cube, RedCol, L, j);                     // 아치가 닫힌다
-                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 5, 1, BlockKind.Cube, SlateCol, L, j);
-                foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 6), 2, BlockKind.Cube, BlueCol, 0f, L, true);
-                foreach (int k in new[] { -3, -2, 0, 2, 3 }) RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Cube, PurpleCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 0, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 1, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 2, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+
+                // 기둥 — 3단·2단 통블록을 섞어 두 칸 폭으로. 1×1은 높이를 맞추는 자리에만.
+                RUnitAt(root, b, 0f, -3f, 3, 3, BlockKind.Cube, RedCol, L, j);
+                RUnitAt(root, b, 0f, -2f, 3, 2, BlockKind.Cube, PurpleCol, L, j);
+                RUnitAt(root, b, 0f, -2f, 5, 1, BlockKind.Cube, GoldCol, L, j);
+                RUnitAt(root, b, 0f, 2f, 3, 1, BlockKind.Cube, GoldCol, L, j);
+                RUnitAt(root, b, 0f, 2f, 4, 2, BlockKind.Cube, PurpleCol, L, j);
+                RUnitAt(root, b, 0f, 3f, 3, 3, BlockKind.Cube, RedCol, L, j);
+
+                // 코벨 — 2칸 부재가 절반만 기둥에 얹히고 절반을 아치 쪽으로 내민다.
+                RBarAt(root, b, 0f, -1.5f, 6, 2, BlockKind.Cube, BlueCol, L, j);
+                RBarAt(root, b, 0f, 1.5f, 6, 2, BlockKind.Cube, BlueCol, L, j);
+
+                // 아치를 닫는 단 — 가운데 3칸 부재가 양쪽 코벨에 3분의 2를 얹는다.
+                RBarAt(root, b, 0f, -2.5f, 7, 2, BlockKind.Cube, SlateCol, L, j);
+                RBarAt(root, b, 0f, 0f, 7, 3, BlockKind.Cube, GoldCol, L, j);
+                RBarAt(root, b, 0f, 2.5f, 7, 2, BlockKind.Cube, SlateCol, L, j);
+
+                RBrickRow(root, b, 0f, 0f, 7, 8, true, BlockKind.Cube, SlateCol, PurpleCol, L, j);
                 RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, SlateCol, L, j);
             }
+            // 기둥 머리를 깊이째 꿰는 5칸 부재. 낱개 1×1 다섯 개 대신 한 개로 묶어 머리가 통째로 버틴다.
+            RBarAt(root, b, 90f, 0f, 6, 5, BlockKind.Cube, StoneCol, L, 3f);
+            RBarAt(root, b, 90f, 0f, 6, 5, BlockKind.Cube, StoneCol, L, -3f);
         }
 
         /// <summary>
