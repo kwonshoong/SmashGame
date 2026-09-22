@@ -2753,20 +2753,43 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 84 가드 벽과 중앙 비틀림 탑: 좌우에 엇갈려 쌓은 가드 벽 둘, 그 사이 가운데에 비틀림 탑.
+        /// 84 가드 벽과 중앙 비틀림 탑: 뒤쪽 받침대에 비틀림 탑 하나, 그 앞쪽 양옆(또는 한쪽)에
+        /// 따로 선 받침대 위에 비스듬한 가드 벽. 가드는 레벨마다 15·25·35·45도 중 하나로 꺾이고,
+        /// 양쪽으로 막을 때도 있고 한쪽만 막을 때도 있다(한쪽일 때는 그 벽이 더 크다).
         ///
-        /// 벽을 어디에 세울지는 취향이 아니라 계산이다. 가운데 탑은 위로 갈수록 감기며 반폭이
-        /// DS×(cos t + sin t) + 0.225 까지 늘어나는데(3칸 탑·35도에서 0.85), 벽 안쪽 면이 그보다
-        /// 안에 있으면 위 켜가 벽을 때려 둘 다 무너진다. 벽 중심을 ±2.9칸에 두면 안쪽 면이 0.88이라
-        /// 0.03 여유로 스친다. 공은 이 좁은 틈으로 넣거나 벽을 먼저 헐어야 한다.
+        /// 가드가 본탑과 같은 받침대에 서면 탑이 무너질 때 가드까지 같이 쓸려 내려간다.
+        /// 받침대를 떼어 놓으면 가드를 헐어야 본탑에 길이 열리고, 본탑이 무너져도 가드는 남는다.
+        /// 받침대끼리는 0.7 이상 떨어져야 해서 본탑을 z +1.4까지 물렸다.
         /// </summary>
         static void BuildN_GuardTower(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
-            Begin(info); var L = info.blocks;
-            var b = TightPlate(root, p, info, 3.4f, 4f);
-            foreach (float sx in new[] { -2.9f, 2.9f })
-                RBrickDeck(root, Shift(b, sx, 0f), 90f, 5, 6, 2, 0, BlockKind.Cube, SlateCol, sx < 0f ? BlueCol : RedCol, L);
-            RTwistAt(root, b, 0f, 0f, 3, 8, r => 5f * r, CandyCols, L);
+            Begin(info); var L = info.blocks; keepPlateShape = true; fixedFront = true;
+            float ang = 15f + rng.Next(4) * 10f;     // 15 · 25 · 35 · 45도
+            int mode = rng.Next(3);                  // 0 양쪽, 1 왼쪽만, 2 오른쪽만
+            bool solo = mode != 0;
+            // 받침대 자리는 취향이 아니라 규칙이다. 상판끼리 0.7 이상 떨어져 있지 않으면 SeparatePlates가
+            // 서로 밀어내는데, 그러면 가드가 화면 밖으로 나가고 본탑은 뒤로 물러나 작아진다
+            // (처음 잡은 값에서 가드 ±0.85 → ±1.43, 본탑 z 1.4 → 2.79까지 밀렸다).
+            // 45도로 돌린 상판은 바운딩이 (halfLen + depth/2) × 0.707 만큼 커지므로, 최대 각도 기준으로
+            // 계산해 두고 자리를 고정한다. 이 값들은 같은 방식으로 각진 상판을 쓰는 계단식 성문과 맞췄다.
+            foreach (int side in new[] { -1, 1 })
+            {
+                if (mode == 1 && side > 0) continue;
+                if (mode == 2 && side < 0) continue;
+                // 가드 둘을 나란히 세울 때 폭을 잡아먹는 건 벽이 아니라 상판이다. 45도로 돌린 상판의
+                // 바운딩이 커서 둘 사이 0.7을 못 채우면 바깥으로 밀려 블록이 화면 밖(±2.03)까지 나갔다.
+                // 상판 깊이를 1.1에서 0.8로 줄이니 ±1.13에서 규칙을 만족해 밀리지 않고 ±1.93에 들어온다.
+                var c = new Vector3(side * (solo ? 0.975f : 1.13f), 0f, -0.675f);
+                float yaw = side * ang;
+                RPlate(root, p, c, yaw, 1.5f * DS, solo ? 1.1f : 0.8f);
+                RBrickDeck(root, Top(c), yaw, 3, solo ? 9 : 8, 2, 0,
+                           BlockKind.Cube, SlateCol, side < 0 ? BlueCol : RedCol, L);
+            }
+            // 한쪽만 막을 때는 뚫린 쪽으로 길이 열리므로 본탑을 4칸으로 키워 만만하지 않게 한다.
+            int n = solo ? 4 : 3;
+            var cc = new Vector3(0f, 0f, 1.7f);
+            RPlate(root, p, cc, 0f, (n - 1) * 0.5f * DS + 0.25f, n * DS + 0.25f);
+            RTwistAt(root, Top(cc), 0f, 0f, n, 8, r => 5f * r, CandyCols, L);
         }
 
         /// <summary>
