@@ -3640,22 +3640,34 @@ namespace SmashGame
             }
         }
 
-        /// <summary>70 창 셋 벽: 7열 벽 두 겹에 창 셋(2·3단, k −2·0·2)이 뚫리고 인방·성가퀴.</summary>
+        /// <summary>
+        /// 70 창 셋 벽: 7열 벽 세 겹, 10단. 아래층에 창 셋(2·3단), 6단에 천장을 덮고 그 위에 위층 창 셋,
+        /// 꼭대기는 지붕 마감. 겹은 셋으로 고정한다 — 얇게 두면 EnsureMinBlocks가 뒷겹을 복제해
+        /// 창을 뒤에서 막아 버린다(2겹 설계가 5겹으로 불어나며 창이 메워졌다). 세 겹 42블록 × 3 = 126개면
+        /// 최소치를 스스로 넘겨 복제가 돌지 않고, 창은 앞뒤로 뚫린 채 남는다.
+        /// </summary>
         static void BuildN_ThreeWindows(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            // 겹 수는 모양이 아니라 EnsureMinBlocks 때문에 정한다. 2겹(48블록)으로 두면 최소 120개를
-            // 채우려고 뒷겹을 복제하는데, 그 복제본이 창 세 개를 뒤에서 막아 버려 창이 창으로 안 보이고
-            // 맨 윗단도 들쭉날쭉해진다(실측: 설계는 2겹인데 결과물은 5겹, 창자리까지 메워짐).
-            // 처음부터 5겹으로 짜면 같은 두께인데 창은 앞뒤로 뚫려 있고 성가퀴도 가지런하다.
-            var b = FrontPlate(root, p, 0f, 0f, 3.5f * DS + 0.15f, 5f * DS + 0.2f);
-            foreach (float j in new[] { -2f, -1f, 0f, 1f, 2f })
+            var b = FrontPlate(root, p, 0f, 0f, 3.5f * DS + 0.15f, 3f * DS + 0.2f);
+            foreach (float j in new[] { -1f, 0f, 1f })
             {
+                // 0단 바닥
                 for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);
+                // 1단 인방
                 RBarAt(root, b, 0f, -2f, 1, 3, BlockKind.Cube, BlueCol, L, j); RBarAt(root, b, 0f, 2f, 1, 3, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, 0, 1, 1, BlockKind.Cube, SlateCol, L, j);
+                // 2~3단 아래층 창 셋 (k −2·0·2 가 뚫린다)
                 foreach (int k in new[] { -3, -1, 1, 3 }) RCol(root, At(b, 0f, k, j, 2), 2, BlockKind.Cube, BlueCol, 0f, L, true);
+                // 4단 인방
                 RBarAt(root, b, 0f, -2f, 4, 3, BlockKind.Cube, RedCol, L, j); RBarAt(root, b, 0f, 2f, 4, 3, BlockKind.Cube, RedCol, L, j); RUnitAt(root, b, 0f, 0, 4, 1, BlockKind.Cube, SlateCol, L, j);
-                for (int k = -3; k <= 3; k += 2) RUnitAt(root, b, 0f, k, 5, 1, BlockKind.Cube, BlueCol, L, j);
+                // 5단 꽉 찬 층
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 5, 1, BlockKind.Cube, SlateCol, L, j);
+                // 6단 천장
+                RBarAt(root, b, 0f, -2f, 6, 3, BlockKind.Cube, RedCol, L, j); RBarAt(root, b, 0f, 2f, 6, 3, BlockKind.Cube, RedCol, L, j); RUnitAt(root, b, 0f, 0, 6, 1, BlockKind.Cube, SlateCol, L, j);
+                // 7~8단 위층 창 셋
+                foreach (int k in new[] { -3, -1, 1, 3 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, BlueCol, 0f, L, true);
+                // 9단 지붕 마감
+                RBarAt(root, b, 0f, -2f, 9, 3, BlockKind.Cube, BlueCol, L, j); RBarAt(root, b, 0f, 2f, 9, 3, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, 0, 9, 1, BlockKind.Cube, SlateCol, L, j);
             }
         }
 
