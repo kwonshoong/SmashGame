@@ -584,6 +584,9 @@ namespace SmashGame
                 case 84: BuildN_GuardTower(root, rng, p, info); break;
                 case 85: BuildN_BarTwist(root, rng, p, info); break;
                 case 86: BuildN_EaveTower(root, rng, p, info); break;
+                case 87: BuildN_Arcade(root, rng, p, info); break;
+                case 88: BuildN_DoorRoom(root, rng, p, info); break;
+                case 89: BuildN_SkyBridge(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -700,7 +703,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", 87 => "두 칸 아치 회랑", 88 => "문 달린 방", 89 => "쌍탑 구름다리", _ => "성채"
             };
             return info;
         }
@@ -2883,6 +2886,74 @@ namespace SmashGame
                 RLidAt(root, b, 0f, 5, 6, BlockKind.Cube, RedCol, SlateCol, L, j);
                 foreach (int k in new[] { -1, 1 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, PinkCol, 0f, L, true);
                 RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);
+            }
+        }
+
+        /// <summary>
+        /// 87 두 칸 아치 회랑: 기둥 셋(k −3·0·3) 위에 2칸짜리 아치 둘, 그 위에 2층을 같은 식으로 올린다.
+        ///
+        /// 아치 위를 덮을 때 처마 방식(RLidAt)을 쓰지 않는다. 그건 아래가 꽉 찬 층일 때만 맞는 방법이라,
+        /// 가운데가 뚫린 아치 위에 깔면 가운데 조각이 허공에 뜬다.
+        /// 4칸 부재 둘로 나눠 각각 기둥 둘에 걸치게도 해봤는데, 두 부재가 가운데 기둥 위에서 한 칸
+        /// 겹쳐 서로 밀어내며 21개가 무너졌다. 7칸 통부재 하나로 기둥 셋을 한 번에 건너는 것이 답이다.
+        /// 대신 이 인방이 부서지면 아치가 통째로 열린다 — 이 구조의 급소다.
+        /// </summary>
+        static void BuildN_Arcade(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 3f);   // 가로 7칸, 깊이 4겹
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+            {
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);
+                foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 1), 4, BlockKind.Cube, BlueCol, 0f, L, true);
+                RBarAt(root, b, 0f, 0f, 5, 7, BlockKind.Cube, RedCol, L, j);      // 두 아치를 한 번에 건너는 통인방
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 6, 1, BlockKind.Cube, SlateCol, L, j);
+                foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, PurpleCol, 0f, L, true);
+                RBarAt(root, b, 0f, 0f, 9, 7, BlockKind.Cube, GoldCol, L, j);
+            }
+        }
+
+        /// <summary>
+        /// 88 문 달린 방: 가로 7칸 × 깊이 5칸의 속 빈 방. 앞면 가운데에 문이 뚫려 있고 위는 지붕으로 덮는다.
+        ///
+        /// 지붕은 두 켜다. 아래 켜는 7칸 통부재를 깊이마다 하나씩 걸쳐 양쪽 벽에 물리고,
+        /// 그 위에 처마 켜를 올린다. 통부재를 먼저 걸지 않고 처마부터 깔면 방 한가운데가 비어 있어
+        /// 가운데 조각이 받침 없이 뜬다. 문으로 공을 넣어 안에서부터 헐 수도 있다.
+        /// </summary>
+        static void BuildN_DoorRoom(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks; int wallRows = 8;
+            var b = TightPlate(root, p, info, 3f, 4f);   // 가로 7칸, 깊이 5칸
+            for (int row = 0; row < wallRows; row++)
+                for (int k = -3; k <= 3; k++)
+                    for (int d = -2; d <= 2; d++)
+                    {
+                        if (k > -3 && k < 3 && d > -2 && d < 2) continue;              // 속은 비운다
+                        if (d == -2 && row < 3 && k >= -1 && k <= 1) continue;          // 앞면 가운데 문
+                        var col = (row % 2 == 0) ? SlateCol : BlueCol;
+                        if (d == -2 && row < 4 && (k == -2 || k == 2)) col = RedCol;    // 문설주
+                        RUnitAt(root, b, 0f, k, row, 1, BlockKind.Cube, col, L, d);
+                    }
+            for (int d = -2; d <= 2; d++) RBarAt(root, b, 0f, 0f, wallRows, 7, BlockKind.Cube, WoodCol, L, d);   // 들보
+            for (int d = -2; d <= 2; d++) RLidAt(root, b, 0f, 7, wallRows + 1, BlockKind.Cube, RedCol, GoldCol, L, d);
+        }
+
+        /// <summary>
+        /// 89 쌍탑 구름다리: 2칸짜리 탑 둘 사이를 구름다리로 잇고 그 위에 작은 집을 올린다.
+        ///
+        /// 다리는 7칸을 통으로 건너 양쪽 탑 위에 두 칸씩 올라탄다. 다리 길이를 아껴 3칸만 걸치면
+        /// 탑 안쪽 면에 몇 cm만 물려 미끄러진다 — 20번 다리에서 실제로 겪은 일이다.
+        /// </summary>
+        static void BuildN_SkyBridge(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 3f);   // 가로 7칸, 깊이 4겹
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+            {
+                foreach (int k in new[] { -3, -2, 2, 3 }) RCol(root, At(b, 0f, k, j, 0), 6, BlockKind.Crate, CrateCol, 0f, L, true);
+                RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Plank, WoodCol, L, j);         // 구름다리
+                foreach (int k in new[] { -1, 0, 1 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, PinkCol, 0f, L, true);
+                RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);     // 집 지붕
             }
         }
 
