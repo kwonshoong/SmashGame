@@ -2981,13 +2981,21 @@ namespace SmashGame
             foreach (float kc in new[] { -2.5f, 2.5f })
                 foreach (float jc in new[] { -1f, 1f })
                     RCluster(root, At(b, 0f, 0f, 0f, 1), 0f, kc, jc, 5, BlockKind.Crate, CrateCol, L, true);
+            // 가운데 기둥: 3칸 부재를 문 한가운데(칸 −1·0·1)에 안쪽 두 겹으로만 쌓아 올린다.
+            // 앞겹은 비워 두므로 정면에서는 문이 열려 보이고, 쏘아 넣으면 이 기둥에 막힌다.
+            // 지시는 3~5단이었지만 1·2단을 빼면 기둥이 허공에서 시작하므로 바닥부터 세웠다.
+            foreach (float j in new[] { -0.5f, 0.5f })
+                for (int row = 1; row <= 5; row++)
+                    RBarAt(root, b, 0f, 0f, row, 3, BlockKind.Cube, PurpleCol, L, j);
             foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
             {
                 RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Plank, WoodCol, L, j);   // 문 위 통인방
-                RUnitAt(root, b, 0f, -3, 7, 1, BlockKind.Cube, RedCol, L, j); RUnitAt(root, b, 0f, 3, 7, 1, BlockKind.Cube, RedCol, L, j);
+                foreach (int k in new[] { -3, -2, 2, 3 }) RUnitAt(root, b, 0f, k, 7, 1, BlockKind.Cube, RedCol, L, j);   // 난간
+                // 꼭대기 탑은 칸에 딱 맞춰 3칸 × 두 단으로. 2×2 묶음을 반 칸 어긋난 자리에 올렸더니
+                // 그 위 지붕이 받침을 못 찾고 기울어 떨어졌다.
+                for (int k = -1; k <= 1; k++) { RUnitAt(root, b, 0f, k, 7, 1, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, k, 8, 1, BlockKind.Cube, BlueCol, L, j); }
+                RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);
             }
-            foreach (float jc in new[] { -1f, 1f }) RCluster(root, At(b, 0f, 0f, 0f, 7), 0f, 0f, jc, 2, BlockKind.Cube, PurpleCol, L, true);
-            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f }) RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);
         }
 
         /// <summary>
