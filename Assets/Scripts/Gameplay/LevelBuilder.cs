@@ -575,6 +575,9 @@ namespace SmashGame
                 case 74: BuildN_TwinIceTowers(root, rng, p, info); break;
                 case 76: BuildN_Watchtower(root, rng, p, info); break;
                 case 77: BuildN_ColorWall(root, rng, p, info); break;
+                case 78: BuildN_Whirl(root, rng, p, info); break;
+                case 79: BuildN_Twine(root, rng, p, info); break;
+                case 80: BuildN_TwistChimney(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -691,7 +694,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "비틀린 굴뚝", _ => "성채"
             };
             return info;
         }
@@ -2623,28 +2626,59 @@ namespace SmashGame
         }
 
         /// <summary>
-        /// 77 비틀린 색동 탑 (레퍼런스): 한 켜가 가로 5칸 × 깊이 5칸인 정사각 판이고, 그 판을 8층까지 쌓는다.
-        /// 한 층 올라갈 때마다 그 켜를 통째로 좌로 3도씩 돌려, 위로 갈수록 판이 비틀린다.
+        /// 비틀림 탑 공통 빌더. 한 켜는 n×n 정사각 판이고 그 판을 통째로 yawOf(층)만큼 돌려 쌓는다.
         ///
-        /// 켜 전체를 같은 각도로 돌리는 것이 요점이다. 블록 하나하나를 따로 밀면 정면 격자가 흐트러지지만,
-        /// 판을 통째로 돌리면 격자는 그대로 유지된 채 방향만 바뀐다. 받침도 각도 차이만큼만 깎인다 —
-        /// 3도면 바깥 모서리 블록이 0.07칸 움직여 아래 블록을 8할 이상 밟는다.
+        /// 블록을 하나씩 밀면 정면 격자가 흐트러지지만, 판을 통째로 돌리면 격자는 그대로 유지된 채
+        /// 방향만 바뀐다. 받침이 깎이는 양은 '중심에서 모서리까지 거리 × 이웃 층 각도차(라디안)'다.
+        /// 5칸 판의 바깥 모서리는 중심에서 1.63이므로 6도면 0.17 — 블록 폭(0.45)의 38%만 어긋난다.
+        /// 이 값이 절반을 넘으면 모서리부터 떨어져 나가므로, 판이 넓을수록 각도는 작게 잡아야 한다.
         /// </summary>
-        public static float TwistPerRow = 6f;   // 도
-        public static int TwistRows = 8;
-        static void BuildN_ColorWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+        static void RTwistTower(Transform root, Palette p, LevelInfo info, int n, int rows, bool hollow,
+                                System.Func<int, float> yawOf, Color[] cols)
         {
             Begin(info); var L = info.blocks;
-            var b = FrontPlate(root, p, 0f, 0f, 2.5f * DS + 0.14f, 5f * DS + 0.28f);
-            var colCol = new[] { RedCol, BlueCol, PinkCol, PurpleCol, RedCol };
-            for (int row = 0; row < TwistRows; row++)
+            float half = (n - 1) * 0.5f;
+            var b = FrontPlate(root, p, 0f, 0f, (half + 0.5f) * DS + 0.14f, (n + 1) * DS + 0.28f);
+            for (int row = 0; row < rows; row++)
             {
-                float yaw = TwistPerRow * row;   // 좌로 (+yaw면 정면이 왼쪽을 향한다)
-                for (int i = 0; i < 5; i++)
-                    for (int d = 0; d < 5; d++)
-                        RUnitAt(root, b, yaw, i - 2f, row, 1, BlockKind.Cube, colCol[i], L, d - 2f);
+                float yaw = yawOf(row);
+                for (int i = 0; i < n; i++)
+                    for (int d = 0; d < n; d++)
+                    {
+                        if (hollow && i > 0 && i < n - 1 && d > 0 && d < n - 1) continue;   // 속 빈 굴뚝
+                        RUnitAt(root, b, yaw, i - half, row, 1, BlockKind.Cube, cols[i % cols.Length], L, d - half);
+                    }
             }
         }
+        static readonly Color[] CandyCols = { RedCol, BlueCol, PinkCol, PurpleCol, RedCol };
+        public static float TwistPerRow = 6f;   // 도
+        public static int TwistRows = 8;
+
+        /// <summary>77 비틀린 색동 탑: 5×5 켜를 층마다 같은 각도로 좌로 돌려 8층. 꼭대기 42도.</summary>
+        static void BuildN_ColorWall(Transform root, System.Random rng, Palette p, LevelInfo info)
+            => RTwistTower(root, p, info, 5, TwistRows, false, r => TwistPerRow * r, CandyCols);
+
+        /// <summary>
+        /// 78 소용돌이 탑: 층마다 도는 각도 자체가 커진다(1.6도씩 증가, 꼭대기 누적 28도).
+        /// 아래는 거의 반듯하고 위로 갈수록 급히 감겨 올라가는 소용돌이가 된다.
+        /// 각도 증가폭은 이웃 층 차이가 6.4도를 넘지 않게 잡았다 — 그 위로는 모서리 받침이 절반 아래로 떨어진다.
+        /// </summary>
+        static void BuildN_Whirl(Transform root, System.Random rng, Palette p, LevelInfo info)
+            => RTwistTower(root, p, info, 5, 8, false, r => r * (r + 3) * 0.4f, CandyCols);
+
+        /// <summary>
+        /// 79 꽈배기 탑: 도는 방향이 중간에 뒤집힌다(사인 한 주기, 진폭 10도).
+        /// 아래 절반은 좌로 감기고 위 절반은 우로 풀려, 허리가 잘록한 꽈배기 실루엣이 된다.
+        /// </summary>
+        static void BuildN_Twine(Transform root, System.Random rng, Palette p, LevelInfo info)
+            => RTwistTower(root, p, info, 5, 8, false, r => 10f * Mathf.Sin(Mathf.PI * r / 4f), CandyCols);
+
+        /// <summary>
+        /// 80 비틀린 굴뚝: 5칸 판의 테두리만 남긴 속 빈 고리를 층마다 6도씩 돌려 8층.
+        /// 가운데가 뚫려 있어 공이 안쪽까지 파고들고, 한쪽 벽이 무너지면 반대쪽이 버티는 맛이 있다.
+        /// </summary>
+        static void BuildN_TwistChimney(Transform root, System.Random rng, Palette p, LevelInfo info)
+            => RTwistTower(root, p, info, 5, 8, true, r => 6f * r, CandyCols);
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
         static void BuildN_BrickFence(Transform root, System.Random rng, Palette p, LevelInfo info)
