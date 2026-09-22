@@ -2906,11 +2906,15 @@ namespace SmashGame
             {
                 for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);
                 foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 1), 4, BlockKind.Cube, BlueCol, 0f, L, true);
+                foreach (int k in new[] { -2, 2 }) RCol(root, At(b, 0f, k, j, 1), 2, BlockKind.Cube, SlateCol, 0f, L, true);   // 버팀 기둥
                 RBarAt(root, b, 0f, 0f, 5, 7, BlockKind.Cube, RedCol, L, j);      // 두 아치를 한 번에 건너는 통인방
                 for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 6, 1, BlockKind.Cube, SlateCol, L, j);
-                foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, PurpleCol, 0f, L, true);
                 RBarAt(root, b, 0f, 0f, 9, 7, BlockKind.Cube, GoldCol, L, j);
             }
+            // 2층 기둥은 1층과 앞뒤로 어긋나게 세운다. 같은 깊이에 일직선으로 두면 한 자리만 뚫려도
+            // 1층과 2층이 같이 내려앉는데, 어긋나면 2층 기둥은 1층 바닥 위 다른 자리에 하중을 준다.
+            foreach (float j in new[] { -0.5f, 0.5f, 1.5f })
+                foreach (int k in new[] { -3, 0, 3 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, PurpleCol, 0f, L, true);
         }
 
         /// <summary>
@@ -2951,6 +2955,7 @@ namespace SmashGame
             foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
             {
                 foreach (int k in new[] { -3, -2, 2, 3 }) RCol(root, At(b, 0f, k, j, 0), 6, BlockKind.Crate, CrateCol, 0f, L, true);
+                foreach (int k in new[] { -1, 1 }) RCol(root, At(b, 0f, k, j, 0), 3, BlockKind.Crate, WoodCol, 0f, L, true);   // 안쪽 버팀 기둥
                 RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Plank, WoodCol, L, j);         // 구름다리
                 foreach (int k in new[] { -1, 0, 1 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, PinkCol, 0f, L, true);
                 RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);     // 집 지붕
