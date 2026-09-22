@@ -69,7 +69,9 @@ namespace SmashGame
         public const int   BonusClearCoin = 90;            // 전부 부쉈을 때 기준 (×CoinScale). 일반 레벨 1판 수입의 약 2.5배가 되도록 잡았다
         public const int   BonusAllClearCoin = 40;         // 하나도 안 남기면 추가 (×CoinScale)
         public const bool  BonusEnabled = true;
-        public static bool IsBonusLevel(int level) => BonusEnabled && level >= 5 && level % BonusEveryLevels == 5;
+        public static bool IsBonusLevel(int level) => BonusEnabled && level >= BonusFromLevel && level % BonusEveryLevels == 5;
+        /// <summary>보너스 스테이지가 처음 나오는 레벨. 5레벨은 아직 조작을 익히는 중이라 25로 미뤘다.</summary>
+        public const int BonusFromLevel = 25;
         /// <summary>보너스 블록 질량. 0.55에서는 한 발에 열 개씩 쓸려 나가 20초를 못 채우고 끝났다(35레벨 실측). 일반 레벨(0.7~1.0)과 비슷하게 둔다.</summary>
         public const float BonusMassScale = 0.85f;
         /// <summary>
@@ -136,14 +138,24 @@ namespace SmashGame
         public const float TargetMassPerBallGrowth = 0.004f; // 레벨당 +0.4% (기준 질량 기준). 여기에 블록 질량 배율 성장(BlockMassGrowth)이 곱해져 실제 곡선이 된다
         public const float HardLevelMassMult = 1.6f;         // 하드 레벨은 공 1개당 60% 더 밀어야 한다 (로그상 1.35는 체감되지 않았다)
         public const int StartBallsBase = 2;                 // 질량 비례분에 더하는 여유
-        /// <summary>초반 보정. 1~2레벨 플레이 로그에서 스탯 1레벨 공이 실제로 걷어낸 양은
-        /// 원통 다발 2.27kg/발, 벽돌 담 1.2kg/발이었다. 그런데 목표치는 1.9kg/발이라
-        /// 벽돌 담(2레벨)은 공 37개로 126개 중 56개밖에 못 걷어내고 두 번 다 졌다.
-        /// 스탯이 아직 1레벨인 구간에서는 목표치를 낮추고 블록도 가볍게 한다.</summary>
-        public static float EarlyMassMult(int level) => Mathf.Lerp(0.80f, 1f, Mathf.Clamp01((level - 1) / 9f));
-        public static float EarlyTargetMult(int level) => Mathf.Lerp(0.65f, 1f, Mathf.Clamp01((level - 1) / 14f));
+        /// <summary>30레벨까지의 구조물 총 질량 상한(kg). 강화를 하나도 안 한 공으로 깰 수 있어야 한다.
+        ///
+        /// 1~20레벨 플레이 로그에서 스탯 1레벨 공이 실제로 걷어낸 양은 2.0~2.8kg/발이었다(중앙값 2.5).
+        /// 공은 상한이 40개이므로 40 × 2.0 = 80kg이 "강화 없이 깰 수 있는" 질량의 한계다.
+        /// 실제로 20레벨 신전은 148.8kg이라 발당 3.82kg이 필요했고 다섯 번 다 졌다.
+        /// 그래서 목표 난이도를 '발당 2kg 이하'로 두고 질량에 직접 상한을 건다.
+        /// 31~45레벨은 상한을 천천히 풀어 강화 구간으로 넘긴다.</summary>
+        public static float MassCapFor(int level)
+        {
+            if (level <= 30) return Mathf.Lerp(35f, 85f, (level - 1) / 29f);
+            if (level <= 45) return 85f + (level - 30) * 4f;
+            return 0f;   // 상한 없음
+        }
         public const int MinStartBalls = 8, MaxStartBalls = 40;   // 하한 8: 아주 높은 레벨에선 공이 8개로 고정되고 그 뒤 난이도는 블록 질량 배율이 계속 올린다. 상한 40 → 34: 저레벨이 상한에 걸려 공이 남아돌았다
-        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * EarlyTargetMult(level) * (1f + level * TargetMassPerBallGrowth) * (hard ? HardLevelMassMult : 1f);
+        /// <summary>하드 레벨 1.6배는 31레벨부터. 10·20·30레벨은 강화 없이 깨야 하는 구간이라
+        /// 1.6배를 곱하면 발당 3.3kg이 넘어간다(20레벨 신전이 그래서 안 깨졌다).
+        /// 그 구간의 하드 레벨은 장애물과 받침대 움직임으로만 어렵게 한다.</summary>
+        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * (1f + level * TargetMassPerBallGrowth) * (hard && level > 30 ? HardLevelMassMult : 1f);
         public static int StartBalls(int level, bool hard, float totalMass, float structureFactor = 1f)
         {
             int n = StartBallsBase + Mathf.RoundToInt(totalMass * Mathf.Clamp(structureFactor, 0.5f, 1.6f) / TargetMassPerBall(level, hard));
@@ -237,7 +249,7 @@ namespace SmashGame
         /// 시작 공은 이 배율을 뺀 "기준 질량"(BallRefMassScale 기준)으로 세므로, 무거워진 만큼이 그대로 난이도가 된다. 레벨은 무한이므로 상한을 두지 않는다.</summary>
         public const float BlockMassBase = 0.7f;
         public const float BlockMassGrowth = 0.0015f;
-        public static float BlockMassScale(int level) => BlockMassBase * EarlyMassMult(level) * (1f + Mathf.Max(0, level - 1) * BlockMassGrowth);
+        public static float BlockMassScale(int level) => BlockMassBase * (1f + Mathf.Max(0, level - 1) * BlockMassGrowth);
         /// <summary>시작 공 계산의 기준 질량 배율 (TargetMassPerBall이 이 배율에서 튜닝됨). 실제 배율/기준 배율만큼 블록이 더 무겁고, 그만큼 어렵다.</summary>
         public const float BallRefMassScale = 0.6f;
         /// <summary>장애물 등장: 하드 레벨 전부 + 5레벨마다</summary>

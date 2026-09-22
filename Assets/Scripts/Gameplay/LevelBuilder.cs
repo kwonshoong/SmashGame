@@ -640,6 +640,7 @@ namespace SmashGame
             }
             Physics.SyncTransforms();
             EnsureMinBlocks(root, info, rng);
+            ApplyMassCap(info, level);
             SeparatePlates(root, info, level, type);
             FitPlatesToBlocks(info.blocks);
             float zShift = info.rangeZ;
@@ -1861,6 +1862,20 @@ namespace SmashGame
         /// </summary>
         public static float WidthLimitAt(float z) => (7.5f + z) * (GameManager.CamRefHalfWidth / GameManager.CamRefDist) - 0.1f;
         static bool WithinWidth(Vector3 center, float halfX) => Mathf.Abs(center.x) + halfX <= WidthLimitAt(center.z);
+
+        /// <summary>30레벨까지는 구조물 총 질량에 상한을 건다(Balance.MassCapFor).
+        /// 넘으면 모든 블록의 질량을 같은 비율로 깎는다 — 모양은 그대로 두고 무게만 줄인다.
+        /// 시작 공은 이 '깎인 뒤' 질량으로 세므로, 상한이 그대로 '발당 몇 kg' 난이도가 된다.</summary>
+        static void ApplyMassCap(LevelInfo info, int level)
+        {
+            float cap = Balance.MassCapFor(level);
+            if (cap <= 0f) return;
+            float total = 0f;
+            foreach (var b in info.blocks) { if (b == null) continue; var rb = b.GetComponent<Rigidbody>(); if (rb != null) total += rb.mass; }
+            if (total <= cap || total <= 0.01f) return;
+            float k = cap / total;
+            foreach (var b in info.blocks) { if (b == null) continue; var rb = b.GetComponent<Rigidbody>(); if (rb != null) rb.mass *= k; }
+        }
 
         static void EnsureMinBlocks(Transform root, LevelInfo info, System.Random rng)
         {
