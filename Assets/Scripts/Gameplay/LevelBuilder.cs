@@ -2220,6 +2220,22 @@ namespace SmashGame
                     if (k * k + j * j <= r * r)
                         RUnitAt(root, b, 0f, k, row, 1, kind, col, L, j);
         }
+
+        /// <summary>벌집(육각 최밀) 배치 원판. 줄마다 반 칸씩 어긋나고 줄 간격은 0.866칸이라
+        /// 원기둥끼리 여섯 방향으로 맞물려, 위에서 내려다보면 사각 격자보다 훨씬 원에 가깝다.
+        /// 층끼리는 같은 평면을 쓰므로(위 층은 아래 층의 부분집합) 받침은 항상 100%다.</summary>
+        static void RHexDiscAt(Transform root, Vector3 b, float r, int row, BlockKind kind, Color col, List<Block> L)
+        {
+            const float RowGap = 0.8660254f;
+            int m = Mathf.CeilToInt(r) + 1;
+            for (int q = -m; q <= m; q++)
+                for (int t = -m; t <= m; t++)
+                {
+                    float x = q + t * 0.5f, z = t * RowGap;
+                    if (x * x + z * z <= r * r + 1e-4f)
+                        RUnitAt(root, b, 0f, x, row, 1, kind, col, L, z);
+                }
+        }
         /// <summary>규칙 ⑦ 2×2 기둥 묶음: (k±0.5, j±0.5) 네 기둥. 홀로 선 탑은 최소 이 크기여야 한두 방에 안 무너진다.</summary>
         static void RCluster(Transform root, Vector3 b, float yaw, float k, float j, int h, BlockKind kind, Color col, List<Block> L, bool each = false)
         { foreach (float dk in new[] { -0.5f, 0.5f }) foreach (float dj in new[] { -0.5f, 0.5f }) RColAt(root, b, yaw, k + dk, j + dj, h, kind, col, L, each); }
@@ -3206,30 +3222,30 @@ namespace SmashGame
             }
         }
 
-        /// <summary>97 둥근 항아리 탑: 원기둥 부재를 원판 평면으로 쌓은 진짜 둥근 탑.
+        /// <summary>97 둥근 항아리 탑: 벌집 배치 원기둥으로 쌓은 진짜 둥근 탑.
         ///
-        /// 네모 블록으로 실루엣만 줄여서는 둥글어 보이지 않는다는 걸 한 번 배웠다.
-        /// 이 엔진은 Cylinder/Candy/Log/Stone 종류를 실제 원기둥으로 그리므로(RBar는 늘 상자)
-        /// 몸통은 전부 RUnitAt + 원기둥 종류로 쌓고, 평면 자체도 i^2+j^2 &lt;= r^2 인 칸만 채워
-        /// 층마다 원판이 되게 한다. r을 3.0 → 2.3 → 1.5로 줄이면 위 칸은 항상 아래 칸 위에 있다.
+        /// 두 번의 실패에서 배운 것. ① 네모 블록으로 실루엣만 줄이면 각져 보인다 →
+        /// 엔진이 Cylinder/Candy/Log/Stone을 실제 원기둥으로 그리니 몸통은 전부 그걸 쓴다.
+        /// ② 사각 격자에 원판을 그려도 위에서 보면 계단처럼 각진다 → 줄마다 반 칸 어긋나고
+        /// 줄 간격이 0.866칸인 벌집(육각 최밀) 배치로 깔면 열아홉 개만으로도 원이 된다.
         ///
-        /// 다시 벌어지는 허리 위는 원판을 바로 못 얹는다(모서리 칸이 대각선만 물어 0할 받침).
-        /// 그래서 5칸 통부재를 가로로 깔고 그 위에 세로로 한 겹 더 깔아 코벨 판을 만든 뒤
-        /// 그 판 위에 r = 2.4 원판을 두 층 올린다. 금색 두 겹이 항아리 어깨의 띠처럼 읽힌다.</summary>
+        /// 반지름은 2.7 → 2.0 → 1.8 → 1.0으로 줄이기만 한다. 위 층 평면이 아래 층의
+        /// 부분집합이라 어느 칸도 받침을 잃지 않는다(허리에서 다시 벌리려면 통부재 판이
+        /// 필요한데, 벌집은 줄 간격이 0.866칸이라 통부재가 바깥 줄까지 닿지 못한다).</summary>
         static void BuildN_JarTower(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = TightPlate(root, p, info, 3f, 6f);
-            RDiscAt(root, b, 3.0f, 0, BlockKind.Cylinder, SlateCol, L);
-            RDiscAt(root, b, 3.0f, 1, BlockKind.Cylinder, SlateCol, L);
-            RDiscAt(root, b, 2.3f, 2, BlockKind.Cylinder, BlueCol, L);
-            RDiscAt(root, b, 2.3f, 3, BlockKind.Cylinder, BlueCol, L);
-            RDiscAt(root, b, 1.5f, 4, BlockKind.Candy, RedCol, L);              // 허리
-            RDiscAt(root, b, 1.5f, 5, BlockKind.Candy, RedCol, L);
-            for (int j = -1; j <= 1; j++) RBarAt(root, b, 0f, 0f, 6, 5, BlockKind.Cube, GoldCol, L, j);   // 코벨 판 1겹
-            for (int k = -2; k <= 2; k++) RBarAt(root, b, 90f, 0f, 7, 5, BlockKind.Cube, GoldCol, L, -k); // 코벨 판 2겹
-            RDiscAt(root, b, 2.4f, 8, BlockKind.Cylinder, PurpleCol, L);        // 어깨
-            RDiscAt(root, b, 1.8f, 9, BlockKind.Log, PinkCol, L);               // 주둥이
+            var b = TightPlate(root, p, info, 2.5f, 5.2f);
+            RHexDiscAt(root, b, 2.7f, 0, BlockKind.Cylinder, SlateCol, L);
+            RHexDiscAt(root, b, 2.7f, 1, BlockKind.Cylinder, SlateCol, L);
+            RHexDiscAt(root, b, 2.0f, 2, BlockKind.Cylinder, BlueCol, L);
+            RHexDiscAt(root, b, 2.0f, 3, BlockKind.Cylinder, BlueCol, L);
+            RHexDiscAt(root, b, 2.0f, 4, BlockKind.Candy, GoldCol, L);          // 허리 띠
+            RHexDiscAt(root, b, 1.8f, 5, BlockKind.Cylinder, PurpleCol, L);
+            RHexDiscAt(root, b, 1.8f, 6, BlockKind.Cylinder, PurpleCol, L);
+            RHexDiscAt(root, b, 1.0f, 7, BlockKind.Cylinder, PinkCol, L);
+            RHexDiscAt(root, b, 1.0f, 8, BlockKind.Cylinder, PinkCol, L);
+            RHexDiscAt(root, b, 1.0f, 9, BlockKind.Log, GoldCol, L);            // 주둥이
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
