@@ -603,6 +603,9 @@ namespace SmashGame
                 case 103: BuildN_LeaningTower(root, rng, p, info); break;
                 case 104: BuildN_ShellAndEgg(root, rng, p, info); break;
                 case 105: BuildN_Crane(root, rng, p, info); break;
+                case 106: BuildN_TurnedKeep(root, rng, p, info); break;
+                case 107: BuildN_HexPierGate(root, rng, p, info); break;
+                case 108: BuildN_HexTwinBridge(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -3481,6 +3484,93 @@ namespace SmashGame
                 RBarAt(root, b, 0f, -2.5f, 9, 2, BlockKind.Stone, StoneCol, L, j);
                 RUnitAt(root, b, 0f, 3f, 8, 1, BlockKind.Candy, PinkCol, L, j);  // 팔 끝 갈고리
             }
+        }
+
+        /// <summary>106 돌아앉은 성: 둥근 벌집 기단 위에 사각 성채를 45도 돌려 얹었다.
+        ///
+        /// 벌집 원판은 빈틈 없이 채워진 넓은 바닥이라, 그 위에 올라가는 것은 격자를 맞출 필요가 없다.
+        /// 그래서 성채만 통째로 45도 돌려 세웠다 — 둥근 기단, 비스듬한 사각 성채, 다시 둥근 관.
+        /// 성채 모서리가 기단 밖으로 나가면 안 되므로 기단을 반지름 3칸(37개)으로 잡았다.
+        /// 5×3칸 성채의 모서리는 중심에서 2.92칸이라 아슬하게 기단 안이다.</summary>
+        static void BuildN_TurnedKeep(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 5.2f);
+            for (int row = 0; row < 3; row++)                                   // 둥근 기단
+                RHexRingAt(root, b, 3.0f, 0f, row, row * 3f,
+                           row == 1 ? BlockKind.Stone : BlockKind.Cylinder,
+                           row == 1 ? StoneCol : SlateCol, L);
+            foreach (float j in new[] { -1f, 0f, 1f })                          // 45도 돌아앉은 사각 성채
+                for (int row = 3; row <= 7; row++)
+                    RBrickRow(root, b, 45f, 0f, 5, row, row % 2 == 1,
+                              BlockKind.Cube, row < 6 ? BlueCol : PurpleCol, row < 6 ? SkyCol : PinkCol, L, j);
+            // 관은 반지름 1.5칸(일곱 개)까지만. 1.8칸으로 잡았더니 (1.5, 0.866) 자리 칸이
+            // 45도 돌아앉은 성채 바깥으로 나가 다섯 개가 떨어졌다.
+            RHexRingAt(root, b, 1.5f, 0f, 8, 0f, BlockKind.Cylinder, GoldCol, L);   // 다시 둥근 관
+            RHexRingAt(root, b, 1.5f, 0f, 9, 6f, BlockKind.Log, GoldCol, L);
+        }
+
+        /// <summary>107 비틀린 벌집 기둥 문: 둥근 기둥이 꼬이며 올라가 무거운 돌 인방을 받친다.
+        ///
+        /// 세 가지를 한꺼번에 쓴다. 기둥은 일곱 개짜리 벌집(둥글다), 층마다 8도씩 비틀리고(반지름이
+        /// 1칸뿐이라 8도라도 어긋남은 블록 폭의 14%), 재질은 가벼운 사탕(0.7)이다.
+        /// 그 위에 얹히는 인방은 무거운 돌(2.2) 7칸 부재 — 가벼운 것이 무거운 것을 이고 있는 셈이라
+        /// 기둥 하나만 부러뜨려도 인방이 제 무게로 기울어 위층 벽돌벽을 통째로 끌고 내려온다.
+        ///
+        /// 기둥 간격을 정하는 데 두 번 틀렸다. 2칸 간격으로 셋을 세웠더니 옆 기둥의 벌집 칸이
+        /// x = -1칸 자리에서 정확히 겹쳐 153개 중 116개가 터졌고, 2.5칸으로 벌렸더니 이번엔
+        /// 바깥 칸이 폭 한계를 넘었다(가장자리 2.19, 한계 2.01). 벌집은 반 칸 단위라
+        /// 정수 간격도 반 칸 간격도 위험하다. 결국 기둥을 둘로 줄이고 ±2칸에 세웠다 —
+        /// 서로 두 칸이 떠 있어 겹치지 않고, 바깥 칸도 3칸(1.38)에 머문다.</summary>
+        static void BuildN_HexPierGate(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 1.75f);
+            var deep = new[] { -0.866f, 0f, 0.866f };                           // 벌집 줄 간격에 맞춘 세 겹
+            foreach (float j in deep)
+                RBrickRow(root, b, 0f, 0f, 7, 0, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+            foreach (int k in new[] { -2, 2 })                                  // 비틀린 사탕 벌집 기둥 둘
+            {
+                var bb = Shift(b, k, 0f);
+                for (int row = 1; row <= 6; row++)
+                    RHexRingAt(root, bb, 1.0f, 0f, row, (row - 1) * 8f,
+                               BlockKind.Candy, row % 2 == 0 ? PinkCol : RedCol, L);
+            }
+            foreach (float j in deep)
+            {
+                RBarAt(root, b, 0f, 0f, 7, 7, BlockKind.Stone, StoneCol, L, j);  // 돌 인방
+                RBrickRow(root, b, 0f, 0f, 7, 8, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, GoldCol, PurpleCol, L, j);
+            }
+        }
+
+        /// <summary>108 벌집 쌍탑 다리: 꼬이며 오르는 둥근 탑 둘을 부재 다리로 잇고, 그 다리 한가운데
+        /// 세 번째 둥근 탑을 세웠다. 가운데 탑은 땅을 딛고 있지 않다 — 다리 위에 얹혀 있을 뿐이다.
+        ///
+        /// 다리는 5칸 부재라 양 탑에 한 칸씩 확실히 물리고, 가운데 탑의 벌집(반지름 1칸)은
+        /// 다리 세 줄이 덮는 폭 안에 들어온다. 어느 탑을 먼저 헐든 가운데 탑이 같이 떨어진다.</summary>
+        static void BuildN_HexTwinBridge(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = TightPlate(root, p, info, 3f, 4f);
+            foreach (float j in new[] { -1f, 0f, 1f })                          // 벽돌 기단
+            {
+                RBrickRow(root, b, 0f, 0f, 7, 0, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
+                RBrickRow(root, b, 0f, 0f, 7, 1, true, BlockKind.Cube, SlateCol, BlueCol, L, j);
+            }
+            foreach (int k in new[] { -2, 2 })                                  // 꼬이는 둥근 쌍탑
+            {
+                var bb = Shift(b, k, 0f);
+                for (int row = 2; row < 6; row++)
+                    RHexRingAt(root, bb, 1.0f, 0f, row, (row - 2) * (k < 0 ? 7f : -7f),
+                               BlockKind.Cylinder, k < 0 ? BlueCol : PurpleCol, L);
+            }
+            foreach (float j in new[] { -0.866f, 0f, 0.866f })                  // 다리
+                RBarAt(root, b, 0f, 0f, 6, 5, BlockKind.Cube, GoldCol, L, j);
+            for (int row = 7; row < 10; row++)                                  // 다리 위에 얹힌 세 번째 탑
+                RHexRingAt(root, b, 1.0f, 0f, row, (row - 7) * 7f,
+                           row == 9 ? BlockKind.Log : BlockKind.Cylinder,
+                           row == 9 ? GoldCol : RedCol, L);
         }
 
         /// <summary>0 벽돌 담: 6열 벽돌 벽 두 겹(4~6단) + 위 3칸 부재. 초반용.</summary>
