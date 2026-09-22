@@ -583,6 +583,7 @@ namespace SmashGame
                 case 83: BuildN_BrickTwistBack(root, rng, p, info); break;
                 case 84: BuildN_GuardTower(root, rng, p, info); break;
                 case 85: BuildN_BarTwist(root, rng, p, info); break;
+                case 86: BuildN_EaveTower(root, rng, p, info); break;
                 default: BuildN_Citadel(root, rng, p, info); break;
             }
             Physics.SyncTransforms();
@@ -699,7 +700,7 @@ namespace SmashGame
                 44 => "원통 벌집", 45 => "얼음 성", 46 => "사탕 숲", 47 => "통나무 오두막", 48 => "돌 아치", 49 => "계단 피라미드", 50 => "쌍둥이 원통 탑", 51 => "상자 성벽",
                 52 => "X자 벽", 53 => "통나무 원진", 54 => "종탑", 55 => "세 줄 벽", 56 => "볼록 성벽", 57 => "쐐기 벽", 58 => "T자 벽", 59 => "원통 벽",
                 60 => "얼음 피라미드", 61 => "상자 탑 셋", 62 => "판자 격자", 63 => "성벽과 망루", 64 => "무지개 담", 65 => "통나무 다리", 66 => "이중 링", 67 => "지붕 집",
-                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", _ => "성채"
+                68 => "육각 성", 69 => "계단 탑", 70 => "창 셋 벽", 71 => "원통 아치", 72 => "겹 피라미드", 73 => "대리석 홀", 74 => "쌍둥이 얼음 탑", 76 => "망루", 77 => "비틀린 색동 탑", 78 => "소용돌이 탑", 79 => "꽈배기 탑", 80 => "쌍둥이 비틀림 탑", 81 => "세 비틀림 탑", 82 => "벽돌 벽과 앞 비틀림 탑", 83 => "비틀림 탑과 앞 벽돌 벽", 84 => "가드 벽과 중앙 비틀림 탑", 85 => "긴 블록 비틀림 탑", 86 => "처마 탑", _ => "성채"
             };
             return info;
         }
@@ -2230,6 +2231,37 @@ namespace SmashGame
         }
 
         /// <summary>
+        /// nCells칸을 덮는 처마·천장 한 겹. 2칸·3칸 부재만 써서 정확히 맞물리게 깔고 양옆으로
+        /// 반 칸씩 처마를 내민다(덮는 폭 = nCells + 1칸).
+        ///
+        /// 1칸짜리를 끼우지 않는 것이 요점이다. 7칸을 3+1+3으로 덮으면 가운데 한 칸이 두 부재
+        /// 사이의 이음매가 되어 그 칸만 따로 뜯겨 나가고 위에 얹힌 것이 주저앉는다.
+        /// 3+2+3이면 가운데 2칸 부재가 양쪽 부재에 물려 그런 약점이 없다.
+        /// 조각은 3칸을 최대한 쓰되 남는 폭이 2로 떨어지게 개수를 줄여 정하고, 3칸을 바깥에,
+        /// 2칸을 가운데에 둔다(8칸 → 3·2·3, 6칸 → 3·3, 10칸 → 3·2·2·3, 4칸 → 2·2).
+        /// </summary>
+        static void RLidAt(Transform root, Vector3 b, float yaw, int nCells, int row,
+                           BlockKind kind, Color colA, Color colB, List<Block> L, float j = 0f)
+        {
+            int span = nCells + 1;                       // 양옆 반 칸씩 처마
+            int n3 = span / 3;
+            while (n3 > 0 && (span - 3 * n3) % 2 != 0) n3--;
+            int n2 = (span - 3 * n3) / 2;
+            var pieces = new List<int>();
+            for (int i = 0; i < (n3 + 1) / 2; i++) pieces.Add(3);
+            for (int i = 0; i < n2; i++) pieces.Add(2);
+            for (int i = 0; i < n3 / 2; i++) pieces.Add(3);
+            if (pieces.Count == 0) { RBarAt(root, b, yaw, 0f, row, span, kind, colA, L, j); return; }
+            float k = -span * 0.5f;
+            for (int i = 0; i < pieces.Count; i++)
+            {
+                int len = pieces[i];
+                RBarAt(root, b, yaw, k + len * 0.5f, row, len, kind, len == 3 ? colA : colB, L, j);
+                k += len;
+            }
+        }
+
+        /// <summary>
         /// 벽돌 한 줄. 참고 사진처럼 모든 벽돌이 2칸짜리로 같고, offset이면 반 장(1칸) 밀려 깔린다.
         /// 밀린 줄의 양 끝에는 반 벽돌(1칸)이 들어가 줄 길이는 그대로다. 위아래 줄의 이음매가 절대 겹치지 않는다.
         /// </summary>
@@ -2827,6 +2859,30 @@ namespace SmashGame
                         RBarAt(root, b, yaw + ax,  1f,   row, 3, BlockKind.Cube, GoldCol,  L, d - 2f);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// 86 처마 탑: 기둥 한 무리를 세우고 그 위를 처마로 덮기를 세 번 반복해 올리는 다층 구조.
+        /// 층이 올라갈수록 기둥 수가 4 → 3 → 2로 줄고 처마도 7 → 5 → 3칸으로 좁아져 탑처럼 모인다.
+        ///
+        /// 처마는 늘 아래 기둥보다 한 칸 넓게 덮이므로 기둥머리가 밖으로 드러나지 않고,
+        /// 다음 층 기둥은 그 처마 위에 올라선다. 기둥을 하나 부수면 그 칸의 처마가 기울면서
+        /// 위층 기둥까지 끌고 내려가는, 층층이 무너지는 맛이 나온다.
+        /// </summary>
+        static void BuildN_EaveTower(Transform root, System.Random rng, Palette p, LevelInfo info)
+        {
+            Begin(info); var L = info.blocks;
+            var b = FrontPlate(root, p, 0f, 0f, 4f * DS + 0.15f, 4f * DS + 0.2f);
+            foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
+            {
+                for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);   // 주춧돌
+                foreach (int k in new[] { -3, -1, 1, 3 }) RCol(root, At(b, 0f, k, j, 1), 2, BlockKind.Cube, BlueCol, 0f, L, true);
+                RLidAt(root, b, 0f, 7, 3, BlockKind.Cube, RedCol, SlateCol, L, j);
+                foreach (int k in new[] { -2, 0, 2 }) RCol(root, At(b, 0f, k, j, 4), 2, BlockKind.Cube, PurpleCol, 0f, L, true);
+                RLidAt(root, b, 0f, 5, 6, BlockKind.Cube, RedCol, SlateCol, L, j);
+                foreach (int k in new[] { -1, 1 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, PinkCol, 0f, L, true);
+                RLidAt(root, b, 0f, 3, 9, BlockKind.Cube, GoldCol, GoldCol, L, j);
             }
         }
 
@@ -3666,13 +3722,11 @@ namespace SmashGame
                 // 3칸 바를 ±2.5칸에 놓으면 [-4,-1]과 [1,4]를, 가운데 2칸 바가 [-1,1]을 맡아
                 // 겹치는 데도 비는 데도 없이 딱 맞물리고, 양옆으로 반 칸씩 처마가 나온다.
                 // 7칸을 3+1+3으로 덮으면 가운데 한 칸이 이음매가 되어 그 줄만 따로 떨어져 나간다.
-                RBarAt(root, b, 0f, -2.5f, 6, 3, BlockKind.Cube, RedCol, L, j);
-                RBarAt(root, b, 0f, 0f, 6, 2, BlockKind.Cube, SlateCol, L, j);
-                RBarAt(root, b, 0f, 2.5f, 6, 3, BlockKind.Cube, RedCol, L, j);
+                RLidAt(root, b, 0f, 7, 6, BlockKind.Cube, RedCol, SlateCol, L, j);
                 // 7~8단 위층 창 셋
                 foreach (int k in new[] { -3, -1, 1, 3 }) RCol(root, At(b, 0f, k, j, 7), 2, BlockKind.Cube, BlueCol, 0f, L, true);
                 // 9단 지붕 마감
-                RBarAt(root, b, 0f, -2f, 9, 3, BlockKind.Cube, BlueCol, L, j); RBarAt(root, b, 0f, 2f, 9, 3, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, 0f, 0, 9, 1, BlockKind.Cube, SlateCol, L, j);
+                RLidAt(root, b, 0f, 7, 9, BlockKind.Cube, BlueCol, SlateCol, L, j);
             }
         }
 
