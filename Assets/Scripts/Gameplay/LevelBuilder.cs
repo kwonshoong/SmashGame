@@ -2873,7 +2873,7 @@ namespace SmashGame
         static void BuildN_EaveTower(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = FrontPlate(root, p, 0f, 0f, 4f * DS + 0.15f, 4f * DS + 0.2f);
+            var b = TightPlate(root, p, info, 3f, 3f);   // 가로 7칸(중심 ±3), 깊이 4겹(중심 폭 3칸)
             foreach (float j in new[] { -1.5f, -0.5f, 0.5f, 1.5f })
             {
                 for (int k = -3; k <= 3; k++) RUnitAt(root, b, 0f, k, 0, 1, BlockKind.Cube, SlateCol, L, j);   // 주춧돌
@@ -3705,7 +3705,7 @@ namespace SmashGame
         static void BuildN_ThreeWindows(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
-            var b = FrontPlate(root, p, 0f, 0f, 3.5f * DS + 0.15f, 3f * DS + 0.2f);
+            var b = TightPlate(root, p, info, 3f, 2f);   // 가로 7칸(중심 ±3), 깊이 3겹(중심 폭 2칸)
             foreach (float j in new[] { -1f, 0f, 1f })
             {
                 // 0단 바닥
