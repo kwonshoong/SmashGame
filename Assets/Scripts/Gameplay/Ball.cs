@@ -19,14 +19,9 @@ namespace SmashGame
         Block lastHitBlock; float lastHitTime;   // 같은 블록을 튕기면서 연달아 다시 맞히는 것은 한 번으로 친다
         /// <summary>2차 타격(첫 블록에 튕긴 뒤 다른 블록을 맞힘)이 성립하는 최소 남은 속도 비율. 그 아래는 그냥 굴러가는 공</summary>
         public const float SecondaryHitMinEnergy = 0.35f;
-        /// <summary>2차 타격 충격 배율 (남은 속도 비율에 추가로 곱한다). 1이면 첫 타격과 같은 기준.
-        ///
-        /// 0.45 → 0.30. 예전에는 '남은 속도 비율'의 분모가 고정 상수(30)라 실제 발사 속도가 빠를수록
-        /// 2차 타격이 저절로 세졌다. 파워 스탯은 이미 충격량 식에 직접 곱해지는데 속도를 통해
-        /// 한 번 더 곱해지고 있었던 셈이다(스탯 1 → 50에서 속도만으로 60% 증가).
-        /// 분모를 실제 발사 속도로 바꿔 그 숨은 보너스를 없애고, 대신 배율을 0.30으로 낮춰
-        /// 1~39레벨을 검증한 그 값(60% 속도에서 0.18)이 파워와 무관하게 유지되게 맞췄다.</summary>
-        public const float SecondaryHitScale = 0.30f;
+        /// <summary>2차 타격 충격 배율 (남은 속도 비율에 추가로 곱한다). 1이면 첫 타격과 같은 기준 — 너무 세서 절반으로.
+        /// 주의: Balance.RealPhysics가 켜져 있으면 이 값은 쓰이지 않는다(아래 ScriptedHit 참고).</summary>
+        public const float SecondaryHitScale = 0.45f;
         float spawnTime;
 
         static readonly System.Collections.Generic.List<Ball> alive = new();
@@ -60,7 +55,12 @@ namespace SmashGame
             if (Balance.RealPhysics)
             {
                 // 실제 물리: 질량·반발계수를 그대로 두고 PhysX에 맡긴다
-                rb.mass = Balance.RealBallMassBase * stats.mass;
+                // 실제 물리 모드에서 블록을 미는 힘은 공의 운동량(질량 x 속도)이다. 스크립트 충격량이 아니다.
+                // 원근 압축 때문에 발사 속도를 1.467배 올렸더니 운동량이 그대로 1.467배가 되어
+                // 같은 레벨을 절반의 공으로 깨게 됐다(발당 총 운동량 실측 52.8 -> 71.4).
+                // 속도를 올린 만큼 질량을 나눠 운동량을 예전 값으로 되돌린다.
+                // 날아가는 속도(= 시원한 느낌)는 그대로 두고 파괴력만 원복하는 것.
+                rb.mass = Balance.RealBallMassBase * stats.mass / Cannon.SpeedScale;
                 if (realPhysics == null)
                     realPhysics = new PhysicsMaterial("BallReal") { bounciness = Balance.RealBallBounce, dynamicFriction = 0.4f, staticFriction = 0.4f,
                         bounceCombine = PhysicsMaterialCombine.Average, frictionCombine = PhysicsMaterialCombine.Average };
@@ -196,10 +196,7 @@ namespace SmashGame
             }
 
             // 첫 타격은 스탯 그대로, 튕긴 뒤 다른 블록을 맞히면 남은 속도 비율만큼(예: 60% 속도 → 60% 충격). 너무 느려지면 타격 없음
-            // 주석대로 '남은 속도 비율'이 되도록 분모를 실제 발사 속도로 둔다(60% 속도 → 60% 충격).
-            // 고정 상수(30)를 쓰면 공이 빠를수록 2차 타격이 저절로 세져, 파워 스탯이 충격량에
-            // 한 번 더 곱해지는 꼴이 된다. 배율(SecondaryHitScale) 설명 참고.
-            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / Mathf.Max(1f, SpeedFor(stats))) * SecondaryHitScale;
+            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / Speed) * SecondaryHitScale;
             if (blockHits > 0 && energy < SecondaryHitMinEnergy * SecondaryHitScale) return;
             if (block == lastHitBlock && Time.time - lastHitTime < 0.2f) return;
             lastHitBlock = block; lastHitTime = Time.time;
