@@ -330,36 +330,127 @@ namespace SmashGame
         /// 움직이는 받침대 적용 (Balance.PedestalMotionKind). 받침대가 여럿이고 서로 독립된 탑(삼중 받침대)이면 위상을 어긋나게,
         /// 하나의 구조물이 여러 받침대에 걸쳐 있으면(얼음 성문·통나무 다리) 같은 위상으로 오르내려 구조물이 찢어지지 않는다.
         /// </summary>
-        /// <summary>받침대들이 각자 돌아도 서로 쓸고 들어가지 않는지 검사한다.
-        /// 상판은 네모라서 돌면 모서리가 sqrt(반폭² + 반깊이²) 반지름의 원을 그린다.
-        /// 두 받침대의 그 반지름 합이 중심 거리보다 크면 겹친다.</summary>
-        static bool SpinFitsBetweenPedestals()
+        /// <summary>받침대 하나가 회전할 때 쓸고 지나가는 반지름.
+        /// 회전축은 묶음의 원점인데 상판은 블록에 맞춰 줄이면서 z로 조금 밀려 있을 수 있다.
+        /// 그래서 '원점에서 상판 모서리까지'로 재야 한다. 상판 기준으로만 재면 실제보다 작게 나온다
+        /// (42레벨은 1.12로 나왔지만 실제는 1.55였다).</summary>
+        static float PedestalSpinRadius(GameObject g)
         {
-            int n = pedestalGroups.Count;
-            var c = new Vector3[n]; var r = new float[n];
+            var t = g.transform.Find("PedestalTop");
+            if (t == null) return 0f;
+            var col = t.GetComponent<Collider>();
+            Bounds b = col != null ? col.bounds : t.GetComponent<Renderer>().bounds;
+            Vector3 o = g.transform.position;
+            float dx = Mathf.Abs(b.center.x - o.x) + b.extents.x;
+            float dz = Mathf.Abs(b.center.z - o.z) + b.extents.z;
+            return new Vector2(dx, dz).magnitude;
+        }
+
+        /// <summary>회전하는 원이 겹칠 때, 회전을 포기하기 전에 배치를 바꿔 본다.
+        ///
+        /// ① 양옆 받침대를 가운데로 당긴다 — 같은 z줄에 남는 짝(순서 차이 2)이 서로 닿지 않는 선까지만.
+        /// ② x 순서로 홀수 번째(셋이면 가운데)를 뒤로 민다. 필요한 깊이는 피타고라스로 나온다:
+        ///    두 중심 거리가 반지름 합 R 이상이어야 하므로 dz = sqrt(R² − dx²).
+        ///
+        /// 먼저 계산만 해서 모든 짝이 떨어지는지 확인하고, 되는 경우에만 실제로 옮긴다.
+        /// 확인 없이 옮기면 '옮기기는 했는데 회전은 못 하는' 최악이 된다(처음 판이 그랬다).
+        /// 뒤로 미는 양이 2.5를 넘으면 구조물이 너무 깊어지므로 포기하고 승강으로 돌린다.</summary>
+        static bool StaggerPedestalsForSpin(Transform root, LevelInfo info)
+        {
+            const float Margin = 0.30f, Slack = 0.06f, MaxPush = 2.5f;
+            var groups = pedestalGroups.Where(g => g != null && g.transform.IsChildOf(root)).ToList();
+            int n = groups.Count;
+            if (n < 2) return false;
+            var tops = new List<Collider>();
+            foreach (var g in groups) { var t = g.transform.Find("PedestalTop"); tops.Add(t != null ? t.GetComponent<Collider>() : null); }
+            if (tops.Any(t => t == null)) return false;
+
+            var r = new float[n]; var c = new Vector2[n];
             for (int i = 0; i < n; i++)
             {
-                var g = pedestalGroups[i];
-                bool any = false; Bounds bb = default;
-                foreach (var mr in g.GetComponentsInChildren<MeshRenderer>())
+                r[i] = PedestalSpinRadius(groups[i]);
+                var pos = groups[i].transform.position; c[i] = new Vector2(pos.x, pos.z);
+            }
+            var order = Enumerable.Range(0, n).OrderBy(i => c[i].x).ToList();
+
+            // ① 당길 수 있는 만큼 (같은 z줄 짝이 허용하는 선까지)
+            float pull = 0.25f;
+            for (int s2 = 0; s2 + 2 < n; s2++)
+            {
+                int a = order[s2], b2 = order[s2 + 2];
+                float dx = Mathf.Abs(c[a].x - c[b2].x);
+                float needDx = r[a] + r[b2] + Margin + Slack;
+                pull = dx > 0.01f ? Mathf.Min(pull, Mathf.Max(0f, (dx - needDx) / dx)) : 0f;
+            }
+            float cx = order.Average(i => c[i].x);
+            var nc = new Vector2[n];
+            for (int i = 0; i < n; i++) nc[i] = new Vector2(Mathf.Lerp(c[i].x, cx, pull), c[i].y);
+
+            // ② 뒤로 밀 깊이
+            float push = 0f;
+            for (int s2 = 0; s2 + 1 < n; s2++)
+            {
+                int a = order[s2], b2 = order[s2 + 1];
+                float R = r[a] + r[b2] + Margin + Slack;
+                float dx = Mathf.Abs(nc[a].x - nc[b2].x);
+                float need = R * R - dx * dx;
+                if (need > 0f) push = Mathf.Max(push, Mathf.Sqrt(need));
+            }
+            if (push > MaxPush) return false;
+            for (int s2 = 1; s2 < n; s2 += 2) nc[order[s2]].y += push;
+
+            // 계산한 배치로 모든 짝이 떨어지는지 확인
+            for (int i = 0; i < n; i++)
+                for (int k2 = i + 1; k2 < n; k2++)
+                    if (Vector2.Distance(nc[i], nc[k2]) < r[i] + r[k2] + Margin) return false;
+
+            // 블록 소속 (SeparatePlates와 같은 방식)
+            var owner = new List<int>();
+            foreach (var b in info.blocks)
+            {
+                var bc = b != null ? b.GetComponent<Collider>() : null; int best = -1; float bestD = 0.3f;
+                if (bc != null)
                 {
-                    if (!mr.name.StartsWith("Pedestal")) continue;
-                    if (!any) { bb = mr.bounds; any = true; } else bb.Encapsulate(mr.bounds);
+                    Vector3 p0 = bc.bounds.center;
+                    for (int i = 0; i < tops.Count; i++)
+                    {
+                        Vector3 q = ClosestOnPlate(tops[i], new Vector3(p0.x, tops[i].bounds.max.y, p0.z));
+                        float dd = Vector2.Distance(new Vector2(q.x, q.z), new Vector2(p0.x, p0.z));
+                        if (dd < bestD) { bestD = dd; best = i; }
+                    }
                 }
-                if (!any) return false;
-                c[i] = new Vector3(bb.center.x, 0f, bb.center.z);
-                r[i] = new Vector2(bb.extents.x, bb.extents.z).magnitude;
+                owner.Add(best);
             }
             for (int i = 0; i < n; i++)
-                for (int j = i + 1; j < n; j++)
-                    // 여유 0.30 — 블록은 상판 가장자리보다 반 칸쯤 더 나와 있고(처마·내민 부재),
-                    // 실제로 부딪치는 건 상판이 아니라 그 블록이다. 38레벨 얼음 성이 상판 기준으로는
-                    // 0.06만 남기고 통과해 버렸다.
-                    if (Vector3.Distance(c[i], c[j]) < r[i] + r[j] + 0.30f) return false;
+            {
+                var delta = new Vector3(nc[i].x - c[i].x, 0f, nc[i].y - c[i].y);
+                if (delta.sqrMagnitude > 1e-6f) ShiftPedestal(groups, i, delta, info, owner);
+            }
+            Physics.SyncTransforms();
             return true;
         }
 
-        static void ApplyPedestalMotion(int level, int type, LevelInfo info)
+        /// <summary>받침대들이 각자 돌아도 서로 쓸고 들어가지 않는지 검사한다.
+        /// 상판은 네모라서 돌면 모서리가 원을 그린다(PedestalSpinRadius).
+        /// 여유 0.30 — 블록은 상판보다 반 칸쯤 더 나와 있고, 실제로 부딪치는 건 그 블록이다.</summary>
+        static bool SpinFitsBetweenPedestals()
+        {
+            int n = pedestalGroups.Count;
+            var c = new Vector2[n]; var r = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                if (pedestalGroups[i] == null) return false;
+                r[i] = PedestalSpinRadius(pedestalGroups[i]);
+                if (r[i] <= 0f) return false;
+                var p0 = pedestalGroups[i].transform.position; c[i] = new Vector2(p0.x, p0.z);
+            }
+            for (int i = 0; i < n; i++)
+                for (int j = i + 1; j < n; j++)
+                    if (Vector2.Distance(c[i], c[j]) < r[i] + r[j] + 0.30f) return false;
+            return true;
+        }
+
+        static void ApplyPedestalMotion(int level, int type, LevelInfo info, Transform root)
         {
             var kind = Balance.PedestalMotionKind(level);
             bool independent = independentPedestals || type == 5;
@@ -374,11 +465,12 @@ namespace SmashGame
             // 상판 모서리가 그리는 반지름이 1.12라 이웃 상판 영역까지 쓸고 들어가
             // 가만히 둬도 블록끼리 부딪쳐 떨어졌다. 그래서 회전 전에 쓸고 가는 원을 실제로 검사한다.
             bool spinSafe = pedestalGroups.Count == 1 || SpinFitsBetweenPedestals();
+            if (spin > 0f && !spinSafe && StaggerPedestalsForSpin(root, info)) spinSafe = SpinFitsBetweenPedestals();
             if (spin > 0f && !spinSafe)
             {
                 spin = 0f;
-                if (bob <= 0f) { bob = Balance.PedestalBobAmplitude; kind = Balance.MotionKind.Bob; }
-                else kind = Balance.MotionKind.Bob;
+                if (bob <= 0f) bob = Balance.PedestalBobAmplitude;
+                kind = Balance.MotionKind.Bob;
             }
             for (int i = 0; i < pedestalGroups.Count; i++)
             {
@@ -699,7 +791,7 @@ namespace SmashGame
                 foreach (var bl in info.blocks) { var col = bl.GetComponent<Collider>(); if (col != null) top = Mathf.Max(top, col.bounds.max.y); }
                 if (top > limit) Debug.LogWarning($"[LevelBuilder] L{level} {type}: 블록 꼭대기 {top:F2} > 세로 한계 {limit:F2} (10칸)");
             }
-            ApplyPedestalMotion(level, type, info);
+            ApplyPedestalMotion(level, type, info, root);
 
             // 강화 블록 — 레벨 61부터, 돌·상자·판자에만, 20% 이하
             if (level >= Balance.ReinforcedFromLevel)
