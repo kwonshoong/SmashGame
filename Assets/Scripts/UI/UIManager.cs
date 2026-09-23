@@ -289,7 +289,11 @@ namespace SmashGame
         {
             forge = UIKit.FullPanel(canvas.transform, "Forge", new Color(0, 0, 0, 0f));
             forge.GetComponent<Image>().raycastTarget = false;
-            var card = UIKit.Panel(forge, "Card", UIKit.PanelDark, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 0), new Vector2(0, 800));
+            // 카드 높이 800 -> 900. 전체 강화 버튼이 들어갈 자리를 만든 것.
+            // UIKit.Box는 pivot을 anchor와 같게 잡으므로 위 기준 요소는 아래로 자라고
+            // 아래 기준 요소는 위로 자란다. 800일 때 마지막 스탯 줄이 -596에서 끝나고
+            // 하단 버튼이 -670에서 시작해 74px밖에 안 남아, 92px 버튼이 하단 버튼과 겹쳤다.
+            var card = UIKit.Panel(forge, "Card", UIKit.PanelDark, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 0), new Vector2(0, 900));
 
             // 제목 줄
             UIKit.Label(card, "대장간", 44, UIKit.Gold, new Vector2(0, 1), new Vector2(30, -18), new Vector2(300, 60), TextAnchor.MiddleLeft, true);
@@ -307,7 +311,8 @@ namespace SmashGame
             }
 
             // 전체 강화 — 네 스탯을 한 칸씩 같이 올린다
-            forgeAllBtn = UIKit.Button(card, "전체 강화", UIKit.Green, new Vector2(0.5f, 1), new Vector2(0, -614), new Vector2(1020, 92), OnUpgradeAll, 30);
+            // 마지막 스탯 줄(-596에서 끝남)과 하단 버튼(-770에서 시작) 사이에 둔다
+            forgeAllBtn = UIKit.Button(card, "전체 강화", UIKit.Green, new Vector2(0.5f, 1), new Vector2(0, -622), new Vector2(1020, 92), OnUpgradeAll, 30);
 
             // 하단 버튼
             UIKit.Button(card, "시험 발사", UIKit.Blue, new Vector2(0.5f, 0), new Vector2(-270, 30), new Vector2(480, 100), TestFire, 34);
