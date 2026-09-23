@@ -161,7 +161,17 @@ namespace SmashGame
         /// <summary>하드 레벨 1.6배는 31레벨부터. 10·20·30레벨은 강화 없이 깨야 하는 구간이라
         /// 1.6배를 곱하면 발당 3.3kg이 넘어간다(20레벨 신전이 그래서 안 깨졌다).
         /// 그 구간의 하드 레벨은 장애물과 받침대 움직임으로만 어렵게 한다.</summary>
-        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * EarlyTargetMult(level) * (1f + level * TargetMassPerBallGrowth) * (hard && level > 30 ? HardLevelMassMult : 1f);
+        /// <summary>강화를 요구하기 시작하는 지점. 28레벨부터 34레벨까지 공 1개당 목표 질량을
+        /// 1.25배로 올리고 그 뒤로 유지한다(그 위는 기존 레벨당 0.4% 증가가 이어받는다).
+        ///
+        /// 무강화로 46레벨까지 간 플레이 로그 기준. 그 판에서는 31~34레벨을 공 24~35% 남기고
+        /// 깼고 실제로 막힌 건 47레벨(계단 피라미드)이었다. 이 배율이면 31레벨은 22% 남기고
+        /// 통과, 32~33레벨이 5% 안팎으로 아슬아슬해지고, 36레벨부터는 강화 없이 손이 모자란다.
+        /// 27레벨까지는 건드리지 않는다 — 28·29레벨이 이미 9%·17%까지 내려와 있어서
+        /// 더 당기면 20레벨대에서 먼저 막힌다.</summary>
+        public static float UpgradeGate(int level) => Mathf.Lerp(1f, 1.25f, Mathf.Clamp01((level - 28) / 6f));
+
+        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * EarlyTargetMult(level) * UpgradeGate(level) * (1f + level * TargetMassPerBallGrowth) * (hard && level > 30 ? HardLevelMassMult : 1f);
         /// <summary>마무리 여유. 질량 비례분만으로는 '마지막 몇 개'를 못 센다.
         ///
         /// 17레벨 피라미드 로그가 그 증거다. 140블록 62.6kg에 공 30개(발당 2.09kg)였는데
