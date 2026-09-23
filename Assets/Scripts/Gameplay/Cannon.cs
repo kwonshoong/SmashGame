@@ -19,9 +19,44 @@ namespace SmashGame
         float cooldown;
         float recoil;
 
-        public static readonly Vector3 DefaultPos = new Vector3(0f, 1.15f, -5.3f); // 카메라(2.7, -7.5, 화각 60)에서 2.2 앞. 공이 상판보다 0.3 위(≈1.3)에서 출발해 상판 밑면·다리에 안 걸린다. 포신 꼭대기 화면 82% 지점(레퍼런스처럼 화면 맨 아래 가운데)
-        /// <summary>대포 모델 배율. 레퍼런스 대포는 화면 폭의 1/3 정도라 절반으로 줄였다 (포구·포신 길이도 함께 줄어 조준·발사 계산은 그대로 맞는다)</summary>
-        public const float ModelScale = 0.5f;
+        // 기준값: 카메라가 (0, 2.7, -7.5)·화각 60도였을 때 맞춰 둔 위치와 배율.
+        // 공이 상판보다 0.3 위(≈1.3)에서 출발해 상판 밑면·다리에 안 걸리고,
+        // 포신 꼭대기가 화면 82% 지점(레퍼런스처럼 화면 맨 아래 가운데)에 온다.
+        // 대포 모델은 레퍼런스가 화면 폭의 1/3 정도라 절반으로 줄인 값이다
+        // (포구·포신 길이도 함께 줄어 조준·발사 계산은 그대로 맞는다).
+        static readonly Vector3 BasePos = new Vector3(0f, 1.15f, -5.3f);
+        const float BaseScale = 0.5f, BaseCamY = 2.7f, BaseCamZ = -7.5f, BaseFov = 60f;
+
+        /// <summary>원근 압축(GameManager.CamDistMult)으로 카메라를 뒤로 빼면 대포가 작아지고 화면 위로 올라간다.
+        /// 그래서 대포는 '화면에서 보이던 크기와 자리'를 기준으로 다시 계산한다.
+        ///
+        /// 기준 카메라에서 대포가 어느 깊이에 어느 화면 높이로 있었는지를 먼저 구하고(frac),
+        /// 새 카메라에서 같은 화면 높이를 유지하면서 대포의 실제 높이(y = 1.15)는 그대로인 지점을 찾는다.
+        /// 배율은 (새 깊이 × 새 화각) / (옛 깊이 × 옛 화각) — 화면에 찍히는 크기가 같아지는 값이다.
+        /// 배율 1.6에서는 z −5.3 → −7.77, 모델 배율 0.5 → 0.59가 된다.</summary>
+        static void SolveFraming(out Vector3 pos, out float scale)
+        {
+            float pitch = GameManager.CamDefaultRot.eulerAngles.x * Mathf.Deg2Rad;
+            Vector3 f = new Vector3(0f, -Mathf.Sin(pitch), Mathf.Cos(pitch));
+            Vector3 u = new Vector3(0f, Mathf.Cos(pitch), Mathf.Sin(pitch));
+
+            Vector3 co = new Vector3(0f, BaseCamY, BaseCamZ);
+            float tanO = Mathf.Tan(BaseFov * 0.5f * Mathf.Deg2Rad);
+            Vector3 v = BasePos - co;
+            float depthO = Vector3.Dot(v, f), offO = Vector3.Dot(v, u);
+            float frac = offO / (depthO * tanO);          // 화면 세로 반높이 대비 위치
+
+            Vector3 cn = GameManager.CamDefaultPos;
+            float tanN = Mathf.Tan(GameManager.CamFov * 0.5f * Mathf.Deg2Rad);
+            Vector3 dir = f + frac * tanN * u;            // 같은 화면 높이로 뻗는 방향
+            if (Mathf.Abs(dir.y) < 1e-4f) { pos = BasePos; scale = BaseScale; return; }
+            float depthN = (BasePos.y - cn.y) / dir.y;    // 대포 높이는 그대로 두고 깊이만 푼다
+            pos = cn + dir * depthN;
+            scale = BaseScale * (depthN * tanN) / (depthO * tanO);
+        }
+
+        public static Vector3 DefaultPos { get { SolveFraming(out var p, out _); return p; } }
+        public static float ModelScale { get { SolveFraming(out _, out var s); return s; } }
 
         public static Cannon Create(Transform parent, Camera cam, BallStats stats, LevelController controller)
         {
