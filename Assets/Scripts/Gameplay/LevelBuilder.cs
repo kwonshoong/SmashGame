@@ -330,6 +330,35 @@ namespace SmashGame
         /// 움직이는 받침대 적용 (Balance.PedestalMotionKind). 받침대가 여럿이고 서로 독립된 탑(삼중 받침대)이면 위상을 어긋나게,
         /// 하나의 구조물이 여러 받침대에 걸쳐 있으면(얼음 성문·통나무 다리) 같은 위상으로 오르내려 구조물이 찢어지지 않는다.
         /// </summary>
+        /// <summary>받침대들이 각자 돌아도 서로 쓸고 들어가지 않는지 검사한다.
+        /// 상판은 네모라서 돌면 모서리가 sqrt(반폭² + 반깊이²) 반지름의 원을 그린다.
+        /// 두 받침대의 그 반지름 합이 중심 거리보다 크면 겹친다.</summary>
+        static bool SpinFitsBetweenPedestals()
+        {
+            int n = pedestalGroups.Count;
+            var c = new Vector3[n]; var r = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                var g = pedestalGroups[i];
+                bool any = false; Bounds bb = default;
+                foreach (var mr in g.GetComponentsInChildren<MeshRenderer>())
+                {
+                    if (!mr.name.StartsWith("Pedestal")) continue;
+                    if (!any) { bb = mr.bounds; any = true; } else bb.Encapsulate(mr.bounds);
+                }
+                if (!any) return false;
+                c[i] = new Vector3(bb.center.x, 0f, bb.center.z);
+                r[i] = new Vector2(bb.extents.x, bb.extents.z).magnitude;
+            }
+            for (int i = 0; i < n; i++)
+                for (int j = i + 1; j < n; j++)
+                    // 여유 0.30 — 블록은 상판 가장자리보다 반 칸쯤 더 나와 있고(처마·내민 부재),
+                    // 실제로 부딪치는 건 상판이 아니라 그 블록이다. 38레벨 얼음 성이 상판 기준으로는
+                    // 0.06만 남기고 통과해 버렸다.
+                    if (Vector3.Distance(c[i], c[j]) < r[i] + r[j] + 0.30f) return false;
+            return true;
+        }
+
         static void ApplyPedestalMotion(int level, int type, LevelInfo info)
         {
             var kind = Balance.PedestalMotionKind(level);
@@ -340,10 +369,20 @@ namespace SmashGame
             if (kind == Balance.MotionKind.None) return;
             float spin = kind == Balance.MotionKind.Bob ? 0f : Balance.PedestalSpinDegPerSec(level);
             float bob = kind == Balance.MotionKind.Spin ? 0f : Balance.PedestalBobAmplitude;
+            // 회전은 받침대가 하나일 때, 또는 각자 돌아도 서로 닿지 않을 만큼 떨어져 있을 때만.
+            // 42레벨(계단 성)에서 0.96×2.02짜리 깊은 상판 셋이 1.67칸 간격으로 서서 각자 돌았는데,
+            // 상판 모서리가 그리는 반지름이 1.12라 이웃 상판 영역까지 쓸고 들어가
+            // 가만히 둬도 블록끼리 부딪쳐 떨어졌다. 그래서 회전 전에 쓸고 가는 원을 실제로 검사한다.
+            bool spinSafe = pedestalGroups.Count == 1 || SpinFitsBetweenPedestals();
+            if (spin > 0f && !spinSafe)
+            {
+                spin = 0f;
+                if (bob <= 0f) { bob = Balance.PedestalBobAmplitude; kind = Balance.MotionKind.Bob; }
+                else kind = Balance.MotionKind.Bob;
+            }
             for (int i = 0; i < pedestalGroups.Count; i++)
             {
                 float phase = independent ? i * Mathf.PI * 2f / Mathf.Max(1, pedestalGroups.Count) : 0f;
-                // 회전은 받침대가 하나일 때만 (여러 받침대가 각자 돌면 걸쳐 있는 구조물이 즉시 찢어진다)
                 float sp = pedestalGroups.Count == 1 || independent ? spin : 0f;
                 PedestalMotion.Attach(pedestalGroups[i], sp, bob, Balance.PedestalBobPeriod, phase).blocks = info.blocks;
             }
