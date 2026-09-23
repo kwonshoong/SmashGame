@@ -1991,7 +1991,7 @@ namespace SmashGame
         /// (7.5 + z) × (2.34 / 7.5) 가 그대로 보이는 폭이고, 여기서 0.1을 여유로 뺀다. 뒤로 갈수록(z가 클수록) 여유가 는다.
         /// 블록을 자동으로 덧붙일 때 이 선을 넘지 않는지 반드시 확인한다 — 넘으면 화면 밖으로 잘린다.
         /// </summary>
-        public static float WidthLimitAt(float z) => (7.5f + z) * (GameManager.CamRefHalfWidth / GameManager.CamRefDist) - 0.1f;
+        public static float WidthLimitAt(float z) => (GameManager.CamRefDist + z) * (GameManager.CamRefHalfWidth / GameManager.CamRefDist) - 0.1f;
         static bool WithinWidth(Vector3 center, float halfX) => Mathf.Abs(center.x) + halfX <= WidthLimitAt(center.z);
 
         /// <summary>30레벨까지는 구조물 총 질량에 상한을 건다(Balance.MassCapFor).

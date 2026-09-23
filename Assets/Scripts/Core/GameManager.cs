@@ -45,7 +45,13 @@ namespace SmashGame
         // 레퍼런스 프레임 실측(원통 피라미드 화면): 수평선(=눈높이)이 화면 높이 41% 지점, 상판은 62% 지점(눈높이보다 12.6° 아래),
         // 꼭대기(원통 9단)는 눈높이보다 20° 위 → 눈높이는 상판 위 약 1.7(원통 4개 높이), 구조물까지 거리 약 7.5, 세로 화각 60°.
         // 눈높이가 낮고 가까워서 눈 아래 블록은 윗면이, 눈 위 블록은 올라갈수록 아랫면이 넓게 보인다. 화면 폭에 블록 약 9칸.
-        public const float CamFov = 60f;
+        /// <summary>원근 압축 배율. 카메라를 이 배만큼 뒤로 빼면서 화각을 그만큼 좁힌다.
+        /// 구조물이 있는 면(z≈0)에서 보이는 크기는 그대로인데, 가까운 것과 먼 것의 크기 차이만 줄어든다.
+        /// 1.0이면 예전 그대로(거리 7.5·화각 60°), 1.6이면 거리 12·화각 40°.
+        /// 2.2를 넘기면 거의 직교투영처럼 납작해져 블록의 입체감이 사라진다.</summary>
+        public const float CamDistMult = 1.6f;
+        public const float CamBaseDist = 7.5f, CamBaseFov = 60f;
+        public static readonly float CamFov = 2f * Mathf.Atan(Mathf.Tan(CamBaseFov * 0.5f * Mathf.Deg2Rad) / CamDistMult) * Mathf.Rad2Deg;
         /// <summary>
         /// 구조물 설계 기준: 거리 7.5에서 좌우 반폭 2.34까지가 화면 안. 구조물은 이 안(최대 2.24)에 들어가도록 만들어진다.
         /// 문제는 세로 화각 60도가 9:16 화면을 기준으로 잡혔다는 것 — 같은 60도라도 화면이 세로로 길면 가로로 좁아져
@@ -53,17 +59,27 @@ namespace SmashGame
         /// 그래서 세로 화각을 화면 비율에서 역산해 "가로 화각"을 고정한다. 세로로 긴 화면일수록 화각을 넓혀
         /// 가로로 보이는 폭이 항상 2.34 이상이 되게 하고, 가로로 넓은 화면(태블릿)에서는 60도를 그대로 둔다.
         /// </summary>
-        public const float CamRefDist = 7.5f, CamRefHalfWidth = 2.34f;
+        public static readonly float CamRefDist = CamBaseDist * CamDistMult;
+        public const float CamRefHalfWidth = 2.34f;
         public static float FovForAspect(float aspect)
         {
             aspect = Mathf.Clamp(aspect, 0.3f, 3f);
             float need = 2f * Mathf.Atan(CamRefHalfWidth / (CamRefDist * aspect)) * Mathf.Rad2Deg;
             return Mathf.Clamp(Mathf.Max(CamFov, need), CamFov, 80f);   // 세로 프레임은 절대 좁히지 않는다(60도 하한)
         }
-        public static readonly Vector3 CamDefaultPos = new Vector3(0f, 2.7f, -7.5f);
-        public static readonly Quaternion CamDefaultRot = Quaternion.Euler(5.4f, 0f, 0f);   // 수평선이 중앙보다 9% 위
-        public static readonly Vector3 CamPanelPos = new Vector3(0f, 4.7f, -18.1f);   // 뒤로 빠져 대포·받침대·구조물이 한 화면에
-        public static readonly Quaternion CamPanelRot = Quaternion.Euler(8f, 0f, 0f);
+        // 뒤로 뺄 때 내려다보는 각도(기울기)와 z=0에서 보는 높이는 그대로 두고 거리만 늘린다.
+        // 그래야 구도는 그대로고 원근만 납작해진다.
+        const float CamPitch = 5.4f, CamPanelPitch = 8f;
+        static Vector3 PulledBack(float y, float z, float pitch)
+        {
+            float d = -z, lookY = y - d * Mathf.Tan(pitch * Mathf.Deg2Rad);
+            float nd = d * CamDistMult;
+            return new Vector3(0f, lookY + nd * Mathf.Tan(pitch * Mathf.Deg2Rad), -nd);
+        }
+        public static readonly Vector3 CamDefaultPos = PulledBack(2.7f, -7.5f, CamPitch);
+        public static readonly Quaternion CamDefaultRot = Quaternion.Euler(CamPitch, 0f, 0f);   // 수평선이 중앙보다 9% 위
+        public static readonly Vector3 CamPanelPos = PulledBack(4.7f, -18.1f, CamPanelPitch);   // 뒤로 빠져 대포·받침대·구조물이 한 화면에
+        public static readonly Quaternion CamPanelRot = Quaternion.Euler(CamPanelPitch, 0f, 0f);
 
         public void SetCameraFocus(bool panelOpen)
         {
