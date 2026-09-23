@@ -281,6 +281,7 @@ namespace SmashGame
 
         // ======================= 대장간 =======================
 
+        Button forgeAllBtn;
         static readonly string[] StatNames = { "파괴력", "크기", "무게", "탄약" };
         static readonly StatType[] StatOrder = { StatType.Power, StatType.Size, StatType.Mass, StatType.Ammo };
 
@@ -304,6 +305,9 @@ namespace SmashGame
                 int idx = i;
                 forgeStatBtns[i] = UIKit.Button(row, "강화", UIKit.Orange, new Vector2(1, 0.5f), new Vector2(-12, 0), new Vector2(280, 84), () => OnUpgrade(idx), 28);
             }
+
+            // 전체 강화 — 네 스탯을 한 칸씩 같이 올린다
+            forgeAllBtn = UIKit.Button(card, "전체 강화", UIKit.Green, new Vector2(0.5f, 1), new Vector2(0, -614), new Vector2(1020, 92), OnUpgradeAll, 30);
 
             // 하단 버튼
             UIKit.Button(card, "시험 발사", UIKit.Blue, new Vector2(0.5f, 0), new Vector2(-270, 30), new Vector2(480, 100), TestFire, 34);
@@ -352,6 +356,23 @@ namespace SmashGame
                 forgeStatLabels[i].supportRichText = true;
                 UIKit.SetButtonLabel(forgeStatBtns[i], $"강화\n{gm.GetUpgradeCost(t):N0}");
                 forgeStatBtns[i].interactable = gm.CanUpgrade(t);
+            }
+            UIKit.SetButtonLabel(forgeAllBtn, $"전체 강화  (네 스탯 +1)   {gm.GetUpgradeAllCost():N0}");
+            forgeAllBtn.interactable = gm.CanUpgradeAll();
+        }
+
+        void OnUpgradeAll()
+        {
+            var before = new int[4];
+            for (int i = 0; i < 4; i++) before[i] = gm.GetStatLevel(StatOrder[i]);
+            if (!gm.UpgradeAllStats()) { Toast("코인이 모자랍니다"); return; }
+            RefreshForge();
+            var range = FindFirstObjectByType<LevelBuilder.TestRange>();
+            if (range != null) range.RefreshStats();
+            for (int i = 0; i < 4; i++)
+            {
+                int lv = gm.GetStatLevel(StatOrder[i]);
+                if (lv % 10 == 1 && lv > 1) { Toast($"★ 별 승급!  {StatNames[i]} {lv - 1}레벨 달성"); break; }
             }
         }
 

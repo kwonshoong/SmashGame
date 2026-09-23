@@ -480,6 +480,42 @@ namespace SmashGame
             return true;
         }
 
+        static readonly StatType[] AllStats = { StatType.Power, StatType.Size, StatType.Mass, StatType.Ammo };
+
+        /// <summary>네 스탯을 한 칸씩 올리는 데 드는 코인 합계.
+        /// 강화 비용은 스탯마다 현재 레벨에 따라 다르므로(40 x 1.085^(Lv-1)) 그때그때 더해야 한다.</summary>
+        public int GetUpgradeAllCost()
+        {
+            int sum = 0;
+            foreach (var t in AllStats) sum += Balance.StatUpgradeCost(GetStatLevel(t));
+            return sum;
+        }
+
+        public bool CanUpgradeAll() => Data.coins >= GetUpgradeAllCost();
+
+        /// <summary>네 스탯을 한꺼번에 1씩 올린다. 전부 살 수 있을 때만 실행한다 —
+        /// 일부만 오르면 '균일하게 올린다'는 목적이 깨지고, 남은 코인으로 뭘 샀는지도 헷갈린다.</summary>
+        public bool UpgradeAllStats()
+        {
+            if (!CanUpgradeAll()) return false;
+            foreach (var t in AllStats)
+            {
+                int fromLv = GetStatLevel(t), cost = Balance.StatUpgradeCost(fromLv);
+                Data.coins -= cost;
+                BalanceLog.Upgrade(Data.currentLevel, t.ToString(), fromLv, fromLv + 1, cost, Data.coins);
+                switch (t)
+                {
+                    case StatType.Power: Data.powerLv++; break;
+                    case StatType.Size: Data.sizeLv++; break;
+                    case StatType.Mass: Data.massLv++; break;
+                    case StatType.Ammo: Data.ammoLv++; break;
+                }
+            }
+            Data.Save();
+            OnDataChanged?.Invoke();
+            return true;
+        }
+
         /// <summary>현재 공의 실제 스탯</summary>
         public BallStats CurrentBallStats() => new BallStats
         {
