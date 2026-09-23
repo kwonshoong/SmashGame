@@ -190,7 +190,12 @@ namespace SmashGame
             }
 
             // 첫 타격은 스탯 그대로, 튕긴 뒤 다른 블록을 맞히면 남은 속도 비율만큼(예: 60% 속도 → 60% 충격). 너무 느려지면 타격 없음
-            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / Speed) * SecondaryHitScale;
+            // 분모가 고정 상수(Balance.BallSpeed = 30)라 '남은 속도 비율'이 실제 발사 속도와 무관하다.
+            // 그래서 공이 빨라지면 튕긴 뒤 타격이 저절로 세진다 — 원근 압축으로 발사 속도를 1.467배
+            // 올렸더니 2차 타격이 그대로 1.467배가 되어 난이도가 내려갔다.
+            // 발사 속도 배율만큼 분모도 같이 올려 예전 값으로 되돌린다.
+            // (파워 스탯이 오르면 속도도 올라 같은 일이 일어나는데, 그건 원래부터 있던 동작이라 그대로 둔다.)
+            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / (Speed * Cannon.SpeedScale)) * SecondaryHitScale;
             if (blockHits > 0 && energy < SecondaryHitMinEnergy * SecondaryHitScale) return;
             if (block == lastHitBlock && Time.time - lastHitTime < 0.2f) return;
             lastHitBlock = block; lastHitTime = Time.time;
