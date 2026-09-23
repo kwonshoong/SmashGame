@@ -578,8 +578,8 @@ namespace SmashGame
             BlockKind.Log => 1.6f,
             BlockKind.Crate => 1.2f,
             BlockKind.Plank => 1.0f,
-            BlockKind.Ice => 0.8f,
-            BlockKind.Candy => 0.7f,
+            BlockKind.Ice => 1.4f,     // 공으로 안 깨지는 대신 묵직하다. 미끄럽기까지 해서 밀면 흘러내린다
+            BlockKind.Candy => 1.15f,  // 한 방에 깨지던 시절의 가벼운 값(0.7)은 너무 헐거웠다
             _ => 1.0f,
         };
 
@@ -3737,12 +3737,19 @@ namespace SmashGame
             var deep = new[] { -0.866f, 0f, 0.866f };                           // 벌집 줄 간격에 맞춘 세 겹
             foreach (float j in deep)
                 RBrickRow(root, b, 0f, 0f, 7, 0, false, BlockKind.Cube, SlateCol, BlueCol, L, j);
-            foreach (int k in new[] { -2, 2 })                                  // 비틀린 사탕 벌집 기둥 둘
+            // 사탕은 기둥 한가운데(심)에만 두고 바깥 여섯 칸은 큐브로 감싼다.
+            // 사탕을 겉에 두면 파괴력 1.2 이상에서 맞는 즉시 깨져 기둥이 한 발에 사라졌다
+            // (이 유형 사용률 37%). 이제 겉껍질을 걷어내야 심에 닿는다.
+            foreach (int k in new[] { -2, 2 })                                  // 비틀린 벌집 기둥 둘
             {
                 var bb = Shift(b, k, 0f);
                 for (int row = 1; row <= 6; row++)
-                    RHexRingAt(root, bb, 1.0f, 0f, row, (row - 1) * 8f,
-                               BlockKind.Candy, row % 2 == 0 ? PinkCol : RedCol, L);
+                {
+                    RHexRingAt(root, bb, 1.0f, 0.5f, row, (row - 1) * 8f,
+                               BlockKind.Cube, row % 2 == 0 ? BlueCol : SlateCol, L);   // 바깥 껍질
+                    RHexRingAt(root, bb, 0.4f, 0f, row, (row - 1) * 8f,
+                               BlockKind.Candy, row % 2 == 0 ? PinkCol : RedCol, L);    // 사탕 심
+                }
             }
             foreach (float j in deep)
             {
@@ -4271,9 +4278,14 @@ namespace SmashGame
             Begin(info); var L = info.blocks;
             var b = TightPlate(root, p, info, 3f, 2f);
             var l3 = new[] { -1f, 0f, 1f };
+            // 사탕은 가운데 겹에만. 앞뒤 겹은 큐브로 감싼다 — 공이 앞 큐브를 먼저 걷어내야
+            // 사탕에 닿는다. 세 겹 전부 사탕이던 시절엔 한 발에 기둥 하나가 통째로 깨져
+            // 사용률이 36%까지 내려갔다.
             foreach (float k in new[] { -3f, -1.5f, 0f, 1.5f, 3f })
                 foreach (float j in l3)
-                    RColAt(root, b, 0f, k, j, 6, BlockKind.Candy, PinkCol, L, true);
+                    RColAt(root, b, 0f, k, j, 6,
+                           j == 0f ? BlockKind.Candy : BlockKind.Cube,
+                           j == 0f ? PinkCol : SlateCol, L, true);
             foreach (float j in l3)
             {
                 RBarAt(root, b, 0f, 0f, 6, 7, BlockKind.Stone, StoneCol, L, j);

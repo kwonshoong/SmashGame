@@ -12,6 +12,8 @@ namespace SmashGame
         public const float GravityScale = 2.6f;   // 낙하 속도감 (1 = 실제 중력). 2~3 사이에서 튜닝
         public const float BallSpeed = 30f;       // 발사 속도. 낮을수록 포물선이 커짐
         public const float BlockFriction = 0.22f; // 블록 운동 마찰. 낮을수록 밀리면 잘 미끄러져 떨어짐
+        /// <summary>얼음 마찰. 공으로 안 깨지는 대신 미끄러워서, 밀리면 제 무게로 흘러내린다.</summary>
+        public const float IceFriction = 0.10f, IceStaticFriction = 0.16f;
         public const float BlockStaticFriction = 0.35f; // 블록 정지 마찰. 0.7이면 살짝 들썩인 블록이 다시 닿는 순간 죽은 듯 멈춘다(플레이 로그로 확인) — 구조물 안정은 SettleAndSleep이 맡는다
         public const float BallImpulse = 15f;     // 기본 충격량 (파괴력 100% 기준). 공 자체의 물리 충돌은 거의 0이라 이 값이 밀림의 전부
 

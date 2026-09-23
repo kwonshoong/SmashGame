@@ -56,7 +56,7 @@ namespace SmashGame
             rb.angularDamping = 0.2f;
             rb.sleepThreshold = 0.05f;
             var col = GetComponent<Collider>();
-            if (col != null) col.material = Materials.BlockPhysics;
+            if (col != null) col.material = k == BlockKind.Ice ? Materials.IcePhysics : Materials.BlockPhysics;
             bodyCol = col;
             nextSupportCheck = Time.time + Random.value * 0.4f;   // 떠 있는지 검사하는 시점을 블록마다 흩어 한꺼번에 몰리지 않게
             // 강화 블록: 고정(kinematic)하면 받침이 사라져도 공중에 떠 있으므로, 대신 무겁게 만들고 공의 충격만 무시한다.
@@ -86,7 +86,10 @@ namespace SmashGame
                 else return;                        // 아직 강화 상태(충격 무시)
             }
 
-            bool shatter = !noShatter && (kind == BlockKind.Ice || (kind == BlockKind.Candy && impactPower >= 1.2f));
+            // 얼음은 공에 맞아도 깨지지 않는다. 땅에 닿을 때만 깨진다(Update 참고).
+            // 예전에는 맞는 즉시 사라져서, 얼음이 섞인 구조는 한 발에 벽 한 줄이 지워졌다
+            // (쌍둥이 얼음 탑: 한 발에 64개 중 23개 낙하).
+            bool shatter = !noShatter && kind == BlockKind.Candy && impactPower >= 1.2f;
             if (shatter)
             {
                 Debris.Spawn(transform.position, baseColor, 8, transform.localScale.magnitude * 0.25f);
@@ -245,7 +248,7 @@ namespace SmashGame
     {
         static readonly System.Collections.Generic.Dictionary<int, Material> cache = new();
         static Shader shader;
-        static PhysicsMaterial blockPhysics;
+        static PhysicsMaterial blockPhysics, icePhysics;
 
         /// <summary>블록 공통 물리 재질: 마찰을 낮춰 밀리면 미끄러져 떨어지게</summary>
         public static PhysicsMaterial BlockPhysics
@@ -264,6 +267,28 @@ namespace SmashGame
                     };
                 }
                 return blockPhysics;
+            }
+        }
+
+        /// <summary>얼음 전용 물리 재질: 표면이 미끄럽다.
+        /// 공으로는 안 깨지게 바꾼 대신, 밀리면 잘 미끄러져 제 무게로 흘러내리게 한다.
+        /// frictionCombine이 Minimum이라 얼음이 닿는 모든 접촉면이 이 낮은 값을 쓴다.</summary>
+        public static PhysicsMaterial IcePhysics
+        {
+            get
+            {
+                if (icePhysics == null)
+                {
+                    icePhysics = new PhysicsMaterial("Ice")
+                    {
+                        dynamicFriction = Balance.IceFriction,
+                        staticFriction = Balance.IceStaticFriction,
+                        bounciness = 0f,
+                        frictionCombine = PhysicsMaterialCombine.Minimum,
+                        bounceCombine = PhysicsMaterialCombine.Minimum,
+                    };
+                }
+                return icePhysics;
             }
         }
 
