@@ -741,7 +741,7 @@ namespace SmashGame
             float refMass = totalMass * Balance.BallRefMassScale / Balance.BlockMassScale(level);
             // 구조물별 난이도 계수(실플레이 로그 기반): 링·둥근 상판 계열은 공을 더, 갈라진 쉬운 배치는 덜 준다
             info.structureType = type; info.ballFactor = Balance.BallFactor(type);
-            info.startBalls = Balance.StartBalls(level, info.hard, refMass, info.ballFactor) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
+            info.startBalls = Balance.StartBalls(level, info.hard, refMass, info.ballFactor, info.blocks.Count) + Balance.RangeExtraBalls(info.rangeTier) + Balance.StructureExtraBalls(type) + (info.motion != Balance.MotionKind.None ? Balance.MotionExtraBalls : 0);
             info.structureName = type switch
             {
                 0 => "벽돌 담", 1 => "원통 다발", 2 => "상자 선반", 3 => "통나무 탑", 4 => "얼음 벽", 5 => "삼중 받침대",

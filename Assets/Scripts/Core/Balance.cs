@@ -151,15 +151,30 @@ namespace SmashGame
             if (level <= 45) return 85f + (level - 30) * 4f;
             return 0f;   // 상한 없음
         }
-        public const int MinStartBalls = 8, MaxStartBalls = 40;   // 하한 8: 아주 높은 레벨에선 공이 8개로 고정되고 그 뒤 난이도는 블록 질량 배율이 계속 올린다. 상한 40 → 34: 저레벨이 상한에 걸려 공이 남아돌았다
+        /// <summary>상한 45. 26레벨 세 잎 탑처럼 블록이 198개인 구조는 40발로는 발당 5개를
+        /// 걷어내야 하는데, 로그상 안정한 구조에서 나오는 값은 4개 안팎이다.</summary>
+        public const int MinStartBalls = 8, MaxStartBalls = 45;   // 하한 8: 아주 높은 레벨에선 공이 8개로 고정되고 그 뒤 난이도는 블록 질량 배율이 계속 올린다. 상한 40 → 34: 저레벨이 상한에 걸려 공이 남아돌았다
         /// <summary>하드 레벨 1.6배는 31레벨부터. 10·20·30레벨은 강화 없이 깨야 하는 구간이라
         /// 1.6배를 곱하면 발당 3.3kg이 넘어간다(20레벨 신전이 그래서 안 깨졌다).
         /// 그 구간의 하드 레벨은 장애물과 받침대 움직임으로만 어렵게 한다.</summary>
         public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * (1f + level * TargetMassPerBallGrowth) * (hard && level > 30 ? HardLevelMassMult : 1f);
-        public static int StartBalls(int level, bool hard, float totalMass, float structureFactor = 1f)
+        /// <summary>마무리 여유. 질량 비례분만으로는 '마지막 몇 개'를 못 센다.
+        ///
+        /// 17레벨 피라미드 로그가 그 증거다. 140블록 62.6kg에 공 30개(발당 2.09kg)였는데
+        /// 세 판 모두 3개, 6개, 26개를 남기고 졌다. 잘 된 판은 33발로 137개를 걷어냈으니
+        /// 성능이 모자란 게 아니라 딱 서너 발이 모자랐다. 11레벨 얼음 벽도 1개 남기고,
+        /// 14레벨 처마 벽도 3개 남기고 끝났다.
+        /// 흩어진 마지막 블록은 한 발에 하나씩밖에 안 걷히므로 블록 수에 비례한 여유를 따로 준다.</summary>
+        public static int TailBalls(int blockCount) => Mathf.Clamp(Mathf.RoundToInt(blockCount / 35f), 0, 6);
+        public static int StartBalls(int level, bool hard, float totalMass, float structureFactor = 1f, int blockCount = 0)
         {
-            int n = StartBallsBase + Mathf.RoundToInt(totalMass * Mathf.Clamp(structureFactor, 0.5f, 1.6f) / TargetMassPerBall(level, hard));
+            int n = StartBallsBase + Mathf.RoundToInt(totalMass * Mathf.Clamp(structureFactor, 0.5f, 1.6f) / TargetMassPerBall(level, hard))
+                  + TailBalls(blockCount);
             if (!hard && level <= 5) n += 5;   // 튜토리얼 구간 여유
+            // 30레벨까지는 '블록 4.5개당 공 1개'를 바닥으로 보장한다. 질량 상한 때문에 블록이
+            // 많아도 가벼운 구조(26레벨 세 잎 탑 198개)가 생기는데, 질량 비례분만으로는
+            // 발당 5개를 걷어내야 해서 무강화로는 손이 모자란다. 로그상 안정한 구조의 실측은 4개 안팎이다.
+            if (level <= 30 && blockCount > 0) n = Mathf.Max(n, Mathf.CeilToInt(blockCount / 4.5f));
             return Mathf.Clamp(n, MinStartBalls, MaxStartBalls);
         }
 
@@ -172,12 +187,17 @@ namespace SmashGame
         /// 산출: 실플레이 로그의 구조물별 공 사용률 ÷ 레벨 추세선(0.00217·L + 0.372), 표본 수로 1.0쪽으로 축소(n/(n+2)), 0.70~1.40 범위.
         /// 0~5번(튜토리얼 구간 6종)과 표본이 없는 40·71번은 1.0으로 둔다.
         /// </summary>
+        // 2026-09-23 무강화 플레이 로그로 보정한 값:
+        //   4 얼음 벽 1.00 -> 1.15 (11레벨 두 번 패, 1개·4개 남김)
+        //   6 피라미드 1.10 -> 1.30 (17레벨 세 번 패, 3개·6개 남김 — 안정해서 한 발에 적게 걷힌다)
+        //  14 신전    0.97 -> 1.20 (20레벨 다섯 번 패)
+        //  24 처마 벽 1.10 -> 1.25 (14레벨 세 번 패)
         public static readonly float[] StructureBallFactor =
         {
-            1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.10f, 1.01f,   // 0 벽돌 담, 1 원통 다발, 2 상자 선반, 3 통나무 탑, 4 얼음 벽, 5 삼중 받침대, 6 피라미드, 7 성문
-            0.89f, 1.00f, 0.93f, 1.15f, 1.10f, 0.88f, 0.97f, 0.96f,   // 8 쌍둥이 탑, 9 계단, 10 요새, 11 돌기둥 원진, 12 창문 벽, 13 아치 문, 14 신전, 15 세 탑
+            1.00f, 1.00f, 1.00f, 1.00f, 1.15f, 1.00f, 1.30f, 1.01f,   // 0 벽돌 담, 1 원통 다발, 2 상자 선반, 3 통나무 탑, 4 얼음 벽, 5 삼중 받침대, 6 피라미드, 7 성문
+            0.89f, 1.00f, 0.93f, 1.15f, 1.10f, 0.88f, 1.20f, 0.96f,   // 8 쌍둥이 탑, 9 계단, 10 요새, 11 돌기둥 원진, 12 창문 벽, 13 아치 문, 14 신전, 15 세 탑
             1.14f, 1.14f, 1.13f, 1.26f, 0.97f, 0.89f, 0.98f, 0.99f,   // 16 벽돌 탑, 17 H자 벽, 18 엇갈린 겹 벽, 19 둥근 성, 20 다리, 21 계단 성, 22 격자 탑, 23 버섯 탑
-            1.10f, 0.94f, 0.89f, 0.74f, 0.97f, 0.98f, 0.91f, 0.88f,   // 24 처마 벽, 25 무늬 벽, 26 창문 탑, 27 세 기둥, 28 상자 벽과 곁탑, 29 통나무 벽, 30 계단식 성문, 31 병풍 벽
+            1.25f, 0.94f, 0.89f, 0.74f, 0.97f, 0.98f, 0.91f, 0.88f,   // 24 처마 벽, 25 무늬 벽, 26 창문 탑, 27 세 기둥, 28 상자 벽과 곁탑, 29 통나무 벽, 30 계단식 성문, 31 병풍 벽
             0.92f, 0.88f, 0.94f, 1.17f, 0.89f, 0.90f, 0.78f, 1.08f,   // 32 부채꼴 성벽, 33 뱃머리 탑, 34 쌍날개, 35 십자 성, 36 풍차, 37 삼각 요새, 38 세 잎, 39 엇갈린 두 벽
             1.00f, 0.89f, 1.17f, 0.92f, 1.06f, 0.89f, 0.84f, 1.09f,   // 40 꺾인 벽, 41 화살촉 성, 42 다이아몬드 십자, 43 대각선 벽, 44 원통 벌집, 45 얼음 성, 46 사탕 숲, 47 통나무 오두막
             0.81f, 1.16f, 0.70f, 1.09f, 0.91f, 1.29f, 0.98f, 1.01f,   // 48 돌 아치, 49 계단 피라미드, 50 쌍둥이 원통 탑, 51 상자 성벽, 52 X자 벽, 53 통나무 원진, 54 종탑, 55 세 줄 벽
