@@ -58,6 +58,7 @@ namespace SmashGame
             var col = GetComponent<Collider>();
             if (col != null) col.material = Materials.BlockPhysics;
             bodyCol = col;
+            nextSupportCheck = Time.time + Random.value * 0.4f;   // 떠 있는지 검사하는 시점을 블록마다 흩어 한꺼번에 몰리지 않게
             // 강화 블록: 고정(kinematic)하면 받침이 사라져도 공중에 떠 있으므로, 대신 무겁게 만들고 공의 충격만 무시한다.
             baseMass = mass;
             rb.isKinematic = false;
@@ -94,9 +95,13 @@ namespace SmashGame
             }
         }
 
+        static readonly Collider[] supportBuf = new Collider[8];
+        float nextSupportCheck;
+
         void Update()
         {
-            if (removed) return;
+            if (removed) { CheckFloating(); return; }
+            CheckFloating();
             bool fell = transform.position.y < fallY;
             bool touchedGround = bodyCol != null && bodyCol.bounds.min.y <= groundTouchY;
             if (!fell && !touchedGround) return;
@@ -108,11 +113,52 @@ namespace SmashGame
             Destroy(gameObject, brittle ? 0f : 1.0f);
         }
 
+        /// <summary>떠 있는 채로 잠든 블록을 찾아 깨운다.
+        ///
+        /// PhysX는 받침이 사라져도 잠든 물체를 스스로 깨우지 않는다. 그래서 블록이 없어질 때
+        /// 이웃을 깨우고 있었는데(WakeNeighbors), 땅에 닿아 치워지는 블록은 '제거' 표시만 하고
+        /// 1초 뒤에 실제로 사라진다. 그 1초 사이에 위 블록이 다시 잠들고, 콜라이더가 사라질 때는
+        /// 아무도 깨우지 않아 공중에 그대로 멈춘다(17레벨 스크린샷).
+        ///
+        /// 그래서 잠든 블록은 0.4초마다 제 발밑을 확인한다. 받칠 것이 없으면 깨운다.
+        /// 검사는 잠들어 있을 때만 하므로 평소에는 거의 돌지 않는다.</summary>
+        void CheckFloating()
+        {
+            if (rb == null || rb.isKinematic || !rb.IsSleeping()) return;
+            if (Time.time < nextSupportCheck) return;
+            nextSupportCheck = Time.time + 0.4f;
+            if (bodyCol == null) return;
+            var b = bodyCol.bounds;
+            if (b.min.y <= groundTouchY + 0.05f) return;            // 땅에 닿아 있으면 볼 것 없다
+            var center = new Vector3(b.center.x, b.min.y - 0.03f, b.center.z);
+            var half = new Vector3(Mathf.Max(0.02f, b.extents.x * 0.9f), 0.025f, Mathf.Max(0.02f, b.extents.z * 0.9f));
+            int n = Physics.OverlapBoxNonAlloc(center, half, supportBuf, Quaternion.identity);
+            for (int i = 0; i < n; i++)
+            {
+                var c = supportBuf[i];
+                if (c == null || c == bodyCol) continue;
+                var ob = c.GetComponentInParent<Block>();
+                if (ob == this) continue;
+                if (ob != null && !ob.removed) return;               // 다른 블록이 받치고 있다
+                if (ob == null && c.attachedRigidbody == null) return;   // 받침대·땅 같은 고정 콜라이더
+                if (ob == null && c.attachedRigidbody != null && c.attachedRigidbody.isKinematic) return;   // 움직이는 받침대
+            }
+            rb.WakeUp();
+        }
+
         void MarkRemoved()
         {
             if (removed) return;
             removed = true;
             if (controller != null) controller.OnBlockRemoved(this);
+            WakeNeighbors();
+        }
+
+        void OnDestroy()
+        {
+            // 실제로 사라지는 순간 한 번 더 깨운다. '제거 표시'와 소멸 사이 1초 동안
+            // 다시 잠들어 버린 위 블록이 받침이 없어진 걸 알아채게 하는 것.
+            if (!Application.isPlaying || !gameObject.scene.isLoaded) return;
             WakeNeighbors();
         }
 
