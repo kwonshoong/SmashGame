@@ -34,7 +34,7 @@ namespace SmashGame
         static PhysicsMaterial ballPhysics; // 발사 후 공이 사라지기까지의 시간(충돌 여부와 무관)
         public static float Speed => Balance.BallSpeed;
         /// <summary>이 스탯으로 쏘는 발사 속도 (실제 물리 모드는 파워 스탯이 곧 속도)</summary>
-        public static float SpeedFor(BallStats s) => Balance.RealPhysics ? Balance.RealBallSpeed(s.power) : Balance.BallSpeed;
+        public static float SpeedFor(BallStats s) => (Balance.RealPhysics ? Balance.RealBallSpeed(s.power) : Balance.BallSpeed) * Cannon.SpeedScale;
         static PhysicsMaterial realPhysics;
         static float BaseImpulse => Balance.BallImpulse;
 

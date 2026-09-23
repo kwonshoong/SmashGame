@@ -58,6 +58,12 @@ namespace SmashGame
         public static Vector3 DefaultPos { get { SolveFraming(out var p, out _); return p; } }
         public static float ModelScale { get { SolveFraming(out _, out var s); return s; } }
 
+        /// <summary>발사 속도 배율. 원근 압축으로 대포가 뒤로 가면 같은 속도로는 비행 시간이 길어져
+        /// 공이 느려 보인다(5.3 → 7.78이면 47% 더 걸린다). 날아가는 거리에 비례해 속도를 올려
+        /// 구조물에 닿기까지 걸리는 시간을 예전과 같게 맞춘다.
+        /// 첫 타격의 충격량은 속도가 아니라 파워·무게 스탯으로 계산되므로 난이도는 그대로다.</summary>
+        public static float SpeedScale => Mathf.Abs(DefaultPos.z - AimPlaneZ) / Mathf.Abs(BasePos.z - AimPlaneZ);
+
         public static Cannon Create(Transform parent, Camera cam, BallStats stats, LevelController controller)
         {
             var root = new GameObject("Cannon");
