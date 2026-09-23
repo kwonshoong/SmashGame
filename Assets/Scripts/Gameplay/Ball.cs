@@ -19,8 +19,14 @@ namespace SmashGame
         Block lastHitBlock; float lastHitTime;   // 같은 블록을 튕기면서 연달아 다시 맞히는 것은 한 번으로 친다
         /// <summary>2차 타격(첫 블록에 튕긴 뒤 다른 블록을 맞힘)이 성립하는 최소 남은 속도 비율. 그 아래는 그냥 굴러가는 공</summary>
         public const float SecondaryHitMinEnergy = 0.35f;
-        /// <summary>2차 타격 충격 배율 (남은 속도 비율에 추가로 곱한다). 1이면 첫 타격과 같은 기준 — 너무 세서 절반으로</summary>
-        public const float SecondaryHitScale = 0.45f;
+        /// <summary>2차 타격 충격 배율 (남은 속도 비율에 추가로 곱한다). 1이면 첫 타격과 같은 기준.
+        ///
+        /// 0.45 → 0.30. 예전에는 '남은 속도 비율'의 분모가 고정 상수(30)라 실제 발사 속도가 빠를수록
+        /// 2차 타격이 저절로 세졌다. 파워 스탯은 이미 충격량 식에 직접 곱해지는데 속도를 통해
+        /// 한 번 더 곱해지고 있었던 셈이다(스탯 1 → 50에서 속도만으로 60% 증가).
+        /// 분모를 실제 발사 속도로 바꿔 그 숨은 보너스를 없애고, 대신 배율을 0.30으로 낮춰
+        /// 1~39레벨을 검증한 그 값(60% 속도에서 0.18)이 파워와 무관하게 유지되게 맞췄다.</summary>
+        public const float SecondaryHitScale = 0.30f;
         float spawnTime;
 
         static readonly System.Collections.Generic.List<Ball> alive = new();
@@ -190,12 +196,10 @@ namespace SmashGame
             }
 
             // 첫 타격은 스탯 그대로, 튕긴 뒤 다른 블록을 맞히면 남은 속도 비율만큼(예: 60% 속도 → 60% 충격). 너무 느려지면 타격 없음
-            // 분모가 고정 상수(Balance.BallSpeed = 30)라 '남은 속도 비율'이 실제 발사 속도와 무관하다.
-            // 그래서 공이 빨라지면 튕긴 뒤 타격이 저절로 세진다 — 원근 압축으로 발사 속도를 1.467배
-            // 올렸더니 2차 타격이 그대로 1.467배가 되어 난이도가 내려갔다.
-            // 발사 속도 배율만큼 분모도 같이 올려 예전 값으로 되돌린다.
-            // (파워 스탯이 오르면 속도도 올라 같은 일이 일어나는데, 그건 원래부터 있던 동작이라 그대로 둔다.)
-            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / (Speed * Cannon.SpeedScale)) * SecondaryHitScale;
+            // 주석대로 '남은 속도 비율'이 되도록 분모를 실제 발사 속도로 둔다(60% 속도 → 60% 충격).
+            // 고정 상수(30)를 쓰면 공이 빠를수록 2차 타격이 저절로 세져, 파워 스탯이 충격량에
+            // 한 번 더 곱해지는 꼴이 된다. 배율(SecondaryHitScale) 설명 참고.
+            float energy = blockHits == 0 ? 1f : Mathf.Clamp01(lastVelocity.magnitude / Mathf.Max(1f, SpeedFor(stats))) * SecondaryHitScale;
             if (blockHits > 0 && energy < SecondaryHitMinEnergy * SecondaryHitScale) return;
             if (block == lastHitBlock && Time.time - lastHitTime < 0.2f) return;
             lastHitBlock = block; lastHitTime = Time.time;

@@ -157,7 +157,39 @@ namespace SmashGame
         /// <summary>하드 레벨 1.6배는 31레벨부터. 10·20·30레벨은 강화 없이 깨야 하는 구간이라
         /// 1.6배를 곱하면 발당 3.3kg이 넘어간다(20레벨 신전이 그래서 안 깨졌다).
         /// 그 구간의 하드 레벨은 장애물과 받침대 움직임으로만 어렵게 한다.</summary>
-        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * (1f + level * TargetMassPerBallGrowth) * (hard && level > 30 ? HardLevelMassMult : 1f);
+        // ---------- 2차 타격 보정 ----------
+        /// <summary>레벨별로 기대되는 파워 스탯. 경제 시뮬 값(100L 21 · 500L 43 · 1000L 55 · 2000L 70)을 잇고,
+        /// 30레벨까지는 강화 없이 깨도록 설계했으므로 1로 둔다.</summary>
+        public static float ExpectedPowerStat(int level)
+        {
+            int[] L = { 30, 100, 500, 1000, 2000 };
+            float[] P = { 1f, 21f, 43f, 55f, 70f };
+            if (level <= L[0]) return P[0];
+            for (int i = 1; i < L.Length; i++)
+                if (level <= L[i]) return Mathf.Lerp(P[i - 1], P[i], (level - L[i - 1]) / (float)(L[i] - L[i - 1]));
+            return P[P.Length - 1] + (level - L[L.Length - 1]) * 0.008f;
+        }
+
+        /// <summary>2차 타격 계산을 바로잡으면서 빠진 파괴력을 레벨 난이도에서 되돌려 준다.
+        ///
+        /// 예전에는 '남은 속도 비율'의 분모가 고정 상수(30)라 공이 빠를수록 2차 타격이 세졌고,
+        /// 파워 스탯이 충격량에 두 번 곱해지는 꼴이었다. 분모를 실제 발사 속도로 바로잡으면
+        /// 파워가 높을수록 공이 약해진다 — 그만큼 레벨을 쉽게 해 줘야 곡선이 그대로 유지된다.
+        ///
+        /// 2차 타격이 전체 충격량에서 차지하는 몫은 플레이 로그 1943발·5389타격에서 60%로 나왔다.
+        /// 전체 파괴력 비율 = 1 − 0.60 × (1 − 2차타격이 약해진 비율).
+        /// 스탯 1에서 1.00(그대로), 21에서 0.88, 43에서 0.80, 70에서 0.73이다.</summary>
+        public const float SecondaryImpulseShare = 0.60f;
+        public static float SecondaryFixCompensation(int level)
+        {
+            float v = RealBallSpeed(PowerMult(Mathf.RoundToInt(ExpectedPowerStat(level))));
+            float oldSec = Mathf.Clamp01(0.6f * v / BallSpeed) * 0.45f;   // 고치기 전 값
+            float newSec = 0.6f * 0.30f;                                   // Ball.SecondaryHitScale
+            float ratio = oldSec > 1e-4f ? Mathf.Min(1f, newSec / oldSec) : 1f;
+            return 1f - SecondaryImpulseShare * (1f - ratio);
+        }
+
+        public static float TargetMassPerBall(int level, bool hard) => TargetMassPerBallBase * SecondaryFixCompensation(level) * (1f + level * TargetMassPerBallGrowth) * (hard && level > 30 ? HardLevelMassMult : 1f);
         /// <summary>마무리 여유. 질량 비례분만으로는 '마지막 몇 개'를 못 센다.
         ///
         /// 17레벨 피라미드 로그가 그 증거다. 140블록 62.6kg에 공 30개(발당 2.09kg)였는데
