@@ -5104,7 +5104,10 @@ namespace SmashGame
                 for (int k = -2; k <= 2; k++) RUnitAt(root, b, 0f, k, 4, 1, BlockKind.Cube, RedCol, L, j);
                 for (int k = -1; k <= 1; k++) RUnitAt(root, b, 0f, k, 5, 1, BlockKind.Cube, RedCol, L, j);
                 RUnitAt(root, b, 0f, 0, 6, 1, BlockKind.Cube, RedCol, L, j);
-                RUnitAt(root, b, 0f, 1.5f, 6, 1, BlockKind.Candy, PinkCol, L, j);
+                // 굴뚝. 원래 (1.5칸, 6단)이었는데 6단에는 지붕이 -1~1칸뿐이라 발밑이 아예 비어 있었다.
+                // 생성되자마자 굴러떨어져 지붕 옆구리에 누워 있었다(24레벨 스크린샷).
+                // 5단 2칸 자리로 내려 4단 지붕(-2~2칸) 위에 온전히 얹히게 했다.
+                RUnitAt(root, b, 0f, 2f, 5, 2, BlockKind.Candy, PinkCol, L, j);
             }
         }
 
