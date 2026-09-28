@@ -145,12 +145,13 @@ namespace SmashGame
             float frac = speed / Mathf.Max(1f, SpeedFor(stats));
             if (frac < Balance.RealHitMinSpeedFrac) return;
             if (block == lastHitBlock && Time.time - lastHitTime < 0.2f) return;
+            bool direct = blockHits == 0;   // 첫 블록 = 직격 (사탕은 직격이면 깨진다)
             lastHitBlock = block; lastHitTime = Time.time; blockHits++;
             Vector3 point = c.GetContact(0).point;
             Vector3 dir = lastVelocity.sqrMagnitude > 0.01f ? lastVelocity.normalized : transform.forward;
             int dmg = Mathf.Max(1, Mathf.CeilToInt(stats.power * frac - 0.01f));
             float combo = block.RegisterHitCombo();
-            block.Hit(dmg, dir, stats.power * frac);
+            block.Hit(dmg, dir, stats.power * frac, direct);
             onHit?.Invoke(point);
             PlayLog.Hit(block, point, dir, rb.mass * speed, combo, lastVelocity, rb.linearVelocity);
         }

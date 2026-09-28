@@ -72,8 +72,9 @@ namespace SmashGame
             rend.material = Materials.GetBlock(kind, baseColor * t, tall);
         }
 
-        /// <summary>공에 맞았을 때. dmg는 공 파괴력에서 계산된 정수.</summary>
-        public void Hit(int dmg, Vector3 dir, float impactPower)
+        /// <summary>공에 맞았을 때. dmg는 공 파괴력에서 계산된 정수.
+        /// direct: 공이 발사된 뒤 처음 맞힌 블록(다른 블록에 튕기기 전의 직격)</summary>
+        public void Hit(int dmg, Vector3 dir, float impactPower, bool direct = false)
         {
             if (removed) return;
             everHit = true;
@@ -89,7 +90,9 @@ namespace SmashGame
             // 얼음은 공에 맞아도 깨지지 않는다. 땅에 닿을 때만 깨진다(Update 참고).
             // 예전에는 맞는 즉시 사라져서, 얼음이 섞인 구조는 한 발에 벽 한 줄이 지워졌다
             // (쌍둥이 얼음 탑: 한 발에 64개 중 23개 낙하).
-            bool shatter = !noShatter && kind == BlockKind.Candy && impactPower >= 1.2f;
+            // 사탕은 공이 직격하면 깨진다. 튕겨 나온 공(2차 타격)은 파워가 높을 때만 깬다.
+            // 안쪽 심에 넣은 사탕은 직격을 받을 수 없으니 껍질을 먼저 벗겨야 한다.
+            bool shatter = !noShatter && kind == BlockKind.Candy && (direct || impactPower >= 1.2f);
             if (shatter)
             {
                 Debris.Spawn(transform.position, baseColor, 8, transform.localScale.magnitude * 0.25f);
