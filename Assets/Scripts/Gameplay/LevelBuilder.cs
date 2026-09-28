@@ -585,6 +585,57 @@ namespace SmashGame
 
         // ---------------- 메인 빌드 ----------------
 
+        /// <summary>순열만으로 정한 구조물 종류 (이웃 중복 보정 전).
+        /// 레벨 구간별로 나올 수 있는 구조물 목록에서, T레벨마다 모든 종류가 한 번씩 나오도록 주기별로 섞은 순열로 고른다.
+        /// 하드 레벨(10의 배수)도 같은 순열을 쓴다. 예전에는 하드 레벨만 (level/10+6)%T 고정 공식이라
+        /// 옛 구조물 10종(성문·신전·세 탑·벽돌 탑…)만 돌아가며 나왔고, 앞 레벨과 겹치기도 했다(99·100 격자 탑).</summary>
+        static int BaseTypeFor(int level)
+        {
+            if (level <= 7) return new[] { 1, 0, 2, 3, 4, 5, 1 }[Mathf.Max(1, level) - 1];   // 튜토리얼 구간(1~7)은 초반용 6종을 순서대로
+            var allowed = Balance.StructurePool(level);
+            int T = allowed.Length;
+            int cycle = level / T;
+            var perm = new int[T]; for (int i = 0; i < T; i++) perm[i] = i;
+            var prng = new System.Random(cycle * 1237 + 7);
+            for (int i = T - 1; i > 0; i--) { int k = prng.Next(i + 1); (perm[i], perm[k]) = (perm[k], perm[i]); }
+            return allowed[perm[level % T]];
+        }
+
+        /// <summary>레벨의 구조물 종류. 순열 경계(주기가 바뀌는 곳)나 구간 목록이 바뀌는 곳에서는
+        /// 바로 앞 레벨과 같은 종류가 나올 수 있어서, 앞 레벨(보정 후)·뒤 레벨(순열)과 겹치면 같은 목록의 다른 종류로 바꾼다.
+        /// 보너스 레벨은 구조물이 따로라 건너뛰고 그 앞 레벨과 비교한다.</summary>
+        /// <summary>디버그·테스트용: 0 이상이면 모든 레벨을 이 구조물 종류로 짓는다</summary>
+        public static int ForceType = -1;
+
+        public static int TypeFor(int level)
+        {
+            if (level <= 7) return BaseTypeFor(level);
+            // 앞쪽 몇 레벨부터 차례로 보정해 온다 (앞 레벨의 보정 결과가 다음 레벨 판단에 쓰이므로)
+            int start = Mathf.Max(8, level - 12);
+            int prev = BaseTypeFor(start - 1);
+            int cur = -1;
+            for (int L = start; L <= level; L++)
+            {
+                if (Balance.IsBonusLevel(L)) continue;
+                int t = BaseTypeFor(L);
+                int nextL = L + 1; if (Balance.IsBonusLevel(nextL)) nextL++;
+                int next = BaseTypeFor(nextL);
+                if (t == prev)
+                {
+                    var allowed = Balance.StructurePool(L);
+                    int T = allowed.Length;
+                    int idx = System.Array.IndexOf(allowed, t);
+                    for (int k = 1; k < T; k++)
+                    {
+                        int c = allowed[(idx + k) % T];
+                        if (c != prev && c != next) { t = c; break; }
+                    }
+                }
+                prev = t; cur = t;
+            }
+            return cur;
+        }
+
         public static LevelInfo Build(int level, Transform root, SaveData data, Camera cam)
         {
             var info = new LevelInfo { level = level, theme = ThemeFor(level), hard = Balance.IsHardLevel(level), pedestalTop = PedestalTop };
@@ -608,17 +659,7 @@ namespace SmashGame
                 return info;
             }
 
-            // 레벨 구간별로 나올 수 있는 구조물 목록. 원통 다발·판자 선반·통나무 탑은 한 발에 무너지는 극초반용이라 12레벨부터 제외
-            var allowed = Balance.StructurePool(level);
-            int T = allowed.Length;
-            // T레벨마다 모든 종류가 정확히 한 번씩 나오도록 주기별로 섞은 순열에서 고른다 (곱수+흔들기 방식은 특정 종류가 200레벨 넘게 안 나왔다)
-            int cycle = level / T;
-            var perm = new int[T]; for (int i = 0; i < T; i++) perm[i] = i;
-            var prng = new System.Random(cycle * 1237 + 7);
-            for (int i = T - 1; i > 0; i--) { int k = prng.Next(i + 1); (perm[i], perm[k]) = (perm[k], perm[i]); }
-            int pick = info.hard ? (level / 10 + 6) % T : perm[level % T];
-            int type = allowed[pick];
-            if (level <= 7) type = new[] { 1, 0, 2, 3, 4, 5, 1 }[level - 1];   // 튜토리얼 구간(1~7)은 초반용 6종을 순서대로
+            int type = ForceType >= 0 ? ForceType : TypeFor(level);
 
             // 사거리: 구조물(받침대 포함)을 자식 루트에 짓고 통째로 뒤로 민다. 카메라·대포는 그대로라 멀수록 작게 보이고 포물선이 높아진다.
             info.rangeTier = Balance.RangeTier(level);
@@ -773,6 +814,7 @@ namespace SmashGame
             EnsureMinBlocks(root, info, rng);
             ApplyMassCap(info, level);
             SeparatePlates(root, info, level, type);
+            if (GrowAfterSeparate(root, info) > 0) ApplyMassCap(info, level);   // 늘어난 블록까지 질량 상한을 다시 맞춘다
             FitPlatesToBlocks(info.blocks);
             float zShift = info.rangeZ;
             if (fixedFront)
@@ -2186,6 +2228,172 @@ namespace SmashGame
         /// 깊이 방향은 화면 폭을 먹지 않고, 원근 폭 규칙도 z가 클수록 오히려 여유가 늘어난다.
         /// 복제한 블록 수를 돌려준다.
         /// </summary>
+        /// <summary>상판 하나를 한 겹(DS) 두껍게 하고 맨 뒷겹(dir=+1) 또는 맨 앞겹(dir=-1)을 복제한다.
+        /// 늘린 뒤 검사해서 실패하면 전부 되돌리고 0을 돌려준다:
+        ///  · 다른 상판과의 간격이 MinPlateGap(원래 그보다 좁았으면 원래 값) 밑으로 줄면 실패 — SeparatePlates가 상판을 옮겨 블록이 허공에 남는 경로를 막는다
+        ///  · 새 블록이 다른 블록·다른 상판과 겹치면 실패
+        ///  · 새 블록이 화면 폭을 넘으면 실패
+        /// 둥근 상판(MeshCollider)은 z로 늘리면 타원이 되어 둘러 세운 블록이 받침을 잃으므로 건드리지 않는다.</summary>
+        /// <summary>②-b 앞뒤로 어긋나거나 돌아간 상판(뱃머리 탑·병풍 벽·세 잎 등)은 EnsureMinBlocks의 ②에서 통째로 빠져 64~96개에 머물렀고,
+        /// 플레이 로그상 남은 공 비율이 평균의 두 배(44~62%)였다. 이 상판들도 한 겹씩 두껍게 한다.
+        /// SeparatePlates 뒤에 한다 — 그 전에 늘리면 이후 상판이 벌어지면서 늘린 겹까지 바깥으로 밀려 화면 폭을 넘었다(세 잎 +0.35).
+        /// 한 겹마다 검사해서 하나라도 어긋나면 되돌린다(GrowPlateGuarded). 뒤(상판 로컬 +z)가 막히면 앞으로 늘린다.</summary>
+        static int GrowAfterSeparate(Transform root, LevelInfo info)
+        {
+            int want = MinBlocksFor(info.level);
+            if (!GrowGuardEnabled || info.blocks.Count >= want) return 0;
+            var groups = pedestalGroups.Where(g => g != null && g.transform.IsChildOf(root)).ToList();
+            int layers = 0, n0 = info.blocks.Count;
+            for (int pass = 0; pass < MaxAutoLayers && info.blocks.Count < want; pass++)
+            {
+                bool grew = false;
+                for (int gi = 0; gi < groups.Count && info.blocks.Count < want; gi++)
+                {
+                    int a = GrowPlateGuarded(root, info, groups, gi, +1);
+                    if (a == 0) a = GrowPlateGuarded(root, info, groups, gi, -1);
+                    if (a > 0) { grew = true; layers++; }
+                }
+                if (!grew) break;
+            }
+            if (layers > 0) Debug.Log($"[LevelBuilder] {info.level}: 상판 {layers}겹 두껍게 → 블록 {n0} → {info.blocks.Count}개");
+            return layers;
+        }
+
+        /// <summary>블록이 화면 폭 한계를 넘는 최대량(음수면 여유). 최종 위치 기준:
+        /// fixedFront 구조물은 짓고 나서 맨 앞 블록이 FrontZ에 오도록 통째로 z로 옮겨지므로 그 이동량을 미리 더한다
+        /// (빌드 중 좌표로 재면 앞으로 늘린 겹이 화면 밖으로 나갔다 — 세 잎·화살촉 성 +0.3).</summary>
+        static float WidthOvershoot(LevelInfo info)
+        {
+            float zOff = 0f;
+            if (fixedFront)
+            {
+                float minZ = float.MaxValue;
+                foreach (var bl in info.blocks) { var cc = bl != null ? bl.GetComponent<Collider>() : null; if (cc != null) minZ = Mathf.Min(minZ, cc.bounds.min.z); }
+                if (minZ < float.MaxValue) zOff = FrontZ - minZ;
+            }
+            float over = float.MinValue;
+            foreach (var bl in info.blocks)
+            {
+                var cc = bl != null ? bl.GetComponent<Collider>() : null; if (cc == null) continue;
+                var bd = cc.bounds;
+                over = Mathf.Max(over, Mathf.Abs(bd.center.x) + bd.extents.x - WidthLimitAt(bd.center.z + zOff));
+            }
+            return over;
+        }
+
+        /// <summary>디버그·비교용: 끄면 ②-b(돌아간·앞뒤 상판 두껍게 하기)를 건너뛴다</summary>
+        public static bool GrowGuardEnabled = true;
+        static int GrowPlateGuarded(Transform root, LevelInfo info, List<GameObject> groups, int gi, int dir)
+        {
+            var tops = new List<Collider>();
+            foreach (var g in groups) { var t = g.transform.Find("PedestalTop"); tops.Add(t != null ? t.GetComponent<Collider>() : null); }
+            var top = tops[gi];
+            if (top == null || !(top is BoxCollider)) return 0;
+
+            var mine = new List<Block>();
+            foreach (var b in info.blocks)
+            {
+                var col = b != null ? b.GetComponent<Collider>() : null; if (col == null) continue;
+                Vector3 c = col.bounds.center; int best = -1; float bestD = 0.35f;
+                for (int i = 0; i < tops.Count; i++)
+                {
+                    if (tops[i] == null) continue;
+                    Vector3 q = ClosestOnPlate(tops[i], new Vector3(c.x, tops[i].bounds.max.y, c.z));
+                    float dd = Vector2.Distance(new Vector2(q.x, q.z), new Vector2(c.x, c.z));
+                    if (dd < bestD) { bestD = dd; best = i; }
+                }
+                if (best == gi) mine.Add(b);
+            }
+            if (mine.Count == 0) return 0;
+
+            float gyaw = groups[gi].transform.eulerAngles.y;
+            Vector3 fwd = Quaternion.Euler(0f, gyaw, 0f) * Vector3.forward * dir;
+            float ext = float.MinValue;
+            foreach (var b in mine) ext = Mathf.Max(ext, Vector3.Dot(b.transform.position, fwd));
+            var layer = mine.Where(b => Vector3.Dot(b.transform.position, fwd) > ext - DS * 0.5f).ToList();
+            if (layer.Count == 0) return 0;
+
+            float overBefore = WidthOvershoot(info);
+            var oldGap = new float[tops.Count];
+            for (int oj = 0; oj < tops.Count; oj++) oldGap[oj] = (oj == gi || tops[oj] == null) ? 0f : PlateGap(top, tops[oj]);
+
+            var parts = new List<(Transform t, Vector3 ls, Vector3 lp)>();
+            foreach (var nm in new[] { "PedestalTop", "PedestalRim", "PedestalUnder" })
+            {
+                var c = groups[gi].transform.Find(nm); if (c == null) continue;
+                parts.Add((c, c.localScale, c.localPosition));
+                var ls = c.localScale; ls.z += DS; c.localScale = ls;
+                var lp = c.localPosition; lp.z += DS * 0.5f * dir; c.localPosition = lp;
+            }
+            Physics.SyncTransforms();
+
+            bool ok = true;
+            for (int oj = 0; oj < tops.Count && ok; oj++)
+            {
+                if (oj == gi || tops[oj] == null) continue;
+                float g = PlateGap(top, tops[oj]);
+                if (g < Mathf.Min(oldGap[oj], MinPlateGap) - 0.005f) ok = false;
+            }
+
+            int before = info.blocks.Count;
+            if (ok)
+            {
+                foreach (var b in layer)
+                {
+                    var col = b.GetComponent<Collider>(); if (col == null) continue;
+                    var sz = col.bounds.size; var t = b.transform; float yaw = t.eulerAngles.y;
+                    Vector3 pos = t.position + fwd * DS;
+                    Vector3 basePos = new Vector3(pos.x, col.bounds.min.y, pos.z);
+                    bool lying = Mathf.Abs(Mathf.DeltaAngle(yaw, gyaw)) < 0.5f || Mathf.Abs(Mathf.DeltaAngle(yaw, gyaw + 180f)) < 0.5f
+                               ? sz.x > DU * 1.3f : sz.z > DU * 1.3f;
+                    if (lying) RBar(root, basePos, Mathf.RoundToInt(Mathf.Max(sz.x, sz.z) / DS), b.kind, b.BaseColor, yaw, info.blocks);
+                    else RUnit(root, basePos, Mathf.Max(1, Mathf.RoundToInt(sz.y / DU)), b.kind, b.BaseColor, yaw, info.blocks);
+                }
+                Physics.SyncTransforms();
+                var fresh = new HashSet<Collider>();
+                for (int i = before; i < info.blocks.Count; i++) { var c = info.blocks[i] != null ? info.blocks[i].GetComponent<Collider>() : null; if (c != null) fresh.Add(c); }
+                var ownParts = new HashSet<Collider>(groups[gi].GetComponentsInChildren<Collider>());
+                var buf = new Collider[16];
+                // 폭 한계는 최종 위치 기준으로 잰다(WidthOvershoot 참고). 원래부터 넘쳐 있던 구조물은 더 나빠지지만 않으면 된다.
+                float overAfter = WidthOvershoot(info);
+                if (overAfter > Mathf.Max(0f, overBefore) + 0.005f) ok = false;
+                foreach (var c in fresh)
+                {
+                    if (!ok) break;
+                    var bd = c.bounds;
+                    // 블록 속을 DU 간격으로 훑으며 작은 구로 겹침 검사 (이웃 블록 면까지는 0.23 떨어져 있어 닿지 않는다)
+                    for (float y = bd.min.y + DU * 0.5f; y < bd.max.y && ok; y += DU)
+                    {
+                        // 돌아간 긴 부재는 월드 축이 아니라 자기 축을 따라 훑어야 옆 겹을 건드리지 않는다
+                        Vector3 ls = c.transform.lossyScale;
+                        Vector3 axis = ls.x >= ls.z ? c.transform.right : c.transform.forward; axis.y = 0f; axis.Normalize();
+                        float half = Mathf.Max(ls.x, ls.z) * 0.5f - DU * 0.5f;
+                        for (float u = -half; u <= half + 1e-3f && ok; u += DU)
+                        {
+                            Vector3 pnt = new Vector3(bd.center.x, y, bd.center.z) + axis * u;
+                            int n = Physics.OverlapSphereNonAlloc(pnt, 0.17f, buf, ~0, QueryTriggerInteraction.Ignore);
+                            for (int h = 0; h < n; h++)
+                            {
+                                var o = buf[h];
+                                if (o == c || fresh.Contains(o) || ownParts.Contains(o)) continue;
+                                ok = false; break;
+                            }
+                        }
+                    }
+                    if (!ok) break;
+                }
+            }
+
+            if (!ok)
+            {
+                for (int i = info.blocks.Count - 1; i >= before; i--) { if (info.blocks[i] != null) Object.DestroyImmediate(info.blocks[i].gameObject); info.blocks.RemoveAt(i); }
+                foreach (var (t, ls, lp) in parts) { t.localScale = ls; t.localPosition = lp; }
+                Physics.SyncTransforms();
+                return 0;
+            }
+            return info.blocks.Count - before;
+        }
+
         static int CloneBackLayer(Transform root, LevelInfo info, List<GameObject> groups)
         {
             if (groups.Count == 0) return 0;
@@ -2638,11 +2846,14 @@ namespace SmashGame
             var L = info.blocks; keepPlateShape = true; fixedFront = true;
             for (int i = 0; i < 3; i++)
             {
-                float yaw = (i % 2 == 0) ? 60f : -60f;
-                Vector3 c = new Vector3((i - 1) * 1.2f, 0f, (i % 2 == 0) ? -0.3f : 0.35f);
-                RPlate(root, p, c, yaw, 1f * DS + 0.1f, 1.1f); var b = Top(c);   // 2열 두 겹 (규칙 ⑦), 폭 ±2.2 안
-                RBrickWall(root, b, yaw, 2, 7, 2, BlockKind.Ice, IceCol, BlueCol, L);
-                foreach (float j in new[] { -0.5f, 0.5f }) { RBarAt(root, b, yaw, 0, 7, 2, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, yaw, -0.5f, 8, 1, BlockKind.Cube, GoldCol, L, j); }
+                // 세 겹이 되면서 상판이 깊어져, 예전 배치(±60°, z −0.3/+0.35)로는 상판끼리 맞물려 벌어지다 화면 폭을 넘었다.
+                // 꺾는 각을 50°로 줄이고 앞뒤 지그재그 폭을 키워 서로 비껴 서게 한다.
+                float yaw = (i % 2 == 0) ? 50f : -50f;
+                Vector3 c = new Vector3((i - 1) * 1.2f, 0f, (i % 2 == 0) ? -0.45f : 0.55f);
+                // 두 겹(87개)은 한 발에 한 폭이 통째로 넘어가 남은 공이 절반을 넘었다 → 세 겹
+                RPlate(root, p, c, yaw, 1f * DS + 0.1f, 3f * DS + 0.17f); var b = Top(c);
+                RBrickWall(root, b, yaw, 2, 7, 3, BlockKind.Ice, IceCol, BlueCol, L);
+                foreach (float j in new[] { -1f, 0f, 1f }) { RBarAt(root, b, yaw, 0, 7, 2, BlockKind.Cube, BlueCol, L, j); RUnitAt(root, b, yaw, -0.5f, 8, 1, BlockKind.Cube, GoldCol, L, j); }
             }
         }
 
@@ -2679,7 +2890,9 @@ namespace SmashGame
             foreach (int side in new[] { -1, 1 })
             {
                 float yaw = -side * 45f; Vector3 u = new Vector3(side * 0.7071f, 0f, 0.7071f);
-                Vector3 c = A + u * (3f * DS); RPlate(root, p, c, yaw, 1.6f * DS, 1.1f); var b = Top(c);   // k 1.4 ~ 4.6 (k는 A 기준)
+                // 날개를 뱃머리 꼭짓점에서 반 칸 더 떨어뜨렸다(3 → 3.6칸). 붙어 있으면 두 상판이 맞닿아(간격 0.13)
+                // 안쪽으로 겹을 늘릴 수 없었다 — 블록 64~92개로 머물러 남은 공이 60%에 가까웠다.
+                Vector3 c = A + u * (3.6f * DS); RPlate(root, p, c, yaw, 1.6f * DS, 1.1f); var b = Top(c);   // k 2.0 ~ 5.2 (k는 A 기준)
                 float jo = Vector3.Dot(YawBack(yaw), new Vector3(side, 0f, 0f)) > 0 ? 0.5f : -0.5f;      // 바깥쪽 겹
                 float ji = -jo;
                 RColAt(root, b, yaw, -1, ji, 6, BlockKind.Candy, PinkCol, L);
@@ -2692,6 +2905,18 @@ namespace SmashGame
                 RColAt(root, b, yaw, 1, jo, 4, BlockKind.Cube, BlueCol, L, true);
                 RBarAt(root, b, yaw, 0, 4, 3, BlockKind.Cube, RedCol, L, jo);
                 RUnitAt(root, b, yaw, 0, 5, 1, BlockKind.Cube, GoldCol, L, jo);
+            }
+            // 고물 탑: V 안쪽 뒤에 상판 하나를 더 두고 대리석·큐브 탑을 세운다. 두 날개만으로는 블록 64개라
+            // 한 발에 날개 하나가 통째로 넘어갔다(남은 공 59%). 날개 사이가 좁아 날개 자체는 두껍게 할 수 없다
+            // (안쪽은 상판이 맞닿고 바깥쪽은 화면 폭). 탑은 날개보다 높아 뒤에서 보인다.
+            Vector3 cs = new Vector3(0f, 0f, 2.3f); RPlate(root, p, cs, 0f, 1.5f * DS + 0.1f, 1.1f); var bs = Top(cs);
+            foreach (float j in new[] { -0.5f, 0.5f })
+            {
+                RColAt(root, bs, 0f, -1, j, 6, BlockKind.Stone, MarbleCol, L, true);
+                RColAt(root, bs, 0f, 0, j, 6, BlockKind.Cube, PurpleCol, L, true);
+                RColAt(root, bs, 0f, 1, j, 6, BlockKind.Stone, MarbleCol, L, true);
+                RBarAt(root, bs, 0f, 0, 6, 3, BlockKind.Cube, RedCol, L, j);
+                RUnitAt(root, bs, 0f, 0, 7, 1, BlockKind.Cube, GoldCol, L, j);
             }
         }
 
@@ -2862,23 +3087,24 @@ namespace SmashGame
             var L = info.blocks; keepPlateShape = true; fixedFront = true;
             Vector3 c = Vector3.zero; float half = 2.5f * DS + 0.2f;
             RPlate(root, p, c, 45f, half, 2f * half); var b = Top(c);
-            RCol(root, b, 6, BlockKind.Stone, MarbleCol, 45f, L); RUnit(root, b + Vector3.up * 6 * DU, 1, BlockKind.Cube, GoldCol, 45f, L);
+            // 폭이 화면 한계라 옆으로는 못 늘린다. 대신 전체를 두 단씩 높였다(블록 102 → 약 140).
+            RCol(root, b, 8, BlockKind.Stone, MarbleCol, 45f, L, true); RUnit(root, b + Vector3.up * 8 * DU, 1, BlockKind.Cube, GoldCol, 45f, L);
             Vector3 u = YawDir(45f), v = YawBack(45f);
             foreach (int k in new[] { -2, -1, 1, 2 })
             {
-                RCol(root, b + u * (k * DS), 3, BlockKind.Cube, BlueCol, 45f, L, true);
-                RCol(root, b + v * (k * DS), 3, BlockKind.Crate, CrateCol, 45f, L, true);
+                RCol(root, b + u * (k * DS), 5, BlockKind.Cube, BlueCol, 45f, L, true);
+                RCol(root, b + v * (k * DS), 5, BlockKind.Crate, CrateCol, 45f, L, true);
             }
             foreach (float k in new[] { -1.5f, 1.5f })
             {
-                RBar(root, b + u * (k * DS) + Vector3.up * 3 * DU, 2, BlockKind.Cube, RedCol, 45f, L); RUnit(root, b + u * (k * DS) + Vector3.up * 4 * DU, 1, BlockKind.Cube, PurpleCol, 45f, L);
-                RBar(root, b + v * (k * DS) + Vector3.up * 3 * DU, 2, BlockKind.Cube, RedCol, -45f, L); RUnit(root, b + v * (k * DS) + Vector3.up * 4 * DU, 1, BlockKind.Cube, PurpleCol, 45f, L);
+                RBar(root, b + u * (k * DS) + Vector3.up * 5 * DU, 2, BlockKind.Cube, RedCol, 45f, L); RUnit(root, b + u * (k * DS) + Vector3.up * 6 * DU, 1, BlockKind.Cube, PurpleCol, 45f, L);
+                RBar(root, b + v * (k * DS) + Vector3.up * 5 * DU, 2, BlockKind.Cube, RedCol, -45f, L); RUnit(root, b + v * (k * DS) + Vector3.up * 6 * DU, 1, BlockKind.Cube, PurpleCol, 45f, L);
             }
             foreach (int a in new[] { -1, 1 }) foreach (int d in new[] { -1, 1 })
             {
-                RCol(root, b + u * (a * DS) + v * (d * DS), 3, BlockKind.Ice, IceCol, 45f, L, true);          // 사분면 얼음 3·2·2단 (블록 63개)
-                RCol(root, b + u * (2 * a * DS) + v * (d * DS), 2, BlockKind.Ice, IceCol, 45f, L, true);
-                RCol(root, b + u * (a * DS) + v * (2 * d * DS), 2, BlockKind.Ice, IceCol, 45f, L, true);
+                RCol(root, b + u * (a * DS) + v * (d * DS), 5, BlockKind.Ice, IceCol, 45f, L, true);          // 사분면 얼음 5·4·4단
+                RCol(root, b + u * (2 * a * DS) + v * (d * DS), 4, BlockKind.Ice, IceCol, 45f, L, true);
+                RCol(root, b + u * (a * DS) + v * (2 * d * DS), 4, BlockKind.Ice, IceCol, 45f, L, true);
             }
         }
 
@@ -4493,19 +4719,26 @@ namespace SmashGame
             }
         }
 
-        /// <summary>11 돌기둥 원진: 둥근 상판 위 반지름 1.25 원에 대리석 기둥 8·파랑 원통 8이 번갈아, 안쪽 사탕 넷, 가운데 원통 탑.</summary>
+        /// <summary>11 돌기둥 원진: 둥근 상판 위 반지름 1.3 원에 대리석 기둥 8(6단+빨강)·파랑 원통 8(5단)이 번갈아,
+        /// 안쪽 반지름 0.82 원에 사탕·큐브 기둥 8(4단)이 반 칸 엇갈려 서고, 가운데 원통 탑.
+        /// 예전 83개(바깥 원 한 줄 + 안쪽 사탕 넷)에서 안쪽 원을 한 겹 더 두르고 기둥을 높였다. 기둥은 원 중심을 향해 돌려
+        /// 이웃 기둥과 모서리가 닿지 않게 했다(현 간격 0.51 > 블록 폭 0.45).</summary>
         static void BuildN_StoneRing(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
             Pedestal(root, Vector3.zero, 1.58f, p, false, 1, 0f, 3.16f); var b = Top(Vector3.zero);
             for (int i = 0; i < 16; i++)
             {
-                float a = i * 22.5f * Mathf.Deg2Rad; Vector3 pos = b + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * 1.25f;
-                if (i % 2 == 0) { RCol(root, pos, 4, BlockKind.Stone, MarbleCol, 0f, L); RUnit(root, pos + Vector3.up * 4 * DU, 1, BlockKind.Cube, RedCol, 0f, L); }
-                else RCol(root, pos, 3, BlockKind.Cylinder, BlueCol, 0f, L, true);
+                float ad = i * 22.5f, a = ad * Mathf.Deg2Rad; Vector3 pos = b + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * 1.3f;
+                if (i % 2 == 0) { RCol(root, pos, 6, BlockKind.Stone, MarbleCol, ad, L, true); RUnit(root, pos + Vector3.up * 6 * DU, 1, BlockKind.Cube, RedCol, ad, L); }
+                else RCol(root, pos, 5, BlockKind.Cylinder, BlueCol, ad, L, true);
             }
-            for (int i = 0; i < 4; i++) { float a = (45f + 90f * i) * Mathf.Deg2Rad; RCol(root, b + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * 0.62f, 3, BlockKind.Candy, PinkCol, 0f, L); }
-            RCol(root, b, 6, BlockKind.Cylinder, BlueCol, 0f, L); RUnit(root, b + Vector3.up * 6 * DU, 1, BlockKind.Cylinder, GoldCol, 0f, L);
+            for (int i = 0; i < 8; i++)
+            {
+                float ad = i * 45f + 11.25f, a = ad * Mathf.Deg2Rad; Vector3 pos = b + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * 0.82f;
+                RCol(root, pos, 4, i % 2 == 0 ? BlockKind.Candy : BlockKind.Cube, i % 2 == 0 ? PinkCol : SlateCol, ad, L, true);
+            }
+            RCol(root, b, 6, BlockKind.Cylinder, BlueCol, 0f, L, true); RUnit(root, b + Vector3.up * 6 * DU, 1, BlockKind.Cylinder, GoldCol, 0f, L);
         }
 
         /// <summary>12 창문 벽: 7열 벽 두 겹에 창 둘(2·3단, k ±2)이 뚫리고 위에 인방 부재.</summary>
@@ -4614,19 +4847,19 @@ namespace SmashGame
             for (int k = -2; k <= 2; k += 2) RUnitAt(root, b, 0f, k + 1, rows, 1, BlockKind.Cube, RedCol, L, 0.5f);
         }
 
-        /// <summary>19 둥근 성: 둥근 상판 위 큐브 12개 링 3단(가운데를 향해 돌림), 위에 빨강 큐브, 안쪽 사탕 넷과 가운데 대리석 탑.</summary>
+        /// <summary>19 둥근 성: 둥근 상판 위 벌집 배치 성벽(바깥 12칸 링) 7단과 성가퀴, 안쪽 링은 사탕 4단 + 큐브 2단, 가운데 대리석 탑.
+        /// 예전엔 원 위에 큐브 12개를 한 줄로 세운 3단 링(블록 67개)이라 한 발에 한 면이 통째로 쓸려 나갔다(로그: 남은 공 비율 평균의 두 배).
+        /// 벌집 링은 칸끼리 면으로 맞닿아 서로 받치고, 사탕은 바깥 벽 안쪽이라 직격을 받지 않는다.</summary>
         static void BuildN_RoundCastle(Transform root, System.Random rng, Palette p, LevelInfo info)
         {
             Begin(info); var L = info.blocks;
             Pedestal(root, Vector3.zero, 1.45f, p, false, 1, 0f, 2.9f); var b = Top(Vector3.zero);
-            for (int i = 0; i < 12; i++)
-            {
-                float a = i * 30f; float ar = a * Mathf.Deg2Rad; Vector3 pos = b + new Vector3(Mathf.Sin(ar), 0f, Mathf.Cos(ar)) * 1.05f;
-                RCol(root, pos, 3, BlockKind.Cube, i % 2 == 0 ? BlueCol : PurpleCol, a, L, true);
-                RUnit(root, pos + Vector3.up * 3 * DU, 1, BlockKind.Cube, RedCol, a, L);
-            }
-            for (int i = 0; i < 4; i++) { float a = (45f + 90f * i) * Mathf.Deg2Rad; RCol(root, b + new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a)) * 0.55f, 3, BlockKind.Candy, PinkCol, 0f, L); }
-            RCol(root, b, 6, BlockKind.Stone, MarbleCol, 0f, L); RUnit(root, b + Vector3.up * 6 * DU, 1, BlockKind.Cube, GoldCol, 0f, L);
+            for (int row = 0; row < 7; row++)
+                RHexRingAt(root, b, 2.0f, 1.2f, row, 0f, BlockKind.Cube, row % 2 == 0 ? BlueCol : PurpleCol, L);   // 바깥 성벽 12칸
+            RHexRingAt(root, b, 2.0f, 1.9f, 7, 0f, BlockKind.Cube, RedCol, L);                                    // 성가퀴 6칸
+            for (int row = 0; row < 6; row++)
+                RHexRingAt(root, b, 1.0f, 0.5f, row, 0f, row < 4 ? BlockKind.Candy : BlockKind.Cube, row < 4 ? PinkCol : SlateCol, L);   // 안쪽 링 6칸
+            RCol(root, b, 7, BlockKind.Stone, MarbleCol, 0f, L, true); RUnit(root, b + Vector3.up * 7 * DU, 1, BlockKind.Cube, GoldCol, 0f, L);
         }
 
         /// <summary>20 다리: 2열 탑 둘(5단 두 겹) 위를 3칸 부재로 잇고 그 위 큐브 셋과 사탕.</summary>
