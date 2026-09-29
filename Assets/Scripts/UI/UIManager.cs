@@ -126,7 +126,7 @@ namespace SmashGame
 
             var s = gm.CurrentBallStats();
             string stars = new string('★', s.star);
-            lobbyLevelInfo.text = $"{stars}  공 파괴력 {s.power * 100:0}%  크기 {s.size * 100:0}%  탄약 +{s.ammoBonus}\n" +
+            lobbyLevelInfo.text = $"{stars}  공 파괴력 {s.power * 100:0}%  속도 {s.speed * 100:0}%  탄약 +{s.ammoBonus}\n" +
                                   $"20레벨 트랙 {d.trackProgress}/{Balance.TrackLevels}  ·  테마: {LevelBuilder.ThemeFor(d.currentLevel)}";
             lobbyStreak.text = d.winStreak > 0 ? $"연승 {d.winStreak}  (+3 공 보너스)" : "";
 
@@ -282,8 +282,8 @@ namespace SmashGame
         // ======================= 대장간 =======================
 
         Button forgeAllBtn;
-        static readonly string[] StatNames = { "파괴력", "크기", "무게", "탄약" };
-        static readonly StatType[] StatOrder = { StatType.Power, StatType.Size, StatType.Mass, StatType.Ammo };
+        static readonly string[] StatNames = { "파괴력", "속도", "무게", "탄약" };
+        static readonly StatType[] StatOrder = { StatType.Power, StatType.Speed, StatType.Mass, StatType.Ammo };
 
         void BuildForge()
         {
@@ -344,7 +344,7 @@ namespace SmashGame
             var d = gm.Data;
             var s = gm.CurrentBallStats();
             forgeCoins.text = $"코인 {d.coins:N0}";
-            forgeSummary.text = $"{new string('★', s.star)}  파괴력 {s.power * 100:0}%  ·  크기 {s.size * 100:0}%  ·  무게 {s.mass * 100:0}%  ·  탄약 +{s.ammoBonus}\n" +
+            forgeSummary.text = $"{new string('★', s.star)}  파괴력 {s.power * 100:0}%  ·  속도 {s.speed * 100:0}%  ·  무게 {s.mass * 100:0}%  ·  탄약 +{s.ammoBonus}\n" +
                                 $"권장 스탯 합계 {Balance.RecommendedStatSum(d.currentLevel)}  /  현재 {d.StatSum}";
             for (int i = 0; i < 4; i++)
             {
@@ -353,7 +353,7 @@ namespace SmashGame
                 string val = t switch
                 {
                     StatType.Power => $"{Balance.PowerMult(lv) * 100:0}% → {Balance.PowerMult(lv + 1) * 100:0}%",
-                    StatType.Size => $"{Balance.SizeMult(lv) * 100:0}% → {Balance.SizeMult(lv + 1) * 100:0}%",
+                    StatType.Speed => $"{Balance.SpeedMult(lv) * 100:0}% → {Balance.SpeedMult(lv + 1) * 100:0}%",
                     StatType.Mass => $"{Balance.MassMult(lv) * 100:0}% → {Balance.MassMult(lv + 1) * 100:0}%",
                     _ => $"+{Balance.AmmoBonus(lv)}발 → +{Balance.AmmoBonus(lv + 1)}발",
                 };

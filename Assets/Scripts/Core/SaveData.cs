@@ -14,7 +14,7 @@ namespace SmashGame
 
         // 공 스탯
         public int powerLv = 1;
-        public int sizeLv = 1;
+        public int sizeLv = 1;                // 속도 스탯 레벨 (예전 크기 스탯. 세이브 호환을 위해 필드 이름은 그대로 둔다)
         public int massLv = 1;
         public int ammoLv = 1;
 

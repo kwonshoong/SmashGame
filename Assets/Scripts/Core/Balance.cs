@@ -18,23 +18,31 @@ namespace SmashGame
         public const float BallImpulse = 15f;     // 기본 충격량 (파괴력 100% 기준). 공 자체의 물리 충돌은 거의 0이라 이 값이 밀림의 전부
 
         // ---------- 실제 물리 모드 ----------
-        // true면 공은 그냥 강체: 스탯이 곧 물리량(무게 = 질량, 파워 = 발사 속도, 크기 = 반지름, 탄성 = 반발계수)이고
+        // true면 공은 그냥 강체: 스탯이 곧 물리량(파워·무게 = 운동량, 속도 = 발사 속도, 탄성 = 반발계수)이고
         // 블록을 미는 힘·이웃 밀기·되튕김을 코드로 넣지 않는다 — PhysX 운동량 보존이 전부. false면 옛 방식(스탯 임펄스).
         public const bool RealPhysics = true;
         public const float RealBallMassBase = 1.2f;    // 무게 스탯 100% = 1.2kg (250% → 3.0kg). 블록은 칸당 0.5~1.1kg
-        public const float RealBallRadiusBase = 0.15f;  // 크기 스탯 100% = 반지름 0.15 (180% → 0.27). 0.2에서 줄임
+        public const float RealBallRadiusBase = 0.15f;  // 공 반지름 (크기 스탯을 속도 스탯으로 바꿔 고정). 0.2에서 줄임
         public const float RealBallBounce = 0.35f;     // 탄성(반발계수). 0.1 퍽 하고 죽는 공, 0.8 통통 튀는 공
         public const float RealBallLifetime = 1.5f;    // 발사 후 이 시간이 지나면 공이 사라진다. 4초에서는 굴러다니는 공이 너무 오래 남아 화면이 지저분했다
         public const float RealHitMinSpeedFrac = 0.3f; // 이 비율(발사 속도 대비)보다 느린 접촉은 "타격"(깨짐·콤보)으로 세지 않는다
-        /// <summary>파워 스탯 → 발사 속도. 100% 20, 200% 26, 300% 32</summary>
+        /// <summary>파괴력 → 공 운동량의 기준 속도(질량 × 이 값 = 운동량). 100% 20, 200% 26, 300% 32.
+        /// 예전엔 이 값이 곧 발사 속도였다. 속도 스탯이 생긴 뒤로 실제 발사 속도는 RealFlightSpeed이고, 이 값은 파괴력(운동량) 계산에만 쓴다.</summary>
         public static float RealBallSpeed(float power) => 20f * (0.7f + 0.3f * power);
+        /// <summary>속도 스탯 → 실제 발사 속도(카메라 보정 SpeedScale 전). 속도 100% = 20</summary>
+        public static float RealFlightSpeed(float speed) => 20f * Mathf.Max(0.5f, speed);   // 0(초기화 안 된 스탯)이면 질량 역산이 0으로 나뉜다
 
         // ---------- 공 스탯 (상한 없음) ----------
         // 레벨이 무한이므로 스탯도 상한이 없다. 레벨당 증가폭은 옛 Lv50 기준(파워 300%·무게 250%·탄약 +12)과 같은 기울기.
         // 강화 비용은 40×1.085^(Lv−1): Lv50 2.2k, Lv100 130k, Lv150 7.6M. 코인 보상이 레벨에 비례해 커지므로(CoinScale) 계속 강화가 된다.
         // 경제 시뮬(하루 100스테이지, 제일 싼 스탯부터 강화): 파워 Lv 100L 21 · 500L 43 · 1000L 55 · 2000L 70, 체감 난이도 1.2 → 500L 1.7 → 1000L 2.2 → 2000L 3.2.
         public static float PowerMult(int lv) => 1f + 0.0408f * (lv - 1);          // Lv50 300%, Lv100 504%
-        public static float SizeMult(int lv)  => Mathf.Min(2.0f, 1f + 0.2f * ((lv - 1) / 10));   // 10레벨마다 +20%, 200%에서 고정 (공이 블록만큼 커지면 안 된다)
+        /// <summary>속도 스탯(예전 크기 스탯 자리) → 공이 날아가는 속도 배율. 레벨당 +3%, 300%에서 고정(Lv68).
+        /// 파괴력(운동량)은 바꾸지 않는다 — 빨라진 만큼 공 질량을 나눠 운동량을 파괴력 스탯이 정한 값으로 맞춘다(Ball.Spawn).
+        /// 얻는 것: 탄도가 곧아지고 목표까지 빨리 닿아 조준이 정확해지고 움직이는 받침대를 맞히기 쉽다.
+        /// 같은 운동량이면 가벼운 공이 블록에 약간 더 많이 전달한다(Δp = (1+e)·p / (1 + m공/m블록)) — 파괴력 덤이 조금 있다.
+        /// 크기 스탯은 없앴다: 공이 커져도 맞는 블록 수가 거의 늘지 않았다(사용자 피드백).</summary>
+        public static float SpeedMult(int lv) => Mathf.Min(3.0f, 1f + 0.03f * (lv - 1));   // Lv20 157%, Lv50 247%
         public static float MassMult(int lv)  => 1f + 0.0306f * (lv - 1);          // Lv50 250%
         public static int   AmmoBonus(int lv) => Mathf.RoundToInt(0.245f * (lv - 1)); // Lv50 +12
         public static int   StarRank(int lv)  => Mathf.Clamp((lv - 1) / 10 + 1, 1, 5);

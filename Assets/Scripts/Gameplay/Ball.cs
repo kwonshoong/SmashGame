@@ -4,7 +4,7 @@ namespace SmashGame
 {
     /// <summary>
     /// 대포에서 발사되는 공. 첫 충돌에서 충격량을 전달하고 사라진다(레퍼런스와 동일).
-    /// 파괴력·크기·무게 스탯이 여기서 물리에 반영된다.
+    /// 파괴력·속도·무게 스탯이 여기서 물리에 반영된다.
     /// </summary>
     public class Ball : MonoBehaviour
     {
@@ -34,8 +34,8 @@ namespace SmashGame
         public const float PedestalBounceKeep = 0.97f;   // 받침대에 튈 때 유지되는 속도 비율 (감소량 3%)
         static PhysicsMaterial ballPhysics; // 발사 후 공이 사라지기까지의 시간(충돌 여부와 무관)
         public static float Speed => Balance.BallSpeed;
-        /// <summary>이 스탯으로 쏘는 발사 속도 (실제 물리 모드는 파워 스탯이 곧 속도)</summary>
-        public static float SpeedFor(BallStats s) => (Balance.RealPhysics ? Balance.RealBallSpeed(s.power) : Balance.BallSpeed) * Cannon.SpeedScale;
+        /// <summary>이 스탯으로 쏘는 발사 속도 (실제 물리 모드는 속도 스탯이 정한다. 파괴력은 질량 쪽으로 들어간다)</summary>
+        public static float SpeedFor(BallStats s) => (Balance.RealPhysics ? Balance.RealFlightSpeed(s.speed) : Balance.BallSpeed) * Cannon.SpeedScale;
         static PhysicsMaterial realPhysics;
         static float BaseImpulse => Balance.BallImpulse;
 
@@ -44,7 +44,7 @@ namespace SmashGame
             var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.name = "Ball";
             { int bl = LayerMask.NameToLayer("Ball"); if (bl >= 0) go.layer = bl; }   // 파편과 충돌하지 않는 레이어
-            float radius = (Balance.RealPhysics ? Balance.RealBallRadiusBase : 0.22f) * stats.size;
+            float radius = Balance.RealPhysics ? Balance.RealBallRadiusBase : 0.22f;
             go.transform.position = from;
             go.transform.localScale = Vector3.one * radius * 2f;
             go.GetComponent<Renderer>().material = Materials.Get(BallColor(stats.star), true);
@@ -60,7 +60,9 @@ namespace SmashGame
                 // 같은 레벨을 절반의 공으로 깨게 됐다(발당 총 운동량 실측 52.8 -> 71.4).
                 // 속도를 올린 만큼 질량을 나눠 운동량을 예전 값으로 되돌린다.
                 // 날아가는 속도(= 시원한 느낌)는 그대로 두고 파괴력만 원복하는 것.
-                rb.mass = Balance.RealBallMassBase * stats.mass / Cannon.SpeedScale;
+                // 속도 스탯이 생긴 뒤: 날아가는 속도는 속도 스탯, 운동량은 파괴력·무게 스탯이 정한다.
+                // 운동량 = RealBallMassBase × 무게 × RealBallSpeed(파괴력) (속도 스탯 도입 전과 같은 값)이 되도록 질량을 역산한다.
+                rb.mass = Balance.RealBallMassBase * stats.mass * Balance.RealBallSpeed(stats.power) / SpeedFor(stats);
                 if (realPhysics == null)
                     realPhysics = new PhysicsMaterial("BallReal") { bounciness = Balance.RealBallBounce, dynamicFriction = 0.4f, staticFriction = 0.4f,
                         bounceCombine = PhysicsMaterialCombine.Average, frictionCombine = PhysicsMaterialCombine.Average };
@@ -205,7 +207,7 @@ namespace SmashGame
             Vector3 dir = lastVelocity.sqrMagnitude > 0.01f ? lastVelocity.normalized : transform.forward;
             Vector3 point = c.GetContact(0).point;
             float impulse = BaseImpulse * stats.power * Mathf.Sqrt(stats.mass) * energy;
-            float radius = 0.4f * stats.size;   // 튐 반경: 크기 스탯 1에서는 직접 맞은 블록 위주, 이웃은 약하게 (이웃까지 같이 밀리면 한 덩어리처럼 보인다)
+            float radius = 0.4f;   // 튐 반경: 크기 스탯 1에서는 직접 맞은 블록 위주, 이웃은 약하게 (이웃까지 같이 밀리면 한 덩어리처럼 보인다)
             int dmg = Mathf.Max(1, Mathf.CeilToInt(stats.power - 0.01f));
 
             // 되튕김 계산에 쓸 값은 블록이 부서지기(Hit) 전에 읽어 둔다

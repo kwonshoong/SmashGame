@@ -39,7 +39,7 @@ namespace SmashGame
         {
             if (inst == null) return;
             inst.shotIndex++;
-            inst.sb.AppendLine($"SHOT #{inst.shotIndex} t={Time.time:F3} from={V(from)} target={V(target)} power={stats.power:F2} size={stats.size:F2} mass={stats.mass:F2}");
+            inst.sb.AppendLine($"SHOT #{inst.shotIndex} t={Time.time:F3} from={V(from)} target={V(target)} power={stats.power:F2} speed={stats.speed:F2} mass={stats.mass:F2}");
         }
 
         public static void Hit(Block direct, Vector3 point, Vector3 dir, float impulse, float combo, Vector3 ballVelBefore, Vector3 ballVelAfter)

@@ -183,7 +183,7 @@ namespace SmashGame
         {
             if (previewBall == null) return;
             previewBall.localPosition = new Vector3(0, 0, 0.72f);
-            previewBall.localScale = Vector3.one * 0.44f * stats.size;
+            previewBall.localScale = Vector3.one * 0.44f;
             previewBall.GetComponent<Renderer>().material = Materials.Get(Ball.BallColor(stats.star), true);
         }
 

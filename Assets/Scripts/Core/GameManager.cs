@@ -6,7 +6,7 @@ using UnityEngine.Rendering.Universal;
 namespace SmashGame
 {
     public enum GameState { Lobby, Playing, Result }
-    public enum StatType { Power, Size, Mass, Ammo }
+    public enum StatType { Power, Speed, Mass, Ammo }   // Speed는 예전 Size 자리(세이브의 sizeLv를 그대로 쓴다)
 
     /// <summary>
     /// 게임 전체 상태와 경제를 관리하는 싱글턴. 씬에 아무것도 없어도 Bootstrap이 생성한다.
@@ -449,7 +449,7 @@ namespace SmashGame
         public int GetStatLevel(StatType t) => t switch
         {
             StatType.Power => Data.powerLv,
-            StatType.Size => Data.sizeLv,
+            StatType.Speed => Data.sizeLv,
             StatType.Mass => Data.massLv,
             _ => Data.ammoLv,
         };
@@ -471,7 +471,7 @@ namespace SmashGame
             switch (t)
             {
                 case StatType.Power: Data.powerLv++; break;
-                case StatType.Size: Data.sizeLv++; break;
+                case StatType.Speed: Data.sizeLv++; break;
                 case StatType.Mass: Data.massLv++; break;
                 case StatType.Ammo: Data.ammoLv++; break;
             }
@@ -480,7 +480,7 @@ namespace SmashGame
             return true;
         }
 
-        static readonly StatType[] AllStats = { StatType.Power, StatType.Size, StatType.Mass, StatType.Ammo };
+        static readonly StatType[] AllStats = { StatType.Power, StatType.Speed, StatType.Mass, StatType.Ammo };
 
         /// <summary>네 스탯을 한 칸씩 올리는 데 드는 코인 합계.
         /// 강화 비용은 스탯마다 현재 레벨에 따라 다르므로(40 x 1.085^(Lv-1)) 그때그때 더해야 한다.</summary>
@@ -506,7 +506,7 @@ namespace SmashGame
                 switch (t)
                 {
                     case StatType.Power: Data.powerLv++; break;
-                    case StatType.Size: Data.sizeLv++; break;
+                    case StatType.Speed: Data.sizeLv++; break;
                     case StatType.Mass: Data.massLv++; break;
                     case StatType.Ammo: Data.ammoLv++; break;
                 }
@@ -520,7 +520,7 @@ namespace SmashGame
         public BallStats CurrentBallStats() => new BallStats
         {
             power = Balance.PowerMult(Data.powerLv),
-            size = Balance.SizeMult(Data.sizeLv),
+            speed = Balance.SpeedMult(Data.sizeLv),
             mass = Balance.MassMult(Data.massLv),
             ammoBonus = Balance.AmmoBonus(Data.ammoLv),
             star = Balance.StarRank((Data.powerLv + Data.sizeLv + Data.massLv + Data.ammoLv) / 4),
@@ -563,7 +563,7 @@ namespace SmashGame
     public struct BallStats
     {
         public float power;
-        public float size;
+        public float speed;   // 공이 날아가는 속도 배율 (예전 size 자리)
         public float mass;
         public int ammoBonus;
         public int star;
