@@ -37,12 +37,14 @@ namespace SmashGame
         // 강화 비용은 40×1.085^(Lv−1): Lv50 2.2k, Lv100 130k, Lv150 7.6M. 코인 보상이 레벨에 비례해 커지므로(CoinScale) 계속 강화가 된다.
         // 경제 시뮬(하루 100스테이지, 제일 싼 스탯부터 강화): 파워 Lv 100L 21 · 500L 43 · 1000L 55 · 2000L 70, 체감 난이도 1.2 → 500L 1.7 → 1000L 2.2 → 2000L 3.2.
         public static float PowerMult(int lv) => 1f + 0.0408f * (lv - 1);          // Lv50 300%, Lv100 504%
-        /// <summary>속도 스탯(예전 크기 스탯 자리) → 공이 날아가는 속도 배율. 레벨당 +3%, 300%에서 고정(Lv68).
+        /// <summary>속도 스탯(예전 크기 스탯 자리) → 공이 날아가는 속도 배율. 레벨당 +1.2%, 200%에서 고정(Lv84).
+        /// 처음엔 +3%(Lv20 157%)였는데 너무 빨랐다(사용자 피드백). +1.2%면 Lv20 123%로, 속도 스탯 도입 전
+        /// 파괴력이 속도를 올리던 때(Lv20 발사 속도 36.2)와 거의 같다(36.0).
         /// 파괴력(운동량)은 바꾸지 않는다 — 빨라진 만큼 공 질량을 나눠 운동량을 파괴력 스탯이 정한 값으로 맞춘다(Ball.Spawn).
         /// 얻는 것: 탄도가 곧아지고 목표까지 빨리 닿아 조준이 정확해지고 움직이는 받침대를 맞히기 쉽다.
         /// 같은 운동량이면 가벼운 공이 블록에 약간 더 많이 전달한다(Δp = (1+e)·p / (1 + m공/m블록)) — 파괴력 덤이 조금 있다.
         /// 크기 스탯은 없앴다: 공이 커져도 맞는 블록 수가 거의 늘지 않았다(사용자 피드백).</summary>
-        public static float SpeedMult(int lv) => Mathf.Min(3.0f, 1f + 0.03f * (lv - 1));   // Lv20 157%, Lv50 247%
+        public static float SpeedMult(int lv) => Mathf.Min(2.0f, 1f + 0.012f * (lv - 1));   // Lv20 123%, Lv50 159%
         public static float MassMult(int lv)  => 1f + 0.0306f * (lv - 1);          // Lv50 250%
         public static int   AmmoBonus(int lv) => Mathf.RoundToInt(0.245f * (lv - 1)); // Lv50 +12
         public static int   StarRank(int lv)  => Mathf.Clamp((lv - 1) / 10 + 1, 1, 5);
